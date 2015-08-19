@@ -4,11 +4,11 @@ import re
 
 class Locus(object):
     def __init__(self, chrom, start, end=None, name=None, window=0, sub_loci=None, **kwargs):
-        self.name = name
-        self.chrom = chrom
+        self._name = name
+        self._chrom = chrom
         self._start = int(start)
         self._end = int(end) if end is not None else int(start)
-        self.window = int(window)
+        self._window = int(window)
         self.attr = kwargs
         self.sub_loci = set(sub_loci) if sub_loci is not None else set()
         #  Warn us if something seems off
@@ -17,10 +17,10 @@ class Locus(object):
 
     def as_dict(self):
         return {
-            'name'    : self.name,
-            'chrom' : self.chrom,
-            'start' : self.start,
-            'end'   : self.end
+            'name'  : self._name,
+            'chrom' : self._chrom,
+            'start' : self._start,
+            'end'   : self._end
         }
 
     def as_record(self):
@@ -41,6 +41,20 @@ class Locus(object):
         return max(0,int(self._start))
 
     @property
+    def name(self):
+        return self._name
+    def set_name(self,name):
+        self._name = name
+
+    @property
+    def chrom(self):
+        return self._chrom
+
+    @property
+    def window(self):
+        return self._window
+
+    @property
     def end(self):
         return int(self._end)
 
@@ -59,7 +73,7 @@ class Locus(object):
 
     @property
     def id(self):
-        return self.name
+        return self._name
         # Make sure this doesn't break anything
         # return "{}:{}:{}:{}".format(self.name,self.chrom,self.start,self.end)
 
@@ -67,6 +81,9 @@ class Locus(object):
         ''' collapse two loci into a new 'meta' locus. The start is the min
         between the two loci and the window extends within as well as 1/2
         upstream and downstream of the original window sizes '''
+        # sum function adds in a zero for some crazy reason
+        if isinstance(locus,int):
+            return self
         # must be on the same chromosome to collapse
         if self-locus == float('Inf'):
             raise TypeError('Loci must be on same chromosome to collapse.')
@@ -74,8 +91,10 @@ class Locus(object):
         new_end = int(max(self.end,locus.end))
         new_window = self.window
         new_id = str(self.id)+';'+str(locus.id)
-        new_sub_loci = self.sub_loci | locus.sub_loci | set([self.id, locus.id])
+        new_sub_loci = self.sub_loci | locus.sub_loci | set([self, locus])
         return Locus(self.chrom,new_start,new_end,window=new_window,sub_loci=new_sub_loci)
+    def __radd__(self,locus):
+        return self + locus
     
     def __eq__(self,locus):
         if (self.chrom == locus.chrom and
@@ -122,7 +141,9 @@ class Locus(object):
         if self.chrom != other.chrom:
             return float('Inf')
         else:
-            return self.start - other.start
+            # sort them
+            a,b = sorted([self,other])
+            return b.start - a.end
     def __str__(self):
         return '''<{}>{}:{}-{}+{}'''.format(self.id,self.chrom,self.start,self.end,self.window)
     def __repr__(self):
