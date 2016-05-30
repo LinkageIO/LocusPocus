@@ -53,6 +53,7 @@ LocusPocus Model
 Use Cases
 ---------
 ![locus pocus use cases](img/UseCases.png)
+
 Many canonical genomic structures can be represented by extending a basic
 locus. Genes are named loci with strand information, SNPs are single base pair
 with allele information. Simple relational algebra makes comparisons between
@@ -67,7 +68,7 @@ operator.
 
 Examples
 --------
-![locus pocus examples](img/Examples.png)
+![locus pocus examples](img/Example.png)
 
 
 License
