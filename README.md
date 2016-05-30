@@ -1,5 +1,7 @@
 # LocusPocus - Genetic coordinates so simple, it feels like MAGIC!
 
+![locus pocus use cases](img/UseCases.png)
+
 A sequenced reference genome establishes a genetic coordinate system in which
 sequencing technologies can relate various genomic features. However, the
 genetic coordinate unit, or locus, is not well represented by common data
