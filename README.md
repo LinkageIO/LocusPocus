@@ -1,5 +1,6 @@
 # LocusPocus - Genetic coordinates so simple, it feels like MAGIC!
 
+
 ![locus pocus use cases](img/UseCases.png)
 
 A sequenced reference genome establishes a genetic coordinate system in which
