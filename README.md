@@ -68,7 +68,7 @@ operator.
 
 Examples
 --------
-![locus pocus examples](img/Example.png)
+![locus pocus examples](img/Examples.png)
 
 
 License
