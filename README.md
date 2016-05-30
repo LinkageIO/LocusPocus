@@ -28,6 +28,10 @@ operators makes code more readable and less prone to bugs. The latest version
 of LocusPocus can be found on PyPi. Upstream development can be accessed via
 GitHub: https://github.com/schae234/LocusPocus.
 
+LocusPocus Model
+----------------
+![locuspocus model](img/model.png)
+
 
 License
 -------
