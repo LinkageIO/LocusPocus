@@ -376,7 +376,7 @@ class Locus(object):
         if self.start == self.end:
             return 1
         else:
-            return self.end - self.start + 1
+            return self.end - self.start
 
     def __cmp__(self,locus):
         '''
@@ -411,7 +411,7 @@ class Locus(object):
             bool 
         '''
         if self.chrom == locus.chrom:
-            if self.start == locus.start
+            if self.start == locus.start:
                 return self.end < locus.end
             return self.start < locus.start
         else:
@@ -493,8 +493,8 @@ class Locus(object):
         ]).format(
             self._id, self.chrom,
             self.start, self.end,
-            self.window, len(self.attrs)
-            len(self.sub_loci)-1
+            self.window, len(self.attrs),
+            len(self.sub_loci)
         )
 
     def __repr__(self):
