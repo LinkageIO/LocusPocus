@@ -1,0 +1,19 @@
+language: python
+python:
+  - "3.4"
+# command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
+
+# Install packages
+env:
+  - LD_LIBRARY_PATH=$HOME/.locuspocus/lib:$LD_LIBRARY_PATH PATH=$HOME/.locuspocus/bin:$HOME/.locuspocus/conda/bin:$PATH
+install:
+  - ./install.sh
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - conda info -a
+# command to run tests, e.g. python setup.py test
+script:  
+  - source $HOME/.locuspocus/conda/bin/activate locuspocus
+  - export PATH=/home/travis/.locuspocus/bin/:$PATH
+  - py.test tests -v  
