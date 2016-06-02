@@ -1,102 +1,334 @@
 #!/usr/bin/python3
 from collections import defaultdict
+from itertools import chain
+
+import hashlib
 import re
 
 class Locus(object):
-    def __init__(self, chrom, start, end=None, name=None, window=0, sub_loci=None, **kwargs):
-        self._name = name
-        self._chrom = chrom
+    def __init__(self, chrom, start, end=None, 
+                 id=None, window=0, sub_loci=None, **kwargs):
+        '''
+        
+        '''
+        # Intelligently assign an ID, which is not required 
+        if id is None or id.startswith('<None>'):
+            self._id = None
+        else:
+            self._id = id
+        # Chromosomes are strings
+        self.chrom = str(chrom)
+        # Postitions are integers
         self._start = int(start)
         self._end = int(end) if end is not None else int(start)
-        self._window = int(window)
+        # Implement an optional window around the start and stop
+        # This is used to collapse SNPs and to perform the upstream and downstream methods
+        self.window = int(window)
+        # Keep a dictionary for special locus attributes
         self.attr = kwargs
+        # Loci can also have sub loci (for exons, snps, etc)
         self.sub_loci = set(sub_loci) if sub_loci is not None else set()
+        if len(self.sub_loci) == 0:
+            self.sub_loci.add(self)
         #  Warn us if something seems off
         if self._start > self._end:
             raise ValueError("Wonky start and stop positions for: {}".format(self))
 
     def as_dict(self):
-        return {
-            'name'  : self._name,
-            'chrom' : self._chrom,
-            'start' : self._start,
-            'end'   : self._end
+        '''
+            Return the Locus information as a dictionary
+
+            Parameters
+            ----------
+            None!
+
+            Returns
+            -------
+            a python dictionary
+
+        '''
+        a_dict = {
+            'name'  : self.name,
+            'chrom' : self.chrom,
+            'start' : self.start,
+            'end'   : self.end
         }
+        a_dict.update(self.attr)
+        return a_dict
+
+    @property
+    def id(self):
+        '''
+            Return the Locus id
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            id : string
+        '''
+        if self._id is None:
+            return '''<{}>{}:{}-{}'''.format(
+                self._id, self.chrom,
+                self.start, self.end
+            )
+        else:
+            return self._id
+
+    def update(self,dict):
+        '''
+            updates the attr attribute with values from the dictionary
+
+            Parameters
+            ----------
+            dict : python dictionary
+                Key value pairs to update
+
+            Returns
+            -------
+            None
+        '''
+        self.attr.update(dict)
+        return self
+
 
     def as_record(self):
+        '''
+            Returns the Locus as a record. 
+            NOTE: does not include Locus attributes. See Locus.as_dict()
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            A tuple containing Locus information
+        '''
         return (self.chrom,self.start,self.end,self.name,self.window,self.id)
 
     @classmethod
     def from_record(cls,tpl):
+        '''
+            Creates a Locus object from a record.
+
+            Parameters
+            ----------
+            record : tuple
+                Tuple containing Locus information.
+            
+            Returns
+            -------
+            Locus object
+
+        '''
         return cls(*tpl)
 
     def __setitem__(self,key,val):
-        self.attr[key] = val
+        '''
+            Set a Locus attribute.
+
+            Parameters
+            ----------
+            key : str 
+                Attribute name.
+            val : object
+                Attribute value.
+
+            Returns
+            -------
+            None
+        '''
+        self.attr[str(key)] = val
 
     def __getitem__(self,key):
+        '''
+            Retrieve a Locus attribute.
+
+            Parameters
+            ----------
+            key : str
+                Attribute name.
+            
+            Returns
+            -------
+            val : object
+                Attribute value.
+        '''
         return self.attr[key]
+
+    def default_getitem(self,key,default=None):
+        ''' 
+            Return a default value if the attr[key] value is None
+
+            Parameters
+            ----------
+            key : str
+                Attribute name.
+            default : str (default: None)
+                A default value to return if the key is not present
+                in the Locus attribute table.
+                
+            Returns
+            -------
+            val : object
+                Attribute value of default value.
+        '''
+        if self[key] is None:
+            return default
+        else:
+            return self[key]
 
     @property
     def start(self):
+        '''
+            Return the locus start value.
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            The Locus start position. 
+            NOTE: the minimum return value is 0
+        '''
         return max(0,int(self._start))
 
     @property
-    def name(self):
-        return self._name
-    def set_name(self,name):
-        self._name = name
-
-    @property
-    def chrom(self):
-        return self._chrom
-
-    @property
-    def window(self):
-        return self._window
-
-    @property
     def end(self):
+        '''
+            Return the locus end value.
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            The locus end position.
+
+        '''
         return int(self._end)
 
     @property
     def coor(self):
-        ''' returns a tuple with start and stop '''
+        ''' 
+            Returns Locus start and stop positions
+        
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            A len(2) tuple containing the start and stop positions
+
+        '''
         return (self.start,self.end)
 
     @property
     def upstream(self):
+        '''
+            Returns the starting position considered upstream of the Locus
+            NOTE: Locus.window must be set for value to be different from
+                  the locus start position.
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            The upstream position from the locus (based on locus window)
+
+        '''
         return self.start - self.window
 
     @property
     def downstream(self):
+        '''
+            Returns the starting position considered downstream of the Locus
+            NOTE: Locus.window must be set for value to be different from
+                  the locus start position.
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            The downstream position from the locus (based on locus window)
+
+        '''
         return self.end + self.window
 
     @property
-    def id(self):
-        return self._name
-        # Make sure this doesn't break anything
-        # return "{}:{}:{}:{}".format(self.name,self.chrom,self.start,self.end)
+    def name(self):
+        '''
+            A convenience method to access a Locus id
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            The locus id (name)
+        '''
+        return self.id
 
     def __add__(self,locus):
-        ''' collapse two loci into a new 'meta' locus. The start is the min
-        between the two loci and the window extends within as well as 1/2
-        upstream and downstream of the original window sizes '''
-        # sum function adds in a zero for some crazy reason
-        if isinstance(locus,int):
-            return self
+        ''' 
+            Collapse two loci into a new 'meta' locus. The start is the min
+            between the two loci and the window extends within as well as 1/2
+            upstream and downstream of the original window sizes
+            
+            e.g. Locus(1,10,20) + Locus(1,30,40)
+
+            Parameters
+            ----------
+            locus : another Locus object
+
+            Returns
+            -------
+            a **new** Locus object containing the original loci as 
+            sub-loci
+
+        '''
         # must be on the same chromosome to collapse
         if self-locus == float('Inf'):
             raise TypeError('Loci must be on same chromosome to collapse.')
         new_start = int(max(0,min(self.start,locus.start)))
         new_end = int(max(self.end,locus.end))
         new_window = self.window
-        new_id = str(self.id)+';'+str(locus.id)
-        new_sub_loci = self.sub_loci | locus.sub_loci | set([self, locus])
-        return Locus(self.chrom,new_start,new_end,window=new_window,sub_loci=new_sub_loci)
-    def __radd__(self,locus):
-        return self + locus
-    
+        # This can be a list, since set gets called anyways
+        new_sub_loci = self.sub_loci | locus.sub_loci
+
+        return Locus(
+            self.chrom, new_start, new_end,
+            window=new_window, sub_loci=new_sub_loci
+        )
+
     def __eq__(self,locus):
+        '''
+           Operator to compare equality of two Loci. They must share the
+           same coordinates (chrom, start, end), everything else can differ.
+           i.e.: Names or attrs can differ b/w loci
+
+           e.g. Locus(1,10,100) == Locus(1,10,200) -> False
+                Locus(1,10,100) == Locus(1,10,100) -> True
+
+           Parameters
+           ----------
+           locus : another Locus object
+
+           Returns
+           -------
+           bool : True if the same, else False
+        '''
         if (self.chrom == locus.chrom and
             self.start == locus.start and
             self.end == locus.end):
@@ -105,6 +337,22 @@ class Locus(object):
             return False
 
     def __contains__(self,locus):
+        '''
+            Test if a locus is within another locus, i.e. overalapping.
+            NOTE: this function includes the locus **window** in the 
+                  calculation, the loci do not need to properly overlap,
+                  however this case can be coverered by setting the 
+                  locus window to 0.
+
+            Parameters
+            ----------
+            locus : another Locus object
+
+            Returns
+            -------
+            bool : True or False 
+
+        '''
         if (locus.chrom == self.chrom and
                # The locus has as 'start' position within the Locus window
                (( locus.upstream >= self.upstream and locus.upstream <= self.downstream)
@@ -117,43 +365,174 @@ class Locus(object):
 
 
     def __len__(self):
-        ''' inclusive length of locus '''
-        return self.end - self.start + 1
+        ''' 
+            Return the inclusive length of locus 
+
+            Returns
+            -------
+            The length of the locus (plus 1 bp)
+            
+        '''
+        if self.start == self.end:
+            return 1
+        else:
+            return self.end - self.start + 1
 
     def __cmp__(self,locus):
+        '''
+            Operator to compare the positions of two loci.
+
+            Parameters
+            ----------
+            locus : a Locus object
+
+            Returns
+            -------
+            a positive or negative number based on orientation,
+            a.k.a. what is expected by python to do sorting
+        '''
         if self.chrom == locus.chrom:
             return self.start - locus.start
         elif self.chrom > locus.chrom:
             return 1
         else:
             return -1
+
     def __lt__(self,locus):
+        '''
+            Operator to test if a locus is upstream from another locus
+
+            Parameters
+            ----------
+            locus : a locus, which is tested to be upstream
+
+            Returns
+            -------
+            bool 
+        '''
         if self.chrom == locus.chrom:
-            return self.start < locus.start    
+            if self.start == locus.start
+                return self.end < locus.end
+            return self.start < locus.start
         else:
             return self.chrom < locus.chrom
+
     def __gt__(self,locus):
+        '''
+            Operator to test if a locus is downstream from another locus
+
+            Parameters
+            ----------
+            locus : a locus, which is tested to be downstream
+
+            Returns
+            -------
+            bool
+
+        '''
         if self.chrom == locus.chrom:
             return self.start > locus.start
         else:
             return self.chrom > locus.chrom
+
     def __sub__(self,other):
+        '''
+            Return the inter-locus distance between two loci.
+
+            Parameters
+            ----------
+            locus : a locus object
+
+            Returns
+            -------
+            int : the distance between two loci
+        '''
         if self.chrom != other.chrom:
             return float('Inf')
+        if self == other:
+            return 0
         else:
             # sort them
             a,b = sorted([self,other])
             return b.start - a.end
+
     def __str__(self):
-        return '''<{}>{}:{}-{}+{}'''.format(self.id,self.chrom,self.start,self.end,self.window)
+        '''
+            Return a string representation of the Locus
+
+            Returns
+            -------
+            str
+        '''
+        return '''<{}>{}:{}-{}+{}({})'''.format(
+            self._id, self.chrom,
+            self.start, self.end,
+            self.window, len(self.sub_loci)-1
+        )
+
+    def summary(self):
+        '''
+            Return summary information about a locus
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            A printable string with Locus info
+        '''
+        return '\n'.join([
+            'ID: {}',
+            'Chromosome: {}',
+            'Start Position: {}',
+            'End Position: {}',
+            'Window Size: {}',
+            'Additional attributes: {}'
+            'Sub Loci: {}'
+        ]).format(
+            self._id, self.chrom,
+            self.start, self.end,
+            self.window, len(self.attrs)
+            len(self.sub_loci)-1
+        )
+
     def __repr__(self):
+        '''
+           A convenience method for iPython 
+        '''
         return str(self)
+
     def __hash__(self):
-        try:
-            return int("{}{}".format(self.chrom,self.start))
-        except ValueError as e:
-            return int("-{}".format(abs(self.start)))
+        '''
+            Convert the locus to a hash, uses md5.
+
+            Parameters
+            ----------
+            None
+    
+            Returns
+            -------
+            str : md5 hash of locus
+
+        '''
+        digest = hashlib.md5(
+            str.encode(str(self))
+        ).hexdigest()
+        return int(digest,base=16)
 
 class Gene(Locus):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
+
+    def as_dict(self):
+        a_dict = {
+            'gene'  : self.name,
+            'chrom' : self.chrom,
+            'start' : self.start,
+            'end'   : self.end
+        }
+        a_dict.update(self.attr)
+        return a_dict
+
+
