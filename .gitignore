@@ -1,0 +1,9 @@
+*.pyc
+*.swp
+*.swo
+*.pdx
+.cache/*
+build/*
+dist/*
+locuspocus.egg-info/*
+__pycache__
