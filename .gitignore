@@ -2,8 +2,10 @@
 *.swp
 *.swo
 *.pdx
+*.pyc
 .cache/*
+*__pycache__/*
+tests/__pycache__*
 build/*
 dist/*
 locuspocus.egg-info/*
-__pycache__
