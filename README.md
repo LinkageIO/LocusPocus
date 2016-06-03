@@ -112,7 +112,7 @@ Alternatively, you can run the normal `setup.py` script.
     cd LocusPocus
     # run the setup script
     python setup.py install --user
-``
+```
 
 License
 -------
