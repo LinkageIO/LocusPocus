@@ -88,7 +88,8 @@ then
     echo "Making the conda virtual environment named $NAME in $BASE"
     conda remove -y --name $NAME --all
     conda config --add envs_dirs $BASE/conda/envs
-    conda create -y -n $NAME --no-update-deps python=3.5 setuptools pip pytest
+    conda create -y -n $NAME --no-update-deps python=3.5 setuptools pip pytest \
+        Cython numpy scipy
 else
     green 'conda already installed'
 fi
