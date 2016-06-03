@@ -95,7 +95,7 @@ You will need to add a few lines to your .bashrc in order for the conda
 environment to be available from your shell.
 
 e.g.:
-```
+```{bash}
     # Assuming your installed camoco to ~/.camoco
     export LD_LIBRARY_PATH=~/.locuspocus/lib/:$LD_LIBRARY_PATH
     export PATH=$BASE/bin:~/.locuspocus/conda/bin/:$PATH
