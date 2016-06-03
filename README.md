@@ -71,6 +71,49 @@ Examples
 ![locus pocus examples](img/Examples.png)
 
 
+Installation
+------------
+
+### Conda Virtual Environment
+Running the included installation script will install LocusPocus into its own
+python virtual environment. **Note:**This script will download and install files
+into your home directory under `~/.locuspocus`. 
+
+```{bash}
+    # Download the repo
+    git clone git@github.com:schae234/LocusPocus.git
+    # Change directories
+    cd LocusPocus
+    # Run the install script
+    ./install.sh
+    # Activate the conda virtual environment
+    source activate locuspocus
+    # locus pocus should be importable via python!
+```
+
+You will need to add a few lines to your .bashrc in order for the conda
+environment to be available from your shell.
+
+e.g.:
+```
+    # Assuming your installed camoco to ~/.camoco
+    export LD_LIBRARY_PATH=~/.locuspocus/lib/:$LD_LIBRARY_PATH
+    export PATH=$BASE/bin:~/.locuspocus/conda/bin/:$PATH
+```
+
+
+### python setup.py file
+Alternatively, you can run the normal `setup.py` script.
+
+```{bash}
+    # Download the repo
+    git clone git@github.com:schae234/LocusPocus.git
+    # Change directories
+    cd LocusPocus
+    # run the setup script
+    python setup.py install --user
+``
+
 License
 -------
 LocusPocus is freely available under the MIT license, see LICENSE for more info
