@@ -4,12 +4,13 @@ from itertools import chain
 
 import hashlib
 import re
+import pandas as pd
 
 class Locus(object):
     def __init__(self, chrom, start, end=None, 
                  id=None, window=0, sub_loci=None, **kwargs):
         '''
-        
+            A genetic coordinate class.
         '''
         # Intelligently assign an ID, which is not required 
         if id is None or id.startswith('<None>'):
@@ -21,18 +22,24 @@ class Locus(object):
         # Postitions are integers
         self._start = int(start)
         self._end = int(end) if end is not None else int(start)
+       
         # Implement an optional window around the start and stop
-        # This is used to collapse SNPs and to perform the upstream and downstream methods
+        # This is used to collapse SNPs and to perform the 
+        # upstream and downstream methods
         self.window = int(window)
         # Keep a dictionary for special locus attributes
         self.attr = kwargs
+        
         # Loci can also have sub loci (for exons, snps, etc)
         self.sub_loci = set(sub_loci) if sub_loci is not None else set()
         if len(self.sub_loci) == 0:
             self.sub_loci.add(self)
         #  Warn us if something seems off
         if self._start > self._end:
-            raise ValueError("Wonky start and stop positions for: {}".format(self))
+            raise ValueError(
+                "Wonky start and stop positions for: {}".format(self)
+            )
+
 
     def as_dict(self):
         '''
@@ -48,7 +55,7 @@ class Locus(object):
 
         '''
         a_dict = {
-            'name'  : self.name,
+            'id'    : self.id,
             'chrom' : self.chrom,
             'start' : self.start,
             'end'   : self.end
