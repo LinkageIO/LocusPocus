@@ -20,6 +20,4 @@ setup(
     description = 'Genetic coordinates so easy, it seems like MAGIC!',
     license = "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License",
     url = 'https://github.com/schae234/LocusPocus',
-
-
 )
