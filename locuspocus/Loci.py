@@ -1,13 +1,10 @@
 #!/usr/bin/python3
-import camoco.RefGenDist as RefGenDist
+import locuspocus.LocusDist as LocusDist
 
 from collections import defaultdict
 
 from .Locus import Gene,Locus
-from .Chrom import Chrom
-from .Genome import Genome
-from .Tools import memoize,rawFile
-from .Exceptions import CamocoZeroWindowError
+from .Exceptions import ZeroWindowError
 
 import itertools
 import collections
@@ -21,30 +18,56 @@ import re
 
 
 class Loci(object):
-    def __init__(self,name):
-        self.loci = pd.DataFrame()
+    '''
+        Just a bunch of Locuses.        
+    '''
+    def __init__(self):
+        self.loci = pd.DataFrame(
+            columns=[
+                pd.Series([],name='chrom',dtype='object'),
+                pd.Series([],name='start',dtype='int'),
+                pd.Series([],name='end',dtype='int'),
+                pd.Series([],name='id',dtype='object'),
+                pd.Series([],name='window',dtype='int')
+            ]
+        )
         self.loci_attrs = pd.DataFrame()
+        self.sub_loci = pd.DataFrame()
 
+    def append(self,locus):
+        if isinstance(locus,Locus):
+            self.loci = self.loci.append(locus.as_dict(),ignore_index=True)
+        else:
+            # support adding iterables of loci
+            loci = iter(locus)
+            self.loci = self.loci.append(
+                [locus.as_dict() for locus in loci],
+                ignore_index=True
+            )
 
-#   def Gene(self,chrom,start,end,name,window=0,sub_loci=None,**kwargs):
-#       '''
-#           Returns a gene object including kwargs 
-#       '''
-#       attrs = dict(self.db.cursor().execute('''
-#           SELECT key,val FROM gene_attrs WHERE id = ?
-#       ''',(name,)).fetchall())
-#       return Gene(chrom,start,end,name,window,
-#               sub_loci,**kwargs).update(
-#                   attrs
-#               )
+    def __len__(self):
+        '''
+            Returns the number of genes in the dataset
+        '''
+        return len(self.loci)
 
-#   def num_genes(self):
-#       '''
-#           Returns the number of genes in the dataset
-#       '''
-#       return self.db.cursor().execute(
-#          ''' SELECT COUNT(*) FROM genes'''
-#       ).fetchone()[0]
+    def __contains__(self,x):
+        ''' flexible on what you pass into the 'in' function '''
+        if isinstance(x,Locus):
+            # find the locus by 
+            if x.id in self.loci.id.values:
+               return True
+            else:
+                return False
+        elif isinstance(x,str):
+            # Can be a string object
+            if x in self.loci.id.values:
+                return True
+            else:
+                return False
+        else:
+            raise TypeError('Cannot test for containment for {}'.format(obj))
+
 
 #   def rand(self,**kwargs):
 #       '''
@@ -93,11 +116,6 @@ class Loci(object):
 #       return set([Gene(chr,start,end=end,id=id,**kwargs) for \
 #           (chr,start,end,id) in gene_info])
 
-#   def iter_chromosomes(self):
-#       ''' returns chrom object iterator '''
-#       return ( Chrom(*x) for x in self.db.cursor().execute('''
-#           SELECT id,length FROM chromosomes
-#       '''))
 
 #   def iter_genes(self):
 #       '''
@@ -197,18 +215,6 @@ class Loci(object):
 #       ]
 #       return genes
 
-#   def chromosome(self,id):
-#       '''
-#           returns a chromosome object
-#       '''
-#       try:
-#           return Chrom(*self.db.cursor().execute(
-#               '''SELECT id,length FROM chromosomes WHERE id = ?''',
-#               (id,)).fetchone()
-#           )
-#       except Exception as e:
-#           self.log("No chromosome where id = {}. Error: {}",id,e)
-
 #   def genes_within(self,loci,chain=True):
 #       '''
 #           Returns the genes that START within a locus 
@@ -257,7 +263,7 @@ class Loci(object):
 #                  ^_________________________| Window (upstream)
 #       '''
 #       if locus.window == 0 and window_size is None:
-#           raise CamocoZeroWindowError(
+#           raise ZeroWindowError(
 #               'Asking for upstream genes for {}',
 #               locus.id
 #           )
@@ -294,7 +300,7 @@ class Loci(object):
 #                                 |_______________________^ Window (downstream)
 #       '''
 #       if locus.window == 0 and window_size is None:
-#           raise CamocoZeroWindowError(
+#           raise ZeroWindowError(
 #               'Asking for upstream genes for {} with no window size',
 #               locus.id
 #           )
@@ -324,7 +330,7 @@ class Loci(object):
 #           # If we cant iterate, we have a single locus
 #           locus = loci
 #           if locus.window == 0 and window_size is None:
-#               raise CamocoZeroWindowError(
+#               raise ZeroWindowError(
 #                   'Asking for upstream genes for {} and no window size.',
 #                   locus.id
 #               )
@@ -599,7 +605,7 @@ class Loci(object):
 #           'Some genes in dataset not if RefGen'
 #       assert all(positions.gene == [g.id for g in gene_list]), \
 #           'Genes are not in the correct order!'
-#       distances = RefGenDist.gene_distances(
+#       distances = LocusDist.gene_distances(
 #           positions.chrom.values,
 #           positions.start.values,
 #           positions.end.values
@@ -609,22 +615,11 @@ class Loci(object):
 #   def summary(self):
 #       print ("\n".join([
 #           'Reference Genome: {} - {} - {}',
-#           '{} genes',
-#           'Genome:',
-#           '{}']).format(
+#           '{} genes']).format(
 #               self.organism,self.build,
-#               self.name,self.num_genes(),
-#               self.genome
+#               self.name,self.num_genes()
 #           )
 #       )
-
-#   def __repr__(self):
-#       return 'Reference Genome: {} - {} - {}'.format(
-#           self.organism,self.build,self.name
-#       )
-
-#   def __len__(self):
-#       return self.num_genes()
 
 #   def __contains__(self,obj):
 #       ''' flexible on what you pass into the 'in' function '''
@@ -657,45 +652,6 @@ class Loci(object):
 #           CREATE INDEX IF NOT EXISTS geneid ON genes (id);
 #           CREATE INDEX IF NOT EXISTS geneattr ON gene_attrs (id);
 #       ''')
-
-#   def add_gene(self,gene,refgen=None):
-#       if isinstance(gene,Locus):
-#           self.db.cursor().execute('''
-#           INSERT OR REPLACE INTO genes VALUES (?,?,?,?)
-#           ''',(gene.name,gene.chrom,gene.start,gene.end))
-#           self.db.cursor().executemany('''
-#           INSERT OR REPLACE INTO gene_attrs VALUES (?,?,?)
-#           ''',[(gene.id,key,val) for key,val in gene.attr.items()])
-#           if refgen:
-#               aliases = refgen.aliases(gene.id)
-#               if aliases:
-#                   self.db.cursor().executemany('''
-#                   INSERT OR IGNORE INTO aliases VALUES (?,?)''',
-#                   [(al,id) for al in aliases])
-#       else:
-#           # support adding lists of genes
-#           genes = list(gene)
-#           self.log('Adding {} Genes info to database'.format(len(genes)))
-#           cur = self.db.cursor()
-#           cur.execute('BEGIN TRANSACTION')
-#           cur.executemany(
-#               'INSERT OR REPLACE INTO genes VALUES (?,?,?,?)',
-#               ((gene.name,gene.chrom,gene.start,gene.end) for gene in genes)
-#           )
-#           self.log('Adding Gene attr info to database')
-#           cur.executemany(
-#               'INSERT OR REPLACE INTO gene_attrs VALUES (?,?,?)',
-#               ((gene.id,key,val) for gene in genes for key,val in gene.attr.items())
-#           )
-#           if refgen:
-#               al_map = refgen.aliases([gene.id for gene in genes])
-#               als = []
-#               for id,al_list in al_map.items():
-#                   for al in al_list:
-#                       als.append([al,id])
-#               cur.executemany('INSERT OR REPLACE INTO aliases VALUES (?,?)',als)
-
-#           cur.execute('END TRANSACTION')
 
 #   def add_chromosome(self,chrom):
 #       ''' adds a chromosome object to the class '''
@@ -827,9 +783,6 @@ class Loci(object):
 #            end,score,strand,frame,attributes) = line.strip().split('\t')
 #           attributes = dict([(field.strip().split(attr_split)) \
 #               for field in attributes.strip(';').split(';')])
-#           if feature == chrom_feature:
-#               self.log('Found a chromosome: {}',attributes['ID'].strip('"'))
-#               self.add_chromosome(Chrom(attributes['ID'].strip('"'),end))
 #           if feature == gene_feature:
 #               genes.append(
 #                   Gene(
@@ -844,8 +797,6 @@ class Loci(object):
 #               else:
 #                   if end > chroms[chrom]:
 #                       chroms[chrom] = end
-#       for id,end in chroms.items():
-#           self.add_chromosome(Chrom(id.strip('"'),end))
 #       IN.close()
 #       self.add_gene(genes)
 #       self._build_indices()
