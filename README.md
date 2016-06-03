@@ -70,6 +70,12 @@ Examples
 --------
 ![locus pocus examples](img/Examples.png)
 
+```{python}
+# Import Necessary Classes
+from locuspocus import Locus,Loci
+
+
+```
 
 Installation
 ------------
