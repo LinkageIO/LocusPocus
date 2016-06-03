@@ -37,6 +37,4 @@ setup(
     description = 'Genetic coordinates so easy, it seems like MAGIC!',
     license = "MIT License",
     url = 'https://github.com/schae234/LocusPocus',
-
-
 )
