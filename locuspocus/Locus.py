@@ -176,7 +176,7 @@ class Locus(object):
             val : object
                 Attribute value of default value.
         '''
-        if self[key] is None:
+        if key not in self.attr.keys() or self[key] is None:
             return default
         else:
             return self[key]
@@ -338,7 +338,7 @@ class Locus(object):
 
     def __contains__(self,locus):
         '''
-            Test if a locus is within another locus, i.e. overalapping.
+            Test if a locus is within another locus, i.e. overlapping.
             NOTE: this function includes the locus **window** in the 
                   calculation, the loci do not need to properly overlap,
                   however this case can be coverered by setting the 
@@ -378,6 +378,8 @@ class Locus(object):
         else:
             return self.end - self.start
 
+    # XXX I checked the python doc and this method should never be called because
+    # the rich comparison operators are defined (i.e. __eq__, __lt__, __gt__)
     def __cmp__(self,locus):
         '''
             Operator to compare the positions of two loci.
@@ -488,12 +490,12 @@ class Locus(object):
             'Start Position: {}',
             'End Position: {}',
             'Window Size: {}',
-            'Additional attributes: {}'
+            'Additional attributes: {}',
             'Sub Loci: {}'
         ]).format(
             self._id, self.chrom,
             self.start, self.end,
-            self.window, len(self.attrs),
+            self.window, len(self.attr),
             len(self.sub_loci)
         )
 
