@@ -89,7 +89,7 @@ then
     conda remove -y --name $NAME --all
     conda config --add envs_dirs $BASE/conda/envs
     conda create -y -n $NAME --no-update-deps python=3.5 setuptools pip pytest \
-        Cython numpy scipy
+        Cython numpy scipy pandas
 else
     green 'conda already installed'
 fi
