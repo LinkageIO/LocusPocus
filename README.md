@@ -82,8 +82,6 @@ c = Locus(8,180,200, name='gene_c')
 d = Locus(8,210,300, name='gene_d')
 e = Locus(9,100,150, name='gene_e')
 
-
-
 ```
 
 Installation
@@ -128,6 +126,20 @@ Alternatively, you can run the normal `setup.py` script.
     # run the setup script
     python setup.py install --user
 ```
+
+
+Development
+-----------
+**NOTE!:** This package used Cython to perform some of the heavy lifting, 
+especially in the Loci class to calculate pairwise distance. To work on the
+code without needing to repeatedly compile and install the Cython code 
+run the following commands in the base cloned directory:
+```{bash}
+BASE=$(pwd)
+export PYTHONPATH=$BASE:$PYTHONPATH
+sed -ie 's/^#.*pyx//' $BASE/locuspocus/__init__.py
+
+``` 
 
 License
 -------
