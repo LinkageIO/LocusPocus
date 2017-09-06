@@ -3,6 +3,8 @@
 *.swo
 *.pdx
 *.pyc
+*.c
+*.so
 .cache/*
 *__pycache__/*
 tests/__pycache__*
