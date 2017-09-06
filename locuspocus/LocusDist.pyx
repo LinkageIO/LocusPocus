@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.misc import comb
 
-def gene_distances(double[:] chr, long[:] start, long[:] end):
+def LocusDist(double[:] chr, long[:] start, long[:] end):
     # Create an array to put the results in
     cdef double[:] distances = np.empty(comb(chr.shape[0],2,exact=True))
     # to remember which permutation we are one
