@@ -11,6 +11,17 @@ class Locus(object):
                  id=None, window=0, sub_loci=None, **kwargs):
         '''
             A genetic coordinate class.
+
+            Looks like:
+
+              Window
+              ___|____
+             /        \
+            |----------=========---------|
+            ^          ^       ^         ^
+             \          \       \         \
+              Upstream   start   end       downstream  
+
         '''
         # Intelligently assign an ID, which is not required 
         if id is None or id.startswith('<None>'):
@@ -259,7 +270,7 @@ class Locus(object):
         '''
             Returns the starting position considered downstream of the Locus
             NOTE: Locus.window must be set for value to be different from
-                  the locus start position.
+                  the locus end position.
 
             Parameters
             ----------
@@ -286,6 +297,41 @@ class Locus(object):
             The locus id (name)
         '''
         return self.id
+
+    @property
+    def center(self):
+        '''
+            Returns the center position of the Locus.
+            NOTE: this is a class property
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            A coordinate representing the center of the locus
+        '''
+        return (self.start + self.end)/2
+
+
+    def center_distance(self, locus):
+        '''
+            Returns the distance between two Loci's center
+
+            Parameters
+            ----------
+            locus: a object of type Locus
+
+            Returns
+            -------
+            The distance between the loci centers
+        '''
+        if self.chrom == locus.chrom:
+            return self.center - locus.center
+        else:
+            return np.inf
+
 
     def __add__(self,locus):
         ''' 
@@ -343,6 +389,50 @@ class Locus(object):
         else:
             return False
 
+    def within(self,locus):
+        '''
+            >>> x.within(y)
+
+            Returns True if the coordinates of x are completely within
+            the coordinates of y
+
+            True:
+            x:      |----===----|
+            y:  |-------========--------|
+
+            Parameters
+            ----------
+            locus: object of type Locus
+
+            Returns
+            -------
+            bool
+        '''
+        if (locus.chrom == self.chrom
+           and self.upstream >= locus.upstream 
+           and self.downstream <= locus.downstream):
+            return True
+        else:
+            return False 
+
+    def encloses(self,locus):
+        '''
+            >>> x.encloses(y)
+
+            Returns True if the start position of x is upstream
+            and the end position of x is downstream of y.
+
+            True:
+            x:  |-------========--------|
+            y:      |----===----|
+        '''
+        if (locus.chrom == self.chrom
+           and locus.upstream >= self.upstream 
+           and locus.downstream <= self.downstream):
+            return True
+        else:
+            return False 
+
     def __contains__(self,locus):
         '''
             Test if a locus is within another locus, i.e. overlapping.
@@ -362,9 +452,19 @@ class Locus(object):
         '''
         if (locus.chrom == self.chrom and
                # The locus has as 'start' position within the Locus window
+               # self:      |----===----|
+               # locus:           |----===----|
                (( locus.upstream >= self.upstream and locus.upstream <= self.downstream)
                # The locus has an 'end' position within the Locus window
                or(locus.downstream <= self.downstream and locus.downstream >= self.upstream)
+               # self:        |----===----|
+               # locus:  |----===----|
+               or(locus.upstream <= self.upstream and locus.downstream >= self.downstream)
+               # self:        |----===----|
+               # locus:  |----============----|
+               or(locus.upstream >= self.upstream and locus.downstream <= self.downstream)
+               # self:        |----============----|
+               # locus:           |----===----|
             )):
             return True
         else:
@@ -529,19 +629,3 @@ class Locus(object):
             str.encode(str(self))
         ).hexdigest()
         return int(digest,base=16)
-
-class Gene(Locus):
-    def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
-
-    def as_dict(self):
-        a_dict = {
-            'gene'  : self.name,
-            'chrom' : self.chrom,
-            'start' : self.start,
-            'end'   : self.end
-        }
-        a_dict.update(self.attr)
-        return a_dict
-
-
