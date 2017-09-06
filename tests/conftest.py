@@ -15,3 +15,34 @@ def testRefGen():
     x = Loci()
     x.append([a,b,c,d,e])
     return x
+
+''' -------------------------------------------------------------------------
+            'Test' Fixtures
+'''
+
+@pytest.fixture(scope='module')
+def testRefGen(Zm5bFGS):
+    # This was a mistake
+    return Zm5bFGS
+
+''' -------------------------------------------------------------------------
+            RefGen Fixtures
+'''
+
+@pytest.fixture(scope="module")
+def testRefGen():
+    # We have to build it
+    gff = os.path.expanduser(
+        os.path.join(
+            cf.options.testdir,
+            'raw', 'ZmB73_5b_FGS.gff.gz'
+        )
+    )
+    # This is stupid and necessary because pytables wont let me open
+    # more than one table
+    co.RefGen.from_gff(
+        gff, 'Zm5bFGS'
+    )
+    return co.RefGen('Zm5bFGS')
+
+
