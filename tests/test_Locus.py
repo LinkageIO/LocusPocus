@@ -16,7 +16,7 @@ def test_initialization(simple_Locus):
 
 def test_as_dict(simple_Locus):
     simple_Locus_dict = {
-            'name': '<None>1:100-200',
+            'id': '<None>1:100-200',
             'chrom': '1',
             'start': 100,
             'end': 200 }
@@ -130,7 +130,7 @@ def test_repr(simple_Locus):
     assert repr(simple_Locus) == '<None>1:100-200+0(0)'
 
 def test_hash(simple_Locus):
-    assert hash(simple_Locus) == -2947990131889240363
+    assert hash(simple_Locus) == 1035530407970800134
 
 def test_summary(simple_Locus):
     assert simple_Locus.summary() == 'ID: None\nChromosome: 1\nStart Position: 100\nEnd Position: 200\nWindow Size: 0\nAdditional attributes: 0\nSub Loci: 1'
