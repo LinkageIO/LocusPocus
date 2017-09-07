@@ -41,9 +41,7 @@ and entire chromosomes can be easily implemented by extending the base Locus
 class and adding feature-specific logic accordingly. Implementation of a
 genetic coordinate class in Python allows for quick and easy execution of
 common locus related tasks. The extensive overloading of built-in Python
-operators makes code more readable and less prone to bugs. The latest version
-of LocusPocus can be found on PyPi. Upstream development can be accessed via
-GitHub: https://github.com/schae234/LocusPocus.
+operators makes code more readable and less prone to bugs. 
 
 LocusPocus Model
 ----------------
@@ -70,7 +68,7 @@ Examples
 --------
 ![locus pocus examples](img/Examples.png)
 
-```{python}
+```python
 # Import Necessary Classes
 from locuspocus import Locus
 
@@ -86,60 +84,19 @@ e = Locus(9,100,150, name='gene_e')
 
 Installation
 ------------
-
-### Conda Virtual Environment
-Running the included installation script will install LocusPocus into its own
-python virtual environment. **Note:**This script will download and install files
-into your home directory under `~/.locuspocus`. 
-
-```{bash}
+```bash
     # Download the repo
-    git clone git@github.com:schae234/LocusPocus.git
-    # Change directories
-    cd LocusPocus
-    # Run the install script
-    ./install.sh
-    # Activate the conda virtual environment
-    source activate locuspocus
-    # locus pocus should be importable via python!
+    $ git clone git@github.com:linkageIO/LocusPocus.git
+    # Change Dirs
+    $ cd LocusPocus
+    # Optional: Create and Activate the conda virtual environment
+    $ conda create -n locuspocus python=3
+    $ source activate locuspocus
+    # Install some dependencies
+    $ conda install Cython numpy
+    # Run the setup.py script
+    $ python setup.py install
 ```
-
-You will need to add a few lines to your .bashrc in order for the conda
-environment to be available from your shell.
-
-e.g.:
-```{bash}
-    # Assuming your installed camoco to ~/.camoco
-    export LD_LIBRARY_PATH=~/.locuspocus/lib/:$LD_LIBRARY_PATH
-    export PATH=$BASE/bin:~/.locuspocus/conda/bin/:$PATH
-```
-
-
-### python setup.py file
-Alternatively, you can run the normal `setup.py` script.
-
-```{bash}
-    # Download the repo
-    git clone git@github.com:schae234/LocusPocus.git
-    # Change directories
-    cd LocusPocus
-    # run the setup script
-    python setup.py install --user
-```
-
-
-Development
------------
-**NOTE!:** This package used Cython to perform some of the heavy lifting, 
-especially in the Loci class to calculate pairwise distance. To work on the
-code without needing to repeatedly compile and install the Cython code 
-run the following commands in the base cloned directory:
-```{bash}
-BASE=$(pwd)
-export PYTHONPATH=$BASE:$PYTHONPATH
-sed -ie 's/^#.*pyx//' $BASE/locuspocus/__init__.py
-
-``` 
 
 License
 -------

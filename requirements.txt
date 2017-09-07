@@ -1,4 +1,4 @@
-git+https://github.com/schae234/Minus80.git
+git+https://github.com/LinkageIO/Minus80.git
 pandas>=0.20
 cython>=0.16
 numpy>=1.9
