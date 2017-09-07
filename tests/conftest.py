@@ -1,4 +1,5 @@
 import pytest
+import os
 from locuspocus import Locus
 from locuspocus import Loci
 
@@ -34,15 +35,16 @@ def testRefGen():
     # We have to build it
     gff = os.path.expanduser(
         os.path.join(
-            cf.options.testdir,
             'raw', 'ZmB73_5b_FGS.gff.gz'
         )
     )
     # This is stupid and necessary because pytables wont let me open
     # more than one table
-    co.RefGen.from_gff(
-        gff, 'Zm5bFGS'
-    )
-    return co.RefGen('Zm5bFGS')
+    x = Loci('Zm5bFGS')
+    if len(x) == 0:
+        x.add_gff(  
+            gff
+        )
+    return x
 
 

@@ -98,13 +98,6 @@ class Loci(Freezable):
                 camoco database.
             description : str
                 A short description of the RefGen for future reference
-            build : str
-                A string designating the genome build, used for comparison
-                operations, genes may share IDS but are different across build.
-            organism : str
-                A short string describing the organims this RefGen is coming
-                from. Again, is used in comparing equality among genes which
-                may have the same id or name.
             chrom_feature : str (default: chromosome)
                 The name of the feature (in column 3) that designates a
                 a chromosome.
@@ -112,7 +105,7 @@ class Loci(Freezable):
                 The name of the feature (in column 2) that designates a 
                 gene. These features will be the main object that the RefGen
                 encompasses. 
-            ID_attr : str (default: ID)
+           [ID_attr : str (default: ID)
                 The key in the attribute column which designates the ID or 
                 name of the feature.
             attr_split : str (default: '=')
@@ -195,7 +188,18 @@ class Loci(Freezable):
                 id TEXT,
                 desc TEXT,
                 UNIQUE(id,desc) ON CONFLICT IGNORE
-            );''');
+            );
+            
+            CREATE INDEX IF NOT EXISTS gene_start_end ON loci (chromosome,start DESC, end ASC, id);
+            CREATE INDEX IF NOT EXISTS gene_end_start ON loci (chromosome,end DESC,start DESC,id);
+            CREATE INDEX IF NOT EXISTS gene_start ON loci (chromosome,start);
+            CREATE INDEX IF NOT EXISTS gene_end ON loci (chromosome,end);
+            CREATE INDEX IF NOT EXISTS geneid ON loci (id);
+            CREATE INDEX IF NOT EXISTS geneattr ON loci_attrs (id);
+            CREATE INDEX IF NOT EXISTS id ON func(id);
+            CREATE INDEX IF NOT EXISTS id ON ortho_func(id); 
+            
+            ''');
 
     @memoize
     def num_loci(self):
@@ -246,8 +250,6 @@ class Loci(Freezable):
         '''
         return [x for x in loci if x in self]
 
-    ## UnChecked
-
     def random_loci(self,n,**kwargs):
         '''
             Return random loci from the database, without replacement. 
@@ -266,12 +268,13 @@ class Loci(Freezable):
         '''
         rand_nums = np.random.choice(self.num_loci()+1,n,replace=False)
         gene_info = self._db.cursor().executemany(
-                "SELECT chromosome,start,end,id from genes WHERE rowid = ?",
+                "SELECT chromosome,start,end,id from loci WHERE rowid = ?",
                 [[int(rownum)] for rownum in rand_nums]
         )
-        return set([Gene(chr,start,end=end,id=id,**kwargs) for \
+        return set([Locus(chr,start,end=end,id=id,**kwargs) for \
             (chr,start,end,id) in gene_info])
 
+    ## UnChecked
 
     def iter_genes(self):
         '''
@@ -282,9 +285,9 @@ class Loci(Freezable):
             A generator containing genes
         '''
         for x in self._db.cursor().execute('''
-                SELECT chromosome,start,end,id FROM genes
+                SELECT chromosome,start,end,id FROM loci
             '''):
-            yield self.Gene(*x,build=self.build,organism=self.organism)
+            yield Locus(*x)
 
 
     @lru_cache(maxsize=131072)
@@ -309,8 +312,8 @@ class Loci(Freezable):
                 raise ValueError('{} not in {}'.format(gene_id,self.name))
             gene_id = result[0]
         gene_id = gene_id.upper()
-        info = cur.execute('SELECT chromosome,start,end,id FROM genes WHERE id = ?', [gene_id]).fetchone()
-        return self.Gene(*info,build=self.build,organism=self.organism)
+        info = cur.execute('SELECT chromosome,start,end,id FROM loci WHERE id = ?', [gene_id]).fetchone()
+        return Locus(*info)
 
     def from_ids(self, gene_ids, check_shape=False):
         '''
@@ -383,9 +386,9 @@ class Loci(Freezable):
         '''
         if isinstance(loci,Locus):
             return [
-                self.Gene(*x,build=self.build,organism=self.organism) \
+                Locus(*x) \
                 for x in self._db.cursor().execute('''
-                    SELECT chromosome,start,end,id FROM genes
+                    SELECT chromosome,start,end,id FROM loci
                     WHERE chromosome = ?
                     AND start <= ? AND end >= ?
                     ''',
@@ -412,9 +415,9 @@ class Loci(Freezable):
         '''
         if isinstance(loci,Locus):
             return [
-                self.Gene(*x,build=self.build,organism=self.organism) \
+                Locus(*x) \
                 for x in self._db.cursor().execute('''
-                    SELECT chromosome,start,end,id FROM genes
+                    SELECT chromosome,start,end,id FROM loci
                     WHERE chromosome = ?
                     AND start >= ? AND start <= ?
                     ''',
@@ -430,7 +433,7 @@ class Loci(Freezable):
     def upstream_genes(self,locus,gene_limit=1000,window_size=None):
         '''
             Find genes that START upstream of a locus. 
-            Genes are ordered so that the nearest genes are 
+            Loci are ordered so that the nearest genes are 
             at the beginning of the list.
 
             Return Genes that overlap with the upstream window,
@@ -455,9 +458,9 @@ class Loci(Freezable):
         else:
             upstream = locus.upstream
         return [
-            self.Gene(*x,build=self.build,organism=self.organism) \
+            Locus(*x) \
             for x in self._db.cursor().execute('''
-                SELECT chromosome,start,end,id FROM genes 
+                SELECT chromosome,start,end,id FROM loci 
                 INDEXED BY gene_start_end
                 WHERE chromosome = ?
                 AND start >= ?  -- Gene must end AFTER locus window (upstream) 
@@ -494,9 +497,9 @@ class Loci(Freezable):
             downstream = locus.downstream
 
         return [
-            self.Gene(*x,build=self.build,organism=self.organism) \
+            Locus(*x) \
             for x in self._db.cursor().execute('''
-                SELECT chromosome,start,end,id FROM genes
+                SELECT chromosome,start,end,id FROM loci
                 INDEXED BY gene_start_end
                 WHERE chromosome = ?
                 AND start > ?
@@ -728,7 +731,7 @@ class Loci(Freezable):
             if num_candidates == 0:
                 return []
             # Snps a random genes from the genome
-            random_gene = self.random_gene()
+            random_gene = self.random_locus()
             # Snag the same number of candidates
             random_candidates = self.upstream_genes(
                 random_gene, 
@@ -789,7 +792,7 @@ class Loci(Freezable):
         if gene_list is None:
             gene_list = list(self.iter_genes())
         query = '''
-                SELECT genes.id, chrom.rowid, start, end FROM genes
+                SELECT genes.id, chrom.rowid, start, end FROM loci
                 LEFT JOIN chromosomes chrom ON genes.chromosome = chrom.id
                 WHERE genes.id in ("{}")
                 ORDER BY genes.id
@@ -816,11 +819,10 @@ class Loci(Freezable):
 
     def summary(self):
         print ("\n".join([
-            'Reference Genome: {} - {} - {}',
+            'Reference Genome: {} ',
             '{} genes',
             'Genome:',
             '{}']).format(
-                self.organism,self.build,
                 self.name,self.num_loci(),
                 self.genome
             )
@@ -918,7 +920,7 @@ class Loci(Freezable):
             # should ALWAYS be true if you
             # created gene object from this RefGen)
             if self._db.cursor().execute(
-                '''SELECT COUNT(*) FROM genes WHERE id = ?''',
+                '''SELECT COUNT(*) FROM loci WHERE id = ?''',
                 (obj.id.upper(),)).fetchone()[0] == 1:
                 return True
             else:
@@ -926,7 +928,7 @@ class Loci(Freezable):
         elif isinstance(obj,str):
             # Can be a string object
             if self._db.cursor().execute('''
-                SELECT COUNT(*) FROM genes WHERE id = ?''',
+                SELECT COUNT(*) FROM loci WHERE id = ?''',
                 (str(obj).upper(),)).fetchone()[0] == 1:
                 return True
             else:
@@ -1091,7 +1093,7 @@ class Loci(Freezable):
         
         # Get rid of any genes not in the refence genome
         cur = self._db.cursor()
-        cur.execute('SELECT id FROM genes;')
+        cur.execute('SELECT id FROM loci;')
         rm = set(tbl.index.values) - set([id[0] for id in cur.fetchall()])
         tbl.drop(rm,axis=0,inplace=True)
         del rm, cur
