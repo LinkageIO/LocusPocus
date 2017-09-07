@@ -85,17 +85,17 @@ e = Locus(9,100,150, name='gene_e')
 Installation
 ------------
 ```bash
-    # Download the repo
-    $ git clone git@github.com:linkageIO/LocusPocus.git
-    # Change Dirs
-    $ cd LocusPocus
-    # Optional: Create and Activate the conda virtual environment
-    $ conda create -n locuspocus python=3
-    $ source activate locuspocus
-    # Install some dependencies
-    $ conda install Cython numpy
-    # Run the setup.py script
-    $ python setup.py install
+# Download the repo
+$ git clone git@github.com:linkageIO/LocusPocus.git
+# Change Dirs
+$ cd LocusPocus
+# Optional: Create and Activate the conda virtual environment
+$ conda create -n locuspocus python=3
+$ source activate locuspocus
+# Install some dependencies
+$ conda install Cython numpy
+# Run the setup.py script
+$ python setup.py install
 ```
 
 License
