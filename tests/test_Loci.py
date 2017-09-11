@@ -6,10 +6,10 @@ from locuspocus import Locus
     Unit tests
 '''
 
-def test_from_ids(testRefGen):
+def test_get_loci_from_ids(testRefGen):
     random_loci = sorted(testRefGen.random_loci(n=10))
-    from_ids = sorted(testRefGen.from_ids([x.id for x in random_loci]))
-    assert set(random_loci) == set(from_ids)
+    get_loci_from_ids = sorted(testRefGen.from_ids([x.id for x in random_loci]))
+    assert set(random_loci) == set(get_loci_from_ids)
 
 def test_get_item(testRefGen):
     random_locus = testRefGen.random_locus()
@@ -17,8 +17,8 @@ def test_get_item(testRefGen):
 
 def test_get_items_from_list(testRefGen):
     random_loci = sorted(testRefGen.random_loci(n=10))
-    from_ids = sorted(testRefGen[[x.id for x in random_loci]])
-    assert set(random_loci) == set(from_ids)
+    get_loci_from_ids = sorted(testRefGen[[x.id for x in random_loci]])
+    assert set(random_loci) == set(get_loci_from_ids)
 
 def test_lowercase_get_item(testRefGen):
     random_locus = testRefGen.random_locus()
@@ -171,97 +171,110 @@ def test_refgen_length(testRefGen):
     ''').fetchone()[0]
     assert from_sql == len(testRefGen)
 
-#def test_rowid_equals_1_after_refgen_rebuild(Zm5bFGS_duplicate):
-#        '''
-#        This was a regression bug where when a refgen was rebuilt
-#        the rowid was not reset resulting in weird random_locus 
-#        method which relies on rowid 
-#    '''
-#    assert Zm5bFGS_duplicate\
-#        .db.cursor().execute(
-#            "SELECT MIN(rowid) from genes"
-#        ).fetchone()[0] == 1
-
-
 def test_random_loci_returns_correct_n(testRefGen):
     assert len(testRefGen.random_loci(n=50)) == 50
 
 # New Tests
 
-def test_add_loci():
-    pass
+def test_add_loci(simpleLoci):
+    new_locus = Locus(1,100,300,id='new_locus')
+    simpleLoci.add_loci(new_locus)
+    assert new_locus in simpleLoci
 
-def test_add_gff():
-    pass
+def test_removie_locus(simpleLoci):
+    new_locus = Locus(1,100,300,id='new_locus')
+    if new_locus not in simpleLoci:
+        simpleLoci.add_locus(new_locus)
+    assert new_locus in simpleLoci
+    simpleLoci.remove_locus(new_locus.id)
+    assert new_locus not in simpleLoci
 
-def test_len():
-    pass
+def test_add_gff(testRefGen):
+    assert len(testRefGen) > 0
 
-def test_num_loci():
-    pass
+def test_len(simpleLoci):
+    assert isinstance(len(simpleLoci),int)
 
-def test_random_locus():
-    pass
+def test_num_loci(simpleLoci):
+    assert isinstance(simpleLoci.num_loci(),int)
 
-def test_random_loci():
-    pass
+def test_random_locus(simpleLoci):
+    assert isinstance(simpleLoci.random_locus(),Locus)
 
-def test_iter_loci():
-    pass
+def test_random_loci(simpleLoci):
+    loci = simpleLoci.random_loci(n=3)
+    assert len(loci) == 3
+    for x in loci:
+        assert isinstance(x,Locus)
+
+def test_iter_loci(simpleLoci):
+    for x in simpleLoci.iter_loci():
+        assert isinstance(x,Locus)
 
 def test_intersection():
     pass
 
-def test_from_id():
+def test_from_id(simpleLoci):
+    locus = simpleLoci.get_locus_from_id('gene_a')
+    assert locus.id in simpleLoci
+    assert isinstance(locus,Locus)
+
+def test_get_loci_from_ids(simpleLoci):
+    loci = simpleLoci.get_loci_from_ids(['gene_a','gene_b','gene_c'])
+    assert len(loci) == 3
+
+def test_get_item(simpleLoci):
+    assert isinstance(simpleLoci['gene_a'],Locus)
+
+def test_encompassing_loci(simpleLoci):
     pass
 
-def test_from_ids():
+def test_loci_within(simpleLoci):
     pass
 
-def test_get_item():
+def test_upstream_loci(simpleLoci):
     pass
 
-def test_encompassing_loci():
+def test_downstream_loci(simpleLoci):
     pass
 
-def test_loci_within():
+def test_flanking_loci(simpleLoci):
     pass
 
-def test_upstream_loci():
+def test_candidate_loci(simpleLoci):
     pass
 
-def test_downstream_loci():
+def test_bootstrap_candidate_loci(simpleLoci):
     pass
 
-def test_flanking_loci():
+def test_pairwise_distance(simpleLoci):
     pass
 
-def test_candidate_loci():
-    pass
+def test_contains(simpleLoci):
+    assert 'gene_a' in simpleLoci 
 
-def test_bootstrap_candidate_loci():
-    pass
+def test_add_alias(simpleLoci):
+    simpleLoci._remove_aliases()
+    assert 'alias_1' not in simpleLoci
+    simpleLoci.add_alias('gene_a','alias_1')
+    assert 'alias_1' in simpleLoci
 
-def test_pairwise_distance():
-    pass
+def test_num_aliases(simpleLoci):
+    simpleLoci._remove_aliases()
+    simpleLoci.add_alias('gene_a','alias_1')
+    assert simpleLoci.num_aliases() == 1
+    simpleLoci._remove_aliases()
 
-def test_summary():
-    pass
+def test_aliases(simpleLoci):
+    simpleLoci._remove_aliases()
+    simpleLoci.add_alias('gene_a','alias_1')
+    x = simpleLoci['alias_1']
+    assert x.id == 'gene_a'
+    simpleLoci._remove_aliases()
 
-def test_contains():
-    pass
-
-def test_add_alias():
-    pass
-
-def test_num_aliases():
-    pass
-
-def test_aliases():
-    pass
-
-def test_remove_aliases():
-    pass
+def test_remove_aliases(simpleLoci):
+    simpleLoci._remove_aliases()
+    assert simpleLoci.num_aliases() == 0
 
 def test_has_annotations():
     pass

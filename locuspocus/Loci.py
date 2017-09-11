@@ -50,7 +50,49 @@ class Loci(Freezable):
 
     def __init__(self,name):
         super().__init__(name)
+        self.name = name
         self._initialize_tables()
+    def __len__(self):
+        '''
+            Returns the number of Loci in the database
+        '''
+        return self.num_loci()
+    def __contains__(self,obj):
+        ''' flexible on what you pass into the 'in' function '''
+        if isinstance(obj,Locus):
+            # you can pass in a Locus object (this expression
+            # should ALWAYS be true if you
+            # created Locus object from this Loci object)
+            if self._db.cursor().execute(
+                '''SELECT COUNT(*) FROM loci WHERE id = ?''',
+                (obj.id,)).fetchone()[0] == 1:
+                return True
+            else:
+                return False
+        elif isinstance(obj,str):
+            # Can be a string object
+            if self._db.cursor().execute('''
+                SELECT COUNT(*) FROM loci WHERE id = ?''',
+                (obj,)).fetchone()[0] == 1:
+                return True
+            elif self._db.cursor().execute(''' 
+                SELECT COUNT(*) FROM aliases WHERE alias = ?''',
+                (obj,)).fetchone()[0] == 1:
+                return True
+            else:
+                return False
+        else:
+            raise TypeError('Cannot test for containment for {}'.format(obj))
+    def __getitem__(self,item):
+        '''
+            A convenience method to extract loci from the reference genome.
+        '''
+        # NOTE: Dont LRU cache this, it gets cached in from_id
+        if isinstance(item,str):
+            return self.get_locus_from_id(item)
+        # Allow for iterables of items to be passed in
+        else:
+            return self.get_loci_from_ids(item)
 
     def add_loci(self,loci):
         '''
@@ -92,6 +134,29 @@ class Loci(Freezable):
                 cur.execute('END TRANSACTION')
             except Exception as e:
                 cur.exectue('ROLLBACK')
+
+    def remove_locus(self,item):
+        '''
+            Remove loci from the database
+
+            Parameters
+            ----------
+            loci : an iterable of IDs or a single ID
+
+            Returns
+            -------
+            The number of loci removed
+        '''
+        if isinstance(item, str):
+            # We have a single locus
+            cur = self._db.cursor()
+            cur.execute("DELETE FROM loci WHERE id = ?",(item,))
+        elif isinstance(item, tuple):
+            # We have coordinates
+            pass
+        else:
+            raise ValueError('Cannot find: {}. Must be an ID or coordinate tuple.')
+
 
     def add_gff(self,filename,
                  locus_feature='gene',
@@ -150,64 +215,8 @@ class Loci(Freezable):
         IN.close()
         self.add_loci(loci)
 
+    #----------- Internal Methods  -----------#
 
-    ###########################################
-    ########### Internal Methods  #############
-    ###########################################
-
-    def __len__(self):
-        '''
-            Returns the number of Loci in the database
-        '''
-        return self.num_loci()
-
-    def _initialize_tables(self):
-        '''
-            Initializes the Tables holding all the information
-            about the Loci. 
-        '''
-        cur = self._db.cursor()
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS loci (
-                id TEXT NOT NULL UNIQUE,
-                chromosome TEXT NOT NULL,
-                start INTEGER,
-                end INTEGER
-            );
-            /*
-            ----Create a table that contains loci attribute
-                mappings
-            */
-            CREATE TABLE IF NOT EXISTS loci_attrs (
-                id TEXT NOT NULL,
-                key TEXT,
-                val TEXT
-            );
-            CREATE TABLE IF NOT EXISTS aliases (
-                alias TEXT UNIQUE,
-                id TEXT
-            );
-            CREATE TABLE IF NOT EXISTS func (
-                id TEXT,
-                desc TEXT,
-                UNIQUE(id,desc) ON CONFLICT IGNORE
-            );
-            CREATE TABLE IF NOT EXISTS ortho_func (
-                id TEXT,
-                desc TEXT,
-                UNIQUE(id,desc) ON CONFLICT IGNORE
-            );
-            
-            CREATE INDEX IF NOT EXISTS loci_start_end ON loci (chromosome,start DESC, end ASC, id);
-            CREATE INDEX IF NOT EXISTS loci_end_start ON loci (chromosome,end DESC,start DESC,id);
-            CREATE INDEX IF NOT EXISTS loci_start ON loci (chromosome,start);
-            CREATE INDEX IF NOT EXISTS loci_end ON loci (chromosome,end);
-            CREATE INDEX IF NOT EXISTS locusid ON loci (id);
-            CREATE INDEX IF NOT EXISTS locusattr ON loci_attrs (id);
-            CREATE INDEX IF NOT EXISTS id ON func(id);
-            CREATE INDEX IF NOT EXISTS id ON ortho_func(id); 
-            
-            ''');
 
     @memoize
     def num_loci(self):
@@ -218,6 +227,18 @@ class Loci(Freezable):
            ''' SELECT COUNT(*) FROM loci'''
         ).fetchone()[0]
 
+    def iter_loci(self):
+        '''
+            Iterates over loci in database.
+
+            Returns
+            -------
+            A generator containing loci
+        '''
+        for x in self._db.cursor().execute('''
+                SELECT chromosome,start,end,id FROM loci
+            '''):
+            yield Locus(*x)
     def random_locus(self,**kwargs):
         '''
             Returns a random locus within loci.
@@ -235,29 +256,11 @@ class Loci(Freezable):
             A Locus object (camoco.Locus based)
 
         '''
-        random_rowid = random.randint(1,self.num_loci())
         chrom,start,end,id = self._db.cursor().execute('''
-            SELECT chromosome,start,end,id from loci WHERE rowid = ?
-        ''',(random_rowid,)).fetchone()
+            SELECT chromosome,start,end,id from loci ORDER BY RANDOM() LIMIT 1;
+        ''').fetchone()
         return Locus(chrom,start,end,id=id,**kwargs
         )
-
-
-    def intersection(self,loci):
-        '''
-            Return the subset of loci that are in the dataset.
-            
-            Parameters
-            ----------
-            loci : list-like of Locus
-
-            Returns
-            -------
-            a list like object containing loci that
-            are in the dataset.
-        '''
-        return [x for x in loci if x in self]
-
     def random_loci(self,n,**kwargs):
         '''
             Return random loci from the database, without replacement. 
@@ -274,30 +277,32 @@ class Loci(Freezable):
             An iterable containing n (unique) random loci
 
         '''
-        rand_nums = np.random.choice(self.num_loci()+1,n,replace=False)
-        loci_info = self._db.cursor().executemany(
-                "SELECT chromosome,start,end,id from loci WHERE rowid = ?",
-                [[int(rownum)] for rownum in rand_nums]
+        loci_info = self._db.cursor().execute(
+                "SELECT chromosome,start,end,id from loci ORDER BY RANDOM() LIMIT ?",
+                (n,)
         )
         return set([Locus(chr,start,end=end,id=id,**kwargs) for \
             (chr,start,end,id) in loci_info])
 
-    def iter_loci(self):
+    def intersection(self,loci):
         '''
-            Iterates over loci in database.
+            Return the subset of loci that are in the dataset.
+            
+            Parameters
+            ----------
+            loci : list-like of Locus
 
             Returns
             -------
-            A generator containing loci
+            a list like object containing loci that
+            are in the dataset.
         '''
-        for x in self._db.cursor().execute('''
-                SELECT chromosome,start,end,id FROM loci
-            '''):
-            yield Locus(*x)
+        return [x for x in loci if x in self]
 
 
+    # --------- Getters -----------#
     @lru_cache(maxsize=131072)
-    def from_id(self, locus_id):
+    def get_locus_from_id(self, locus_id):
         '''
             Returns a locus object from a string
 
@@ -312,16 +317,23 @@ class Loci(Freezable):
 
         '''
         cur = self._db.cursor()
-        if locus_id not in self:
-            result = cur.execute('SELECT id FROM aliases WHERE alias = ?', [locus_id]).fetchone()
-            if not result:
-                raise ValueError('{} not in {}'.format(locus_id,self.name))
-            locus_id = result[0]
-        locus_id = locus_id.upper()
-        info = cur.execute('SELECT chromosome,start,end,id FROM loci WHERE id = ?', [locus_id]).fetchone()
-        return Locus(*info)
-
-    def from_ids(self, locus_ids, check_shape=False):
+        # The most common use case is a direct reference to an id
+        info = cur.execute(
+                'SELECT chromosome,start,end,id FROM loci WHERE id = ?', [locus_id]
+               ).fetchone()
+        if info != None:
+            return Locus(*info)
+        else:
+            # Try to fetch an alias
+            (locus_id,) = self._db.cursor().execute('''
+                SELECT id FROM aliases 
+                WHERE alias = ?
+            ''',
+                (locus_id,)
+            ).fetchone()
+            return self[locus_id]
+            
+    def get_loci_from_ids(self, locus_ids, check_shape=False):
         '''
             Returns a list of locus object from an iterable of id strings
             OR from a single locus id string.
@@ -344,14 +356,14 @@ class Loci(Freezable):
         if isinstance(locus_ids,str):
             import warnings
             warnings.warn(
-                'Passing singe values into RefGen.from_ids is deprecated. Use RefGen.from_id() '
+                'Passing single values into RefGen.from_ids is deprecated. Use RefGen.from_id() '
                 'or slicing syntax instead.'    
             )
-            return self.from_id(locus_ids)
+            return self.get_locus_from_id(locus_ids)
         loci = []
         for id in locus_ids:
             try:
-                loci.append(self.from_id(id))
+                loci.append(self.get_locus_from_id(id))
             except ValueError as e:
                 if check_shape == False:
                     continue
@@ -359,82 +371,6 @@ class Loci(Freezable):
                     raise e
         return loci
 
-    # NOTE: Dont LRU cache this, it gets cached in from_id
-    def __getitem__(self,item):
-        '''
-            A convenience method to extract loci from the reference genome.
-        '''
-        if isinstance(item,str):
-            return self.from_id(item)
-        # Allow for iterables of items to be passed in
-        else:
-            return self.from_ids(item)
-
-    def encompassing_loci(self,loci,chain=True):
-        '''
-            Returns the Loci encompassing the locus. In other words
-            if a locus (e.g. a SNP) is inside of another locus, i.e. the
-            start of the locus is upstream and the end of the locus
-            is downstream of the locus boundaries, this method will
-            return it. Not to be confused with candidate locus, which
-            will return locus upstream and downstream surrounding a locus.
-
-            Parameters
-            ----------
-            loci : an iterable of loci
-                The method will return encompassing loci for each
-                locus in ther iterable. If a single locus is passed,
-                a single result will be returned.
-            chain : bool (defualt: True)
-                Specifies whether or not to chain results. If true
-                a single list will be returned, if False, a result for
-                each locus passed in will be returned.
-        '''
-        if isinstance(loci,Locus):
-            return [
-                Locus(*x) \
-                for x in self._db.cursor().execute('''
-                    SELECT chromosome,start,end,id FROM loci
-                    WHERE chromosome = ?
-                    AND start <= ? AND end >= ?
-                    ''',
-                    (loci.chrom,loci.start,loci.end))
-            ]
-        else:
-            iterator = iter(loci)
-            loci = [self.encompassing_loci(locus,chain=chain) for locus in iterator]
-            if chain:
-                loci = list(itertools.chain(*loci))
-            return loci
-
-    def loci_within(self,loci,chain=True):
-        '''
-            Returns the loci that START within a locus 
-            start/end boundry.
-
-            Looks like: (y=yes,returned; n=no,not returned)
-
-            nnn  nnnnnnn  yyyyyy   yyyyy  yyyyyy yyyyyyy
-                    start                        end
-                -----x****************************x-------------
-
-        '''
-        if isinstance(loci,Locus):
-            return [
-                Locus(*x) \
-                for x in self._db.cursor().execute('''
-                    SELECT chromosome,start,end,id FROM loci
-                    WHERE chromosome = ?
-                    AND start >= ? AND start <= ?
-                    ''',
-                    (loci.chrom,loci.start,loci.end))
-            ]
-        else:
-            iterator = iter(loci)
-            loci = [self.loci_within(locus,chain=chain) for locus in iterator]
-            if chain:
-                loci = list(itertools.chain(*loci))
-            return loci
 
     def upstream_loci(self,locus,locus_limit=1000,window_size=None):
         '''
@@ -456,8 +392,9 @@ class Loci(Freezable):
         '''
         if locus.window == 0 and window_size is None:
             raise ValueError(
-                'Asking for upstream loci for {}',
-                locus.id
+                'Asking for upstream loci for {} which has a window size of 0'.format(
+                    locus
+                )
             )
         if window_size is not None:
             upstream = locus.start - window_size
@@ -475,7 +412,6 @@ class Loci(Freezable):
                 LIMIT ?
             ''',(locus.chrom, upstream,locus.start, locus_limit)
         )]
-
     def downstream_loci(self,locus,locus_limit=1000,window_size=None):
         '''
             Returns loci downstream of a locus. Genes are ordered 
@@ -514,7 +450,6 @@ class Loci(Freezable):
                 LIMIT ?
             ''',(locus.chrom, locus.end, downstream, locus_limit)
         )]
-
     def flanking_loci(self, loci, flank_limit=2,chain=True,window_size=None):
         '''
             Returns loci upstream and downstream from a locus
@@ -545,6 +480,71 @@ class Loci(Freezable):
                 self.flanking_loci(locus,flank_limit=flank_limit,window_size=window_size)\
                 for locus in iterator
             ]
+            if chain:
+                loci = list(itertools.chain(*loci))
+            return loci
+
+    def encompassing_loci(self,loci,chain=True):
+        '''
+            Returns the Loci encompassing the locus. In other words
+            if a locus (e.g. a SNP) is inside of another locus, i.e. the
+            start of the locus is upstream and the end of the locus
+            is downstream of the locus boundaries, this method will
+            return it. Not to be confused with candidate locus, which
+            will return locus upstream and downstream surrounding a locus.
+
+            Parameters
+            ----------
+            loci : an iterable of loci
+                The method will return encompassing loci for each
+                locus in ther iterable. If a single locus is passed,
+                a single result will be returned.
+            chain : bool (defualt: True)
+                Specifies whether or not to chain results. If true
+                a single list will be returned, if False, a result for
+                each locus passed in will be returned.
+        '''
+        if isinstance(loci,Locus):
+            return [
+                Locus(*x) \
+                for x in self._db.cursor().execute('''
+                    SELECT chromosome,start,end,id FROM loci
+                    WHERE chromosome = ?
+                    AND start <= ? AND end >= ?
+                    ''',
+                    (loci.chrom,loci.start,loci.end))
+            ]
+        else:
+            iterator = iter(loci)
+            loci = [self.encompassing_loci(locus,chain=chain) for locus in iterator]
+            if chain:
+                loci = list(itertools.chain(*loci))
+            return loci
+    def loci_within(self,loci,chain=True):
+        '''
+            Returns the loci that START within a locus 
+            start/end boundry.
+
+            Looks like: (y=yes,returned; n=no,not returned)
+
+            nnn  nnnnnnn  yyyyyy   yyyyy  yyyyyy yyyyyyy
+                    start                        end
+                -----x****************************x-------------
+
+        '''
+        if isinstance(loci,Locus):
+            return [
+                Locus(*x) \
+                for x in self._db.cursor().execute('''
+                    SELECT chromosome,start,end,id FROM loci
+                    WHERE chromosome = ?
+                    AND start >= ? AND start <= ?
+                    ''',
+                    (loci.chrom,loci.start,loci.end))
+            ]
+        else:
+            iterator = iter(loci)
+            loci = [self.loci_within(locus,chain=chain) for locus in iterator]
             if chain:
                 loci = list(itertools.chain(*loci))
             return loci
@@ -697,7 +697,6 @@ class Loci(Freezable):
                 else:
                     candidates = list(set(itertools.chain(*candidates)))
             return candidates
-
     def bootstrap_candidate_loci(self, loci, flank_limit=2,
         chain=True, window_size=None, include_parent_locus=False):
         '''
@@ -830,151 +829,66 @@ class Loci(Freezable):
             )
         )
 
-    def __contains__(self,obj):
-        ''' flexible on what you pass into the 'in' function '''
-        if isinstance(obj,Locus):
-            # you can pass in a Locus object (this expression
-            # should ALWAYS be true if you
-            # created Locus object from this Loci object)
-            if self._db.cursor().execute(
-                '''SELECT COUNT(*) FROM loci WHERE id = ?''',
-                (obj.id.upper(),)).fetchone()[0] == 1:
-                return True
-            else:
-                return False
-        elif isinstance(obj,str):
-            # Can be a string object
-            if self._db.cursor().execute('''
-                SELECT COUNT(*) FROM loci WHERE id = ?''',
-                (str(obj).upper(),)).fetchone()[0] == 1:
-                return True
-            else:
-                return False
-        else:
-            raise TypeError('Cannot test for containment for {}'.format(obj))
+    '''----------------------------------------------------------------
+        Aliases
+    '''
 
-    def add_aliases(self, alias_file, id_col=0, alias_col=1, headers=True):
-        ''' 
-            Add alias map to the RefGen 
-            
+    def add_alias(self, locus_id, alias):
+        '''
+            Add an alias name for a locus
+
             Parameters
             ----------
-            alias_file : string (path)
-                The path to the alias file
-            id_col : int (default: 0)
-                The column containing the Locus identifier
-            alias_col : int (default: 1)
-                The columns containing the alias
-            header : bool (default: True)
-                A switch stating if there is a header row to ignore or not
+            locus_id: str
+                The id of the locus that has an alias
+            alias: str
+                The alias of the locus
         '''
-        with rawFile(alias_file) as IN:
-            if headers:
-                garb = IN.readline()
-    
-            aliases = []
-            self.log.info('Importing aliases from: {}',alias_file)
-            for line in IN:
-                row = re.split(',|\t',line)
-                if row[id_col].strip() in self:
-                    aliases.append(
-                        (row[alias_col],row[id_col].strip())
-                    )
+        if locus_id not in self:
+            raise ValueError(f'{locus_id} not in the database')
         cur = self._db.cursor()
-        self.log.info('Saving them in the alias table.')
-        cur.execute('BEGIN TRANSACTION')
-        cur.executemany(
-            'INSERT OR REPLACE INTO aliases VALUES (?,?)',
-            aliases
+        cur.execute(
+            'INSERT INTO aliases (id,alias) VALUES (?,?)',
+            (locus_id,alias)
         )
-        cur.execute('END TRANSACTION')
+        return True
 
     def num_aliases(self):
         '''
             Returns the number of aliases currently in the database
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            int : the number of aliases in the database
+
         '''
-        return self._db.cursor() \
+        num = self._db.cursor() \
             .execute('SELECT COUNT(*) FROM aliases') \
-            .fetchone()[0]
-
-    def aliases(self, locus_id):
-        if isinstance(locus_id,str):
-            return [alias[0] for alias in self._db.cursor().execute('''
-                    SELECT alias FROM aliases 
-                    WHERE id = ?
-                ''',
-                (locus_id.upper(),)
-            )]
+            .fetchone()
+        if num == None:
+            return 0
         else:
-            cur = self._db.cursor()
-            al_list = cur.executemany('''
-                SELECT alias,id FROM aliases WHERE id = ?
-                ''',
-                [(id,) for id in locus_id]
-            )
-            als = dict()
-            for al,id in al_list:
-                if id in als:
-                    als[id].append(al)
-                else:
-                    als[id] = [al]
-            return als
+            return num[0]
 
-    def remove_aliases(self):
+    def _remove_aliases(self):
+        '''
+            Running this will delete the aliases from the 
+            database. Warning! This is deletorious!
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            None
+        '''
         self._db.cursor().execute('DELETE FROM aliases;')
 
-    def has_annotations(self):
-        cur = self._db.cursor()
-        cur.execute('SELECT count(*) FROM func;')
-        return (int(cur.fetchone()[0]) > 0)
-    
-    def get_annotations(self,item):
-        # Build the query from all the loci provided
-        if isinstance(item,(set,list)):
-            ls = "{}".format("','".join([str(x) for x in item]))
-            single = False
-        else:
-            ls = item
-            single = True
-        query = "SELECT * FROM func WHERE id IN ('{}');".format(ls)
-        
-        # Run the query and turn the result into a list of tuples
-        cur = self._db.cursor()
-        cur.execute(query)
-        annotes = cur.fetchall()
-        
-        # If a list of loci was passed in, return a dictionary of lists
-        if not single:
-            res = {}
-            for id,desc in annotes:
-                if id in res:
-                    res[id].append(desc)
-                else:
-                    res[id] = [desc]
-        
-        # Otherwise just return the list annotations
-        else:
-            res = []
-            for id,desc in annotes:
-                res.append(desc)
-        return res
-    
-    def export_annotations(self, filename=None, sep="\t"):
-        '''
-            Make a table of all functional annotations.
-        '''
-        # Find the default filename
-        if filename == None:
-            filename = self.name + '_func.tsv'
-        
-        # Pull them all from sqlite
-        cur = self._db.cursor()
-        cur.execute("SELECT * FROM func;")
-        
-        # Used pandas to save it
-        df = pd.DataFrame(cur.fetchall(),columns=['locus','desc']).set_index('locus')
-        df.to_csv(filename,sep=sep)
-    
     def add_annotations(self, filename, sep="\t", locus_col=0, skip_cols=None):
         ''' 
             Imports Annotation relationships from a csv file. By default will
@@ -1042,6 +956,57 @@ class Loci(Freezable):
     def remove_annotations(self):
         self._db.cursor().execute('DELETE FROM func;')
 
+    def has_annotations(self) :
+        cur = self._db.cursor()
+        cur.execute('SELECT count(*) FROM func;')
+        return (int(cur.fetchone()[0]) > 0)
+
+    def get_annotations(self, item):
+        # Build the query from all the loci provided
+        if isinstance(item,(set,list)):
+            ls = "{}".format("','".join([str(x) for x in item]))
+            single = False
+        else:
+            ls = item
+            single = True
+        query = "SELECT * FROM func WHERE id IN ('{}');".format(ls)
+        
+        # Run the query and turn the result into a list of tuples
+        cur = self._db.cursor()
+        cur.execute(query)
+        annotes = cur.fetchall()
+        
+        # If a list of loci was passed in, return a dictionary of lists
+        if not single:
+            res = {}
+            for id,desc in annotes:
+                if id in res:
+                    res[id].append(desc)
+                else:
+                    res[id] = [desc]
+        
+        # Otherwise just return the list annotations
+        else:
+            res = []
+            for id,desc in annotes:
+                res.append(desc)
+        return res
+    def export_annotations(self, filename=None, sep="\t"):
+        '''
+            Make a table of all functional annotations.
+        '''
+        # Find the default filename
+        if filename == None:
+            filename = self.name + '_func.tsv'
+        
+        # Pull them all from sqlite
+        cur = self._db.cursor()
+        cur.execute("SELECT * FROM func;")
+        
+        # Used pandas to save it
+        df = pd.DataFrame(cur.fetchall(),columns=['locus','desc']).set_index('locus')
+        df.to_csv(filename,sep=sep)
+
     @classmethod
     def from_DataFrame(cls,df,name,description,build,organism,
             chrom_col='chrom',start_col='start',stop_col='stop',
@@ -1063,3 +1028,54 @@ class Loci(Freezable):
         self.add_loci(loci)
         self._build_indices()
         return self
+
+    def _initialize_tables(self):
+        '''
+            Initializes the Tables holding all the information
+            about the Loci. 
+        '''
+        cur = self._db.cursor()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS loci (
+                id TEXT NOT NULL UNIQUE,
+                chromosome TEXT NOT NULL,
+                start INTEGER,
+                end INTEGER
+            );
+            /*
+            ----Create a table that contains loci attribute
+                mappings
+            */
+            CREATE TABLE IF NOT EXISTS loci_attrs (
+                id TEXT NOT NULL,
+                key TEXT,
+                val TEXT,
+                FOREIGN KEY(id) REFERENCES loci(id)
+            );
+            CREATE TABLE IF NOT EXISTS aliases (
+                alias TEXT UNIQUE,
+                id TEXT,
+                FOREIGN KEY(id) REFERENCES loci(id)
+            );
+            CREATE TABLE IF NOT EXISTS func (
+                id TEXT,
+                desc TEXT,
+                UNIQUE(id,desc) ON CONFLICT IGNORE,
+                FOREIGN KEY(id) REFERENCES loci(id)
+            );
+            CREATE TABLE IF NOT EXISTS ortho_func (
+                id TEXT,
+                desc TEXT,
+                UNIQUE(id,desc) ON CONFLICT IGNORE,
+                FOREIGN KEY(id) REFERENCES loci(id)
+            );
+            
+            CREATE INDEX IF NOT EXISTS loci_start_end ON loci (chromosome,start DESC, end ASC, id);
+            CREATE INDEX IF NOT EXISTS loci_end_start ON loci (chromosome,end DESC,start DESC,id);
+            CREATE INDEX IF NOT EXISTS loci_start ON loci (chromosome,start);
+            CREATE INDEX IF NOT EXISTS loci_end ON loci (chromosome,end);
+            CREATE INDEX IF NOT EXISTS locusid ON loci (id);
+            CREATE INDEX IF NOT EXISTS locusattr ON loci_attrs (id);
+            CREATE INDEX IF NOT EXISTS id ON func(id);
+            CREATE INDEX IF NOT EXISTS id ON ortho_func(id); 
+            ''');
