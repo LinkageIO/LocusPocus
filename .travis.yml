@@ -20,4 +20,5 @@ install:
 # command to run tests, e.g. python setup.py test
 script:  
   - source activate locuspocus
-  - py.test tests -v  
+  - cd tests
+  - py.test -v  
