@@ -1,5 +1,7 @@
 # LocusPocus - Genetic coordinates so simple, it feels like MAGIC!
 
+[![Build Status](https://travis-ci.org/LinkageIO/LocusPocus.svg?branch=master)](https://travis-ci.org/LinkageIO/LocusPocus)
+
 Description
 -----------
 At its foundation, the genome is composed of a number of chromosomes. These
