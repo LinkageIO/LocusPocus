@@ -132,8 +132,9 @@ class Loci(Freezable):
                     ((x.id,key,val) for x in loci for key,val in x.attr.items())
                 )
                 cur.execute('END TRANSACTION')
+                self._update_cache()
             except Exception as e:
-                cur.exectue('ROLLBACK')
+                cur.execute('ROLLBACK')
 
     def remove_locus(self,item):
         '''
@@ -219,7 +220,7 @@ class Loci(Freezable):
 
 
     @memoize
-    def num_loci(self):
+    def num_loci(self,*args,**kwargs):
         '''
             Returns the number of loci in the dataset
         '''
@@ -889,6 +890,8 @@ class Loci(Freezable):
         '''
         self._db.cursor().execute('DELETE FROM aliases;')
 
+    def _update_cache(self):
+        self.num_loci(clear_cache=True)
     def add_annotations(self, filename, sep="\t", locus_col=0, skip_cols=None):
         ''' 
             Imports Annotation relationships from a csv file. By default will
