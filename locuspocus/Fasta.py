@@ -1,12 +1,36 @@
 from collections import defaultdict
-from ponytools.Tools import log
-from .Chromosome import Chromosome
-
-from .Exceptions import MissingChromosomeError
+import logging
 
 import re
 
+class Chromosome(object):                                                          
+    '''                                                                            
+    A Chromosome is a lightweight object which maps indices to                     
+    string positions.                                                              
+    '''                                                                            
+    def __init__(self,seq):                                                        
+        self.seq = str(seq)                                                        
+    def __getitem__(self,pos):                                                     
+        if isinstance(pos,slice):                                                  
+            return self.seq[pos.start-1:pos.stop]                                  
+        # chromosomes start at 1, python strings start at 0                         
+        return self.seq[int(pos)-1]                                                
+    def __len__(self):                                                             
+        return len(self.seq)        
+
 class Fasta(object):
+    '''
+
+    '''
+    log = logging.getLogger(__name__)                                               
+    handler = logging.StreamHandler()                                               
+    formatter = logging.Formatter(                                                  
+                    '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'           
+                )                                                                   
+    handler.setFormatter(formatter)                                                 
+    log.addHandler(handler)                                                         
+    log.setLevel(logging.INFO)          
+
     def __init__(self):
         self._file = None
         self.added_order = []
@@ -28,7 +52,7 @@ class Fasta(object):
             if chrom_name in self.nicknames:
                 return self.chroms[self.nicknames[chrom_name]]
         except Exception as e:
-            raise MissingChromosomeError(
+            raise KeyError(
                 '{} not in Fasta: {}'.format(chrom_name,self._file)
             )
 
