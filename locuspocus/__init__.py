@@ -6,4 +6,5 @@ __all__ = ['Locus']
 
 from .Locus import Locus
 from .Loci import Loci
+from .Fasta import Fasta
 
