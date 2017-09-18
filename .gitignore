@@ -1,6 +1,7 @@
 *.pyc
 *.swp
 *.swo
+*.swn
 *.pdx
 *.pyc
 *.c
