@@ -90,7 +90,16 @@ class Loci(Freezable):
         # NOTE: Dont LRU cache this, it gets cached in from_id
         if isinstance(item,str):
             return self.get_locus_from_id(item)
+        elif isinstance(item,slice):
+            # Map the slice vocab to the locus vocab
+            chrom = item.start
+            start = item.stop
+            end   = item.step
+            return self.loci_within(Locus(chrom,start,end))
         # Allow for iterables of items to be passed in
+        elif isinstance(item,tuple):
+            chrom,start,end = tuple
+            return self.loci_within(Locus(chrom,start,end))
         else:
             return self.get_loci_from_ids(item)
 
@@ -521,7 +530,7 @@ class Loci(Freezable):
             if chain:
                 loci = list(itertools.chain(*loci))
             return loci
-    def loci_within(self,loci,chain=True):
+    def loci_within(self,loci ,chain=True):
         '''
             Returns the loci that START within a locus 
             start/end boundry.
