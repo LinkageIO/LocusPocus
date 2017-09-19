@@ -103,6 +103,29 @@ class Loci(Freezable):
         else:
             return self.get_loci_from_ids(item)
 
+
+    def add_locus(self,locus):
+        '''
+            Add a single locus to the database
+
+            Parameters
+            ----------
+            locus : a locus object
+
+            Returns
+            -------
+            None
+        '''
+        # Its actually just one locus
+        self._db.cursor().execute('''
+        INSERT OR REPLACE INTO loci VALUES (?,?,?,?)
+        ''',(locus.name, locus.chrom, locus.start, locus.end))
+        self._db.cursor().executemany('''
+        INSERT OR REPLACE INTO loci_attrs VALUES (?,?,?)
+        ''',[(locus.id,key,val) for key,val in locus.attr.items()])
+        # Update the cache
+        self._update_cache()
+
     def add_loci(self,loci):
         '''
             Add loci to the database
@@ -117,14 +140,7 @@ class Loci(Freezable):
             None
         '''
         if isinstance(loci,Locus):
-            # Its actually just one locus
-            locus = loci
-            self._db.cursor().execute('''
-            INSERT OR REPLACE INTO loci VALUES (?,?,?,?)
-            ''',(locus.name, locus.chrom, locus.start, locus.end))
-            self._db.cursor().executemany('''
-            INSERT OR REPLACE INTO loci_attrs VALUES (?,?,?)
-            ''',[(locus.id,key,val) for key,val in locus.attr.items()])
+            self.add_locus(loci)
         else:
             try:
                 # support adding lists of loci
@@ -1040,6 +1056,13 @@ class Loci(Freezable):
         self.add_loci(loci)
         self._build_indices()
         return self
+
+    def rowid(self,id):
+        if isinstance(id,Locus):
+            id = id.id
+        return self._db.cursor().execute('''
+            SELECT rowid FROM loci WHERE id = ?
+        ''',(id,)).fetchone()[0]
 
     def _initialize_tables(self):
         '''
