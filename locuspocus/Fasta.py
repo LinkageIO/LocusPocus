@@ -3,23 +3,58 @@ import logging
 
 import re
 
+from minus80 import Freezable
+
 class Chromosome(object):                                                          
     '''                                                                            
     A Chromosome is a lightweight object which maps indices to                     
-    string positions.                                                              
+    string positions.
+
+    NOTE: chromosome indices are different that python indices.
+          Mainly, they are 1 indexed AND they are inclusive 
+          for start and stop positions.
+
+    In [0]: from locuspocus.Fasta import Chromosome
+
+    In [1]: x = Chromosome('AAACCCTTTGGG')
+
+    In [3]: [1]
+    Out[3]: [1]
+
+    In [4]: x[1]
+    Out[4]: 'A'
+
+    In [5]: x[1:5]
+    Out[5]: 'AAACC'
+
+    In [6]: x[5:10]
+    Out[6]: 'CCTTTG'
+
+    In [7]: len(x)
+    Out[7]: 12
+
     '''                                                                            
     def __init__(self,seq):                                                        
         self.seq = str(seq)                                                        
     def __getitem__(self,pos):                                                     
         if isinstance(pos,slice):                                                  
-            return self.seq[pos.start-1:pos.stop]                                  
+            if pos.start < 1:
+                raise ValueError('Genetic coordinates cannot start less than 1')
+            return self.seq[max(0,pos.start-1):pos.stop]                                  
         # chromosomes start at 1, python strings start at 0                         
-        return self.seq[int(pos)-1]                                                
+        else:
+            return self.seq[int(pos)-1]                                                
     def __len__(self):                                                             
         return len(self.seq)        
 
 class Fasta(object):
     '''
+        A pythonic interface to a FASTA file. This interface
+        allows convenient slicing into contigs (chromosomes).
+
+       >>> from locuspocus import Fasta
+       >>> x = Fasta.from_file('example.fa')
+
 
     '''
     log = logging.getLogger(__name__)                                               
@@ -27,11 +62,15 @@ class Fasta(object):
     formatter = logging.Formatter(                                                  
                     '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'           
                 )                                                                   
+
     handler.setFormatter(formatter)                                                 
     log.addHandler(handler)                                                         
     log.setLevel(logging.INFO)          
 
     def __init__(self):
+        '''
+            Initialize an empty Fasta object.
+        '''
         self._file = None
         self.added_order = []
         self.chroms = {}
@@ -39,7 +78,22 @@ class Fasta(object):
         self.attributes = defaultdict(list)
         self._chrom_set = set(self.chroms.keys())
 
+
+    def to_minus80(self,name):
+        '''
+            Store the Fasta Object in the Minus80
+        '''
+        from minus80 import Freezable
+        store = Freezable(name,type=Freezable.guess_type(self))
+        import ipdb; ipdb.set_trace()
+
+
+
     def __contains__(self,item):
+        '''
+            Returns boolean indicating if a named
+            contig (chromosome) is in the fasta.
+        '''
         if item in self._chrom_set:
             return True
         else:
@@ -57,15 +111,26 @@ class Fasta(object):
             )
 
     def add_chrom(self,chrom_name,chromosome):
+        '''
+            Add a chromosome to the Fasta object.
+        '''
         self.added_order.append(chrom_name)
         self.chroms[chrom_name] = chromosome
 
     def add_attribute(self,chrom_name,attr):
+        '''
+            Add an attribute the the Fasta object.
+            Attributes describe chromosomes and 
+            often follow the '>' token in the FASTA file.
+        '''
         self.attributes[chrom_name].append(attr)
 
 
     @classmethod
     def from_file(cls,fasta_file,nickname=None):
+        '''
+            Create a Fasta object from a file.
+        '''    
         self = cls()
         self._file = fasta_file
         with open(self._file,'r') as IN: 
