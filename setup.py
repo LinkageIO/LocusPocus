@@ -17,7 +17,7 @@ class PostDevelopCommand(develop):
     def run(self):
         print('Running post-installation setup')
         check_call('''\
-	pip install -r requirements.txt
+	    pip install -r requirements.txt
         '''.split())
         develop.run(self)
 
