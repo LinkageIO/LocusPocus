@@ -3,3 +3,4 @@ pandas>=0.20
 cython>=0.16
 numpy>=1.9
 scipy>=0.19
+coveralls
