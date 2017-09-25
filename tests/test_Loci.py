@@ -288,3 +288,12 @@ def test_add_annotations():
 def test_remove_annotations():
     pass
 
+def test_get_attrs(simpleLoci):
+    nLocus = Locus(1,2,3,'nLocus',foo="bar",baz="bat")
+    simpleLoci.add_locus(nLocus)
+    del nLocus
+    nLocus = simpleLoci['nLocus']
+    assert nLocus['foo'] == 'bar'
+    assert nLocus['baz'] == 'bat'
+
+

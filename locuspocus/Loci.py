@@ -261,10 +261,11 @@ class Loci(Freezable):
             -------
             A generator containing loci
         '''
-        for x in self._db.cursor().execute('''
-                SELECT chromosome,start,end,id FROM loci
+        for (id,) in self._db.cursor().execute('''
+                SELECT id FROM loci
             '''):
-            yield Locus(*x)
+            yield self[id]
+
     def random_locus(self,**kwargs):
         '''
             Returns a random locus within loci.
@@ -282,11 +283,10 @@ class Loci(Freezable):
             A Locus object (camoco.Locus based)
 
         '''
-        chrom,start,end,id = self._db.cursor().execute('''
-            SELECT chromosome,start,end,id from loci ORDER BY RANDOM() LIMIT 1;
+        (id,) = self._db.cursor().execute('''
+            SELECT id from loci ORDER BY RANDOM() LIMIT 1;
         ''').fetchone()
-        return Locus(chrom,start,end,id=id,**kwargs
-        )
+        return self.get_locus_from_id(id,**kwargs)
     def random_loci(self,n,**kwargs):
         '''
             Return random loci from the database, without replacement. 
@@ -303,12 +303,10 @@ class Loci(Freezable):
             An iterable containing n (unique) random loci
 
         '''
-        loci_info = self._db.cursor().execute(
-                "SELECT chromosome,start,end,id from loci ORDER BY RANDOM() LIMIT ?",
+        return [self.get_locus_from_id(x,**kwargs) for (x,) in self._db.cursor().execute(
+                "SELECT id from loci ORDER BY RANDOM() LIMIT ?",
                 (n,)
-        )
-        return set([Locus(chr,start,end=end,id=id,**kwargs) for \
-            (chr,start,end,id) in loci_info])
+        )]
 
     def intersection(self,loci):
         '''
@@ -347,9 +345,7 @@ class Loci(Freezable):
         info = cur.execute(
                 'SELECT chromosome,start,end,id FROM loci WHERE id = ?', [locus_id]
                ).fetchone()
-        if info != None:
-            return Locus(*info)
-        else:
+        if info == None:
             # Try to fetch an alias
             (locus_id,) = self._db.cursor().execute('''
                 SELECT id FROM aliases 
@@ -358,6 +354,13 @@ class Loci(Freezable):
                 (locus_id,)
             ).fetchone()
             return self[locus_id]
+        else:
+            locus = Locus(*info)
+            # Fetch the attrs
+            attrs = cur.execute("SELECT key,val FROM loci_attrs WHERE id = ?;",(locus_id,))
+            for key,val in attrs:
+                locus[key] = val
+            return locus
             
     def get_loci_from_ids(self, locus_ids, check_shape=False):
         '''
@@ -427,9 +430,9 @@ class Loci(Freezable):
         else:
             upstream = locus.upstream
         return [
-            Locus(*x) \
-            for x in self._db.cursor().execute('''
-                SELECT chromosome,start,end,id FROM loci 
+            self.get_locus_from_id(x) \
+            for (x,) in self._db.cursor().execute('''
+                SELECT id FROM loci 
                 INDEXED BY loci_start_end
                 WHERE chromosome = ?
                 AND start >= ?  -- Gene must end AFTER locus window (upstream) 
@@ -465,9 +468,9 @@ class Loci(Freezable):
             downstream = locus.downstream
 
         return [
-            Locus(*x) \
-            for x in self._db.cursor().execute('''
-                SELECT chromosome,start,end,id FROM loci
+            self.get_locus_from_id(x) \
+            for (x,) in self._db.cursor().execute('''
+                SELECT id FROM loci
                 INDEXED BY loci_start_end
                 WHERE chromosome = ?
                 AND start > ?
@@ -532,9 +535,9 @@ class Loci(Freezable):
         '''
         if isinstance(loci,Locus):
             return [
-                Locus(*x) \
-                for x in self._db.cursor().execute('''
-                    SELECT chromosome,start,end,id FROM loci
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
                     WHERE chromosome = ?
                     AND start <= ? AND end >= ?
                     ''',
@@ -560,9 +563,9 @@ class Loci(Freezable):
         '''
         if isinstance(loci,Locus):
             return [
-                Locus(*x) \
-                for x in self._db.cursor().execute('''
-                    SELECT chromosome,start,end,id FROM loci
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
                     WHERE chromosome = ?
                     AND start >= ? AND start <= ?
                     ''',
