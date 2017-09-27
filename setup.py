@@ -23,10 +23,10 @@ class PostDevelopCommand(develop):
 
 class PostInstallCommand(install):
     """Post-installation for installation mode."""
-    def run(self):
+    def run(self): 
         print('Running post-installation setup')
         check_call('''\
-        pip install -r requirements.txt
+        conda install -f requirements.txt
         '''.split())
         install.run(self)
 
@@ -67,8 +67,6 @@ setup(
         '':['*.cyx']
     },
     install_requires = [
-        'cython>=0.16',
-        'numpy>=1.9.1'
     ],
     include_package_data=True,
 

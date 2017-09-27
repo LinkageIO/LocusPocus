@@ -1107,7 +1107,8 @@ class Loci(Freezable):
                 UNIQUE(id,desc) ON CONFLICT IGNORE,
                 FOREIGN KEY(id) REFERENCES loci(id)
             );
-            
+           
+            -- Indexes
             CREATE INDEX IF NOT EXISTS loci_start_end ON loci (chromosome,start DESC, end ASC, id);
             CREATE INDEX IF NOT EXISTS loci_end_start ON loci (chromosome,end DESC,start DESC,id);
             CREATE INDEX IF NOT EXISTS loci_start ON loci (chromosome,start);
