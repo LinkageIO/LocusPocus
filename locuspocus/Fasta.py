@@ -212,7 +212,8 @@ class Fasta(object):
             CREATE TABLE IF NOT EXISTS nicknames (
                 nickname TEXT,
                 chrom TEXT,
-                PRIMARY KEY(nickname,chrom)
+                PRIMARY KEY(nickname,chrom),
+                FOREIGN KEY(chrom) REFERENCES chroms(chrom)
             ) 
         ''')
 
@@ -220,6 +221,7 @@ class Fasta(object):
             CREATE TABLE IF NOT EXISTS attributes (
                 chrom TEXT,
                 attribute TEXT,
-                PRIMARY KEY(chrom,attribute)
+                PRIMARY KEY(chrom,attribute),
+                FOREIGN KEY(chrom) REFERENCES chroms(chrom)
             )
         ''')
