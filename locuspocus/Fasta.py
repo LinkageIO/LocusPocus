@@ -5,8 +5,8 @@ import re
 
 from minus80 import Freezable
 
-class Chromosome(object):                                                          
-    '''                                                                            
+class Chromosome(object) :                                                          
+    '''                                                                             
     A Chromosome is a lightweight object which maps indices to                     
     string positions.
 
@@ -71,7 +71,7 @@ class Fasta(object):
         '''
             Initialize an empty Fasta object.
         '''
-        self._file = None
+        self._file = None       
         self.added_order = []
         self.chroms = {}
         self.nicknames = {}
@@ -82,11 +82,43 @@ class Fasta(object):
     def to_minus80(self,name):
         '''
             Store the Fasta Object in the Minus80
+
+            Parameters
+            ----------
+            name : str
+                The name of the store in the  minus80.
         '''
         from minus80 import Freezable
         store = Freezable(name,type=Freezable.guess_type(self))
-        import ipdb; ipdb.set_trace()
+        self._initialize_tables(store)
+        cur = store._db.cursor()
+        # Store the file
+        store._dict('_file',self._file)
+        # Store the chroms in added order
+        for i,chrom in enumerate(self.added_order):
+            seq = self.chroms[chrom].seq
+            cur.execute('INSERT OR REPLACE INTO chroms (added_order,chrom,seq) VALUES (?,?,?)',(i,chrom,seq))
+        for nickname,chrom in self.nicknames.items():
+            cur.execute('INSERT OR REPLACE INTO nicknames (nickname,chrom) VALUES (?,?)',(nickname,chrom))
+        for chrom,attrs in self.attributes.items():
+            for attr in attrs:
+                cur.execute('INSERT OR REPLACE INTO attributes (chrom,attribute) VALUES (?,?)',(chrom,attr))
 
+    @classmethod
+    def from_minus80(cls,name):
+        self = cls()
+        from minus80 import Freezable
+        store = Freezable(name,type=Freezable.guess_type(self))
+        self._file = store._dict('_file')
+        cur = store._db.cursor()
+        for chrom,seq in cur.execute('SELECT chrom,seq FROM chroms ORDER BY added_order ASC'):
+            self.add_chrom(chrom,Chromosome(seq))
+        for nickname,chrom in cur.execute('SELECT nickname,chrom FROM nicknames'):
+            self.nicknames[nickname] = chrom
+        for chrom,attr in cur.execute('SELECT chrom,attribute FROM attributes'):
+            self.add_attribute(chrom,attr)
+        return self
+        
 
 
     def __contains__(self,item):
@@ -95,6 +127,8 @@ class Fasta(object):
             contig (chromosome) is in the fasta.
         '''
         if item in self._chrom_set:
+            return True
+        elif item in self.chroms:
             return True
         else:
             return False
@@ -161,4 +195,31 @@ class Fasta(object):
         return self
 
 
+    @staticmethod
+    def _initialize_tables(store):
+        cur = store._db.cursor()
 
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS chroms (
+                added_order INT,
+                chrom TEXT,
+                seq BLOB,
+                PRIMARY KEY(chrom)
+            );
+        ''')
+        
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS nicknames (
+                nickname TEXT,
+                chrom TEXT,
+                PRIMARY KEY(nickname,chrom)
+            ) 
+        ''')
+
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS attributes (
+                chrom TEXT,
+                attribute TEXT,
+                PRIMARY KEY(chrom,attribute)
+            )
+        ''')
