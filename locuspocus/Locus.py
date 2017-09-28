@@ -24,7 +24,7 @@ class Locus(object):
 
         '''
         # Intelligently assign an ID, which is not required 
-        if id is None or id.startswith('<None>'):
+        if id is None or id.startswith('<None>') or id == '.':
             self._id = None
         else:
             self._id = id
