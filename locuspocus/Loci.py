@@ -52,6 +52,7 @@ class Loci(Freezable):
         super().__init__(name)
         self.name = name
         self._initialize_tables()
+
     def __len__(self):
         '''
             Returns the number of Loci in the database
@@ -144,14 +145,13 @@ class Loci(Freezable):
         else:
             try:
                 # support adding lists of loci
-                self.log.info('Adding {} Genes info to database'.format(len(loci)))
+                self.log.info('Adding {} Loci info to database'.format(len(loci)))
                 cur = self._db.cursor()
                 cur.execute('BEGIN TRANSACTION')
                 cur.executemany(
                     'INSERT OR REPLACE INTO loci VALUES (?,?,?,?)',
                     ((x.name,x.chrom,x.start,x.end) for x in loci)
                 )
-                self.log.info('Adding Gene attr info to database')
                 cur.executemany(
                     'INSERT OR REPLACE INTO loci_attrs VALUES (?,?,?)',
                     ((x.id,key,val) for x in loci for key,val in x.attr.items())
@@ -407,7 +407,7 @@ class Loci(Freezable):
             Loci are ordered so that the nearest loci are 
             at the beginning of the list.
 
-            Return Genes that overlap with the upstream window,
+            Return Loci that overlap with the upstream window,
             This includes partially overlapping loci, but NOT
             loci that are returned by the loci_within method. 
 
@@ -443,10 +443,10 @@ class Loci(Freezable):
         )]
     def downstream_loci(self,locus,locus_limit=1000,window_size=None):
         '''
-            Returns loci downstream of a locus. Genes are ordered 
+            Returns loci downstream of a locus. Loci are ordered 
             so that the nearest loci are at the beginning of the list.
 
-            Return Genes that overlap with the downstream window,
+            Return Loci that overlap with the downstream window,
             This includes partially overlapping loci, but NOT
             loci that are returned by the loci_within method. 
 
@@ -842,7 +842,7 @@ class Loci(Freezable):
         assert len(positions) == len(loci), \
             'Some genes in dataset not if RefGen'
         assert all(positions.gene == [g.id for g in loci]), \
-            'Genes are not in the correct order!'
+            'Loci are not in the correct order!'
         distances = LocusDist.gene_distances(
             positions.chrom.values,
             positions.start.values,
@@ -1081,7 +1081,7 @@ class Loci(Freezable):
                 end INTEGER
             );
             /*
-            ----Create a table that contains loci attribute
+            ---- Create a table that contains loci attribute
                 mappings
             */
             CREATE TABLE IF NOT EXISTS loci_attrs (
