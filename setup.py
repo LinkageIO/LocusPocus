@@ -26,7 +26,7 @@ class PostInstallCommand(install):
     def run(self): 
         print('Running post-installation setup')
         check_call('''\
-        conda install -f requirements.txt
+            pip install -r requirements.txt
         '''.split())
         install.run(self)
 
