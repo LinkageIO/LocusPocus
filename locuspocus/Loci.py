@@ -59,7 +59,9 @@ class Loci(Freezable):
         '''
         return self.num_loci()
     def __contains__(self,obj):
-        ''' flexible on what you pass into the 'in' function '''
+        ''' 
+            Flexible on what you pass into the 'in' function 
+        '''
         if isinstance(obj,Locus):
             # you can pass in a Locus object (this expression
             # should ALWAYS be true if you
@@ -79,6 +81,14 @@ class Loci(Freezable):
             elif self._db.cursor().execute(''' 
                 SELECT COUNT(*) FROM aliases WHERE alias = ?''',
                 (obj,)).fetchone()[0] == 1:
+                return True
+            else:
+                return False
+        elif isinstance(obj,tuple):
+            chrom,start,end = obj
+            if self._db.cursor().execute('''
+                SELECT COUNT(*) FROM loci WHERE chromosome=? AND start=? and end=?
+                ''',(chrom,start,end)).fetchone()[0] > 0: 
                 return True
             else:
                 return False
@@ -118,10 +128,14 @@ class Loci(Freezable):
             None
         '''
         # Its actually just one locus
-        self._db.cursor().execute('''
-        INSERT OR REPLACE INTO loci VALUES (?,?,?,?)
+        cur = self._db.cursor()
+        cur.execute('''
+        INSERT OR IGNORE INTO loci VALUES (?,?,?,?)
         ''',(locus.name, locus.chrom, locus.start, locus.end))
-        self._db.cursor().executemany('''
+        # If the INSERT fails, add the name instead as an alias
+        #if cur.changes() == 0:
+        #    if locus
+        cur.executemany('''
         INSERT OR REPLACE INTO loci_attrs VALUES (?,?,?)
         ''',[(locus.id,key,val) for key,val in locus.attr.items()])
         # Update the cache
@@ -1078,7 +1092,8 @@ class Loci(Freezable):
                 id TEXT NOT NULL UNIQUE,
                 chromosome TEXT NOT NULL,
                 start INTEGER,
-                end INTEGER
+                end INTEGER,
+                UNIQUE(chromosome,start,end)
             );
             /*
             ---- Create a table that contains loci attribute
