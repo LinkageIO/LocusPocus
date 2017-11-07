@@ -51,7 +51,6 @@ class Locus(object):
                 "Wonky start and stop positions for: {}".format(self)
             )
 
-
     def as_dict(self):
         '''
             Return the Locus information as a dictionary

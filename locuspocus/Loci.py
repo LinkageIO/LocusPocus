@@ -17,7 +17,7 @@ from .LocusDist import LocusDist
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
 
-def memoize(obj):
+def memoize(obj): # pragma: no cover
     cache = obj.cache = {}
     @wraps(obj)
     def memoizer(*args, **kwargs):
@@ -34,11 +34,13 @@ def memoize(obj):
 
 class Loci(Freezable):
     '''
+        Loci are just a bunch of locuses.
         Just a bunch of Locuses. Loci are more than the sum of their 
         parts. They have a name and represent something bigger than
         theirselves. They are important. They live on the disk in a
         database.
     '''
+    # Create a class-wide logger
     log = logging.getLogger(__name__)
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
@@ -48,6 +50,8 @@ class Loci(Freezable):
     log.addHandler(handler)
     log.setLevel(logging.INFO)
 
+
+    # Methods 
     def __init__(self,name):
         super().__init__(name)
         self.name = name
@@ -58,6 +62,7 @@ class Loci(Freezable):
             Returns the number of Loci in the database
         '''
         return self.num_loci()
+
     def __contains__(self,obj):
         ''' 
             Flexible on what you pass into the 'in' function 
@@ -94,6 +99,7 @@ class Loci(Freezable):
                 return False
         else:
             raise TypeError('Cannot test for containment for {}'.format(obj))
+
     def __getitem__(self,item):
         '''
             A convenience method to extract loci from the reference genome.
@@ -113,7 +119,8 @@ class Loci(Freezable):
             return self.loci_within(Locus(chrom,start,end))
         else:
             return self.get_loci_from_ids(item)
-
+    def __iter__(self):
+        return self.iter_loci()
 
     def add_locus(self,locus):
         '''
@@ -1124,12 +1131,17 @@ class Loci(Freezable):
             );
            
             -- Indexes
+            ---------------------------------------------------------------------------------------
+            -- loci
             CREATE INDEX IF NOT EXISTS loci_start_end ON loci (chromosome,start DESC, end ASC, id);
             CREATE INDEX IF NOT EXISTS loci_end_start ON loci (chromosome,end DESC,start DESC,id);
             CREATE INDEX IF NOT EXISTS loci_start ON loci (chromosome,start);
             CREATE INDEX IF NOT EXISTS loci_end ON loci (chromosome,end);
             CREATE INDEX IF NOT EXISTS locusid ON loci (id);
+            -- loci_attrs
             CREATE INDEX IF NOT EXISTS locusattr ON loci_attrs (id);
+            -- func
             CREATE INDEX IF NOT EXISTS id ON func(id);
+            -- ortho_func
             CREATE INDEX IF NOT EXISTS id ON ortho_func(id); 
             ''');

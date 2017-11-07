@@ -14,24 +14,16 @@ class Chromosome(object) :
           Mainly, they are 1 indexed AND they are inclusive 
           for start and stop positions.
 
-    In [0]: from locuspocus.Fasta import Chromosome
-
-    In [1]: x = Chromosome('AAACCCTTTGGG')
-
-    In [3]: [1]
-    Out[3]: [1]
-
-    In [4]: x[1]
-    Out[4]: 'A'
-
-    In [5]: x[1:5]
-    Out[5]: 'AAACC'
-
-    In [6]: x[5:10]
-    Out[6]: 'CCTTTG'
-
-    In [7]: len(x)
-    Out[7]: 12
+    >>> from locuspocus.Fasta import Chromosome
+    >>> x = Chromosome('AAACCCTTTGGG')
+    >>> x[1]
+    'A'
+    >>> x[1:5]
+    'AAACC'
+    >>> x[5:10]
+    'CCTTTG'
+    >>> len(x)
+    12
 
     '''                                                                            
     def __init__(self,seq):                                                        
@@ -54,7 +46,6 @@ class Fasta(object):
 
        >>> from locuspocus import Fasta
        >>> x = Fasta.from_file('example.fa')
-
 
     '''
     log = logging.getLogger(__name__)                                               
