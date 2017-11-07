@@ -1,6 +1,6 @@
 # Exception abstract class
 
-class ZeroWindowError(Exception):
+class ZeroWindowError(Exception): # pragma: no cover
     def __init__(self,expr,message,*args):
         self.expr = expr
         self.message = (

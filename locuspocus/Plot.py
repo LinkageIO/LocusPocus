@@ -1,6 +1,6 @@
 import matplotlib.pylab as plt
     
-def plot_loci(self,loci,filename,flank_limit=2):
+def plot_loci(self,loci,filename,flank_limit=2): # pragma: no cover
     '''
         Plots the loci, windows and candidate genes
 
