@@ -11,25 +11,11 @@ import logging
 
 from minus80 import Freezable
 from collections import defaultdict
-from functools import lru_cache,wraps
+from functools import lru_cache
 
 from .LocusDist import LocusDist
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
-
-def memoize(obj): # pragma: no cover
-    cache = obj.cache = {}
-    @wraps(obj)
-    def memoizer(*args, **kwargs):
-        # Give us a way to clear the cache
-        if 'clear_cache' in kwargs:
-            cache.clear()
-        # This wraps the calling of the memoized object
-        key = str(args) + str(kwargs)
-        if key not in cache:
-            cache[key] = obj(*args, **kwargs)
-        return cache[key]
-    return memoizer
 
 
 class Loci(Freezable):
@@ -170,7 +156,7 @@ class Loci(Freezable):
                 cur = self._db.cursor()
                 cur.execute('BEGIN TRANSACTION')
                 cur.executemany(
-                    'INSERT OR REPLACE INTO loci VALUES (?,?,?,?)',
+                    'INSERT OR IGNORE INTO loci VALUES (?,?,?,?)',
                     ((x.name,x.chrom,x.start,x.end) for x in loci)
                 )
                 cur.executemany(
@@ -265,7 +251,7 @@ class Loci(Freezable):
     #----------- Internal Methods  -----------#
 
 
-    @memoize
+    @lru_cache(maxsize=8)
     def num_loci(self,*args,**kwargs):
         '''
             Returns the number of loci in the dataset
@@ -940,7 +926,8 @@ class Loci(Freezable):
         self._db.cursor().execute('DELETE FROM aliases;')
 
     def _update_cache(self):
-        self.num_loci(clear_cache=True)
+        self.num_loci.cache_clear()
+
     def add_annotations(self, filename, sep="\t", locus_col=0, skip_cols=None):
         ''' 
             Imports Annotation relationships from a csv file. By default will
