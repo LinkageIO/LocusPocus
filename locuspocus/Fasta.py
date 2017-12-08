@@ -4,6 +4,8 @@ import logging
 import re
 
 from minus80 import Freezable
+import reprlib
+import pprint
 
 class Chromosome(object) :                                                          
     '''                                                                             
@@ -35,9 +37,16 @@ class Chromosome(object) :
             return self.seq[max(0,pos.start-1):pos.stop]                                  
         # chromosomes start at 1, python strings start at 0                         
         else:
+            if pos < 1:
+                raise ValueError('Genetic coordinates cannot start less than 1')
             return self.seq[int(pos)-1]                                                
     def __len__(self):                                                             
         return len(self.seq)        
+
+    def __repr__(self):
+        return 'Chromosome({})'.format(
+            reprlib.repr(self.seq)
+        )
 
 class Fasta(object):
     '''
@@ -97,6 +106,18 @@ class Fasta(object):
 
     @classmethod
     def from_minus80(cls,name):
+        '''
+            Load a Fasta object from the Minus80.
+
+            Parameters
+            ----------
+            name : str
+                The name of the frozen object
+
+            Returns
+            -------
+            A Fasta object
+        '''
         self = cls()
         from minus80 import Freezable
         store = Freezable(name,type=Freezable.guess_type(self))
@@ -150,6 +171,26 @@ class Fasta(object):
         '''
         self.attributes[chrom_name].append(attr)
 
+    @classmethod
+    async def from_file_async(cls,fasta_file,nickname=None):
+        async def produce(queue,fasta_file):
+            # add chromosomes to the queue
+            await queue.put(chrom)
+            await queue.put(None)
+
+        async def consume(queue):
+            while True:
+                chrom = await queue.get()
+                if item is None:
+                    break
+                # put chromosomes in the database
+
+
+        loop = asyncio.get_event_loop()
+        queue = asyncio.Queue(loop=loop)
+        loop.run_until_complete(asyncio.gather())
+        loop.close()
+
 
     @classmethod
     def from_file(cls,fasta_file,nickname=None):
@@ -186,6 +227,8 @@ class Fasta(object):
         return self
 
 
+
+
     @staticmethod
     def _initialize_tables(store):
         cur = store._db.cursor()
@@ -216,3 +259,9 @@ class Fasta(object):
                 FOREIGN KEY(chrom) REFERENCES chroms(chrom)
             )
         ''')
+
+
+    def __repr__(self):
+        return pprint.saferepr(
+            reprlib.repr(self.chroms)
+        )
