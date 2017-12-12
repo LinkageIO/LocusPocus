@@ -123,13 +123,13 @@ class Loci(Freezable):
         # Its actually just one locus
         cur = self._db.cursor()
         cur.execute('''
-        INSERT OR IGNORE INTO loci VALUES (?,?,?,?)
+        INSERT OR IGNORE INTO loci (id,chromosome,start,end) VALUES (?,?,?,?)
         ''',(locus.name, locus.chrom, locus.start, locus.end))
         # If the INSERT fails, add the name instead as an alias
         #if cur.changes() == 0:
         #    if locus
         cur.executemany('''
-        INSERT OR REPLACE INTO loci_attrs VALUES (?,?,?)
+            INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)
         ''',[(locus.id,key,val) for key,val in locus.attr.items()])
         # Update the cache
         self._update_cache()
@@ -156,11 +156,11 @@ class Loci(Freezable):
                 cur = self._db.cursor()
                 cur.execute('BEGIN TRANSACTION')
                 cur.executemany(
-                    'INSERT OR IGNORE INTO loci VALUES (?,?,?,?)',
+                    'INSERT OR IGNORE INTO loci (id,chromosome,start,end) VALUES (?,?,?,?)',
                     ((x.name,x.chrom,x.start,x.end) for x in loci)
                 )
                 cur.executemany(
-                    'INSERT OR REPLACE INTO loci_attrs VALUES (?,?,?)',
+                    'INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)',
                     ((x.id,key,val) for x in loci for key,val in x.attr.items())
                 )
                 cur.execute('END TRANSACTION')
@@ -981,7 +981,7 @@ class Loci(Freezable):
         try:
             cur.execute('BEGIN TRANSACTION')
             cur.executemany(
-                'INSERT INTO func VALUES (?,?)'
+                'INSERT INTO func (id,desc) VALUES (?,?)'
                 ,tbl.itertuples(index=False))
             cur.execute('END TRANSACTION')
         
@@ -1072,7 +1072,7 @@ class Loci(Freezable):
         if isinstance(id,Locus):
             id = id.id
         return self._db.cursor().execute('''
-            SELECT rowid FROM loci WHERE id = ?
+            SELECT LID FROM loci WHERE id = ?
         ''',(id,)).fetchone()[0]
 
     def _initialize_tables(self):
@@ -1083,6 +1083,7 @@ class Loci(Freezable):
         cur = self._db.cursor()
         cur.execute('''
             CREATE TABLE IF NOT EXISTS loci (
+                LID INTEGER PRIMARY KEY AUTOINCREMENT,
                 id TEXT NOT NULL UNIQUE,
                 chromosome TEXT NOT NULL,
                 start INTEGER,
