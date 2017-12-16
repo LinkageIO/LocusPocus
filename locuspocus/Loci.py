@@ -1068,12 +1068,31 @@ class Loci(Freezable):
         self._build_indices()
         return self
 
-    def rowid(self,id):
-        if isinstance(id,Locus):
-            id = id.id
-        return self._db.cursor().execute('''
-            SELECT LID FROM loci WHERE id = ?
-        ''',(id,)).fetchone()[0]
+
+    @lru_cache(maxsize=2**23)
+    def LID(self,obj):
+        '''
+            Return the numeric Locus Identifier (LID) from a locus
+
+            Parameters
+            ----------
+            locus : either a locus name or a locus object
+                The LID of this locus will be returned
+
+            Returns
+            -------
+            LID : int
+        '''
+        if isinstance(obj,Locus):
+            id = obj.id
+        else:
+            id = obj
+        try:
+            return self._db.cursor().execute('''
+                SELECT LID FROM loci WHERE id = ?
+            ''',(id,)).fetchone()[0]
+        except ValueError as e:
+            raise ValueError(f'{id} not in database')
 
     def _initialize_tables(self):
         '''
