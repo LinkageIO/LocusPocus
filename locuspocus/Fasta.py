@@ -52,6 +52,13 @@ class Chromosome(object) :
             reprlib.repr(self.seq)
         )
 
+    def __eq__(self,obj):
+        if self.name == obj.name and self.seq == obj.seq:
+            return True
+        else:
+            return False
+
+
 class Fasta(Freezable):
     '''
         A pythonic interface to a FASTA file. This interface
@@ -178,6 +185,14 @@ class Fasta(Freezable):
             self.add_chrom(cur_chrom,Chromosome("".join(cur_seqs)))
         return self
 
+    def __iter__(self):
+        '''
+            Iterate over chromosome objects
+        '''
+        chroms  = self._db.cursor().execute('SELECT name FROM added_order ORDER BY aorder')
+        for (chrom,) in chroms:
+            yield self[chrom]
+
     def __contains__(self,obj):
         '''
            Returns boolean indicating if a named
@@ -240,7 +255,7 @@ class Fasta(Freezable):
                 (chrom,attribute) 
              VALUES (?,?)
              ''',
-            (chrom,attr)
+            (chrom_name,attr)
         )
 
     def _add_nickname(self,chrom,nickname,cur=None):

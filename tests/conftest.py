@@ -38,16 +38,15 @@ def testRefGen():
 @pytest.fixture()                                                               
 def smpl_fasta():                                                                  
     ''' A simple fasta that agrees with smpl_annot'''                           
-    fasta = Fasta()                                                             
-    chr1 = Chromosome('A'*500000)                                                  
-    chr2 = Chromosome('C'*500000)                                               
-    chr3 = Chromosome('G'*500000)                                               
-    chr4 = Chromosome('T'*500000)                                                  
-    fasta._file = 'None'
+    fasta = Fasta('smpl_fasta')                                                             
+    chr1 = Chromosome('chr1','A'*500000)                                                  
+    chr2 = Chromosome('chr2','C'*500000)                                               
+    chr3 = Chromosome('chr2','G'*500000)                                               
+    chr4 = Chromosome('chr4','T'*500000)                                                  
     fasta.add_chrom('chr1',chr1)                                                
     fasta.add_chrom('chr2',chr2)                                                
     fasta.add_chrom('chr3',chr3)                                                
     fasta.add_chrom('chr4',chr4)                                                
-    fasta.nicknames['CHR1'] = 'chr1'
-    fasta.add_attribute('chr1','foobar')
+    fasta._add_nickname('chr1','CHR1')
+    fasta._add_attribute('chr1','foobar')
     return fasta  
