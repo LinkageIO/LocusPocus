@@ -10,6 +10,8 @@ import pprint
 
 from functools import lru_cache
 
+
+
 class Chromosome(object) :                                                          
     '''                                                                             
     A Chromosome is a lightweight object which maps indices to                     
@@ -49,7 +51,7 @@ class Chromosome(object) :
 
     def __repr__(self):
         return 'Chromosome({})'.format(
-            reprlib.repr(self.seq)
+            reprlib.repr(''.join(self.seq[1:100]))
         )
 
     def __eq__(self,obj):
@@ -75,8 +77,9 @@ class Fasta(Freezable):
                 )                                                                   
 
     handler.setFormatter(formatter)                                                 
-    log.addHandler(handler)                                                         
-    log.setLevel(logging.INFO)          
+    if not len(log.handlers): 
+        log.addHandler(handler)                                                         
+        log.setLevel(logging.INFO)          
 
     def __init__(self,name):
         '''
@@ -128,7 +131,7 @@ class Fasta(Freezable):
             )
         ''')
 
-    def add_chrom(self,name,chrom,cur=None):
+    def add_chrom(self,name,chrom,cur=None,force=False):
         '''
             Add a chromosome to the Fasta object.
 
@@ -137,22 +140,27 @@ class Fasta(Freezable):
             name : str
                 The name of the chromosome
         '''
-        if cur is None:
-            cur = self._db.cursor()
-        cur.execute(
-            '''
-            INSERT OR REPLACE INTO added_order 
-                (name) 
-            VALUES (?)
-            ''',(name,)
-        )
+        # Check for duplicates
+        if name in self:
+            if not force:
+                raise ValueError(f'{name} already in FASTA')
+        else:
+            if cur is None:
+                cur = self._db.cursor()
+            cur.execute(
+                '''
+                INSERT OR REPLACE INTO added_order 
+                    (name) 
+                VALUES (?)
+                ''',(name,)
+            )
         seqarray = np.array(list(chrom.seq))
-        self.log.warn(f'Adding {name}') 
+        self.log.info(f'Adding {name}') 
         self._bcolz_array(name,seqarray)
-        
+
 
     @classmethod
-    def from_file(cls,name,fasta_file,nickname=None):
+    def from_file(cls,name,fasta_file,nickname=None,force=False):
         '''
             Create a Fasta object from a file.
         '''    
@@ -166,7 +174,7 @@ class Fasta(Freezable):
                 if line.startswith('>'):
                     # Finish the last chromosome before adding a new one
                     if cur_chrom:
-                        self.add_chrom(cur_chrom,Chromosome("".join(cur_seqs)),cur=cur)
+                        self.add_chrom(cur_chrom,Chromosome(cur_chrom,"".join(cur_seqs)),cur=cur,force=force)
                     name,*attrs = line.lstrip('>').split()
                     cur_chrom = name
                     cur_seqs = []
@@ -176,13 +184,13 @@ class Fasta(Freezable):
                         pattern,replace = nickname
                         alt = re.sub(pattern,replace,line)
                         if alt != line:
-                            self.log('Found a nickname: mapping {} -> {}',alt,name)
+                            self.log.info('Found a nickname: mapping {} -> {}',alt,name)
                             self._add_nickname(name,alt,cur=cur)
                             self._add_nickname(alt,name,cur=cur)
                 else:
                     cur_seqs.append(line)
             # Add the last chromosome
-            self.add_chrom(cur_chrom,Chromosome("".join(cur_seqs)))
+            self.add_chrom(cur_chrom,Chromosome(cur_chrom,"".join(cur_seqs)),force=force,cur=cur)
         return self
 
     def __iter__(self):
@@ -192,6 +200,14 @@ class Fasta(Freezable):
         chroms  = self._db.cursor().execute('SELECT name FROM added_order ORDER BY aorder')
         for (chrom,) in chroms:
             yield self[chrom]
+
+    def __len__(self):
+        '''
+            Returns the number of chroms in the Fasta
+        '''
+        return self._db.cursor().execute('''
+            SELECT COUNT(*) FROM added_order
+        ''').fetchone()[0]
 
     def __contains__(self,obj):
         '''
