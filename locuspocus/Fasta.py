@@ -9,56 +9,7 @@ import reprlib
 import pprint
 
 from functools import lru_cache
-
-
-
-class Chromosome(object) :                                                          
-    '''                                                                             
-    A Chromosome is a lightweight object which maps indices to                     
-    string positions.
-
-    NOTE: chromosome indices are different that python indices.
-          Mainly, they are 1 indexed AND they are inclusive 
-          for start and stop positions.
-
-    >>> from locuspocus.Fasta import Chromosome
-    >>> x = Chromosome('AAACCCTTTGGG')
-    >>> x[1]
-    'A'
-    >>> x[1:5]
-    'AAACC'
-    >>> x[5:10]
-    'CCTTTG'
-    >>> len(x)
-    12
-
-    '''                                                                            
-    def __init__(self,name,seq):                                                        
-        self.name = name
-        self.seq = seq                                                      
-    def __getitem__(self,pos):                                                     
-        if isinstance(pos,slice):                                                  
-            if pos.start < 1:
-                raise ValueError('Genetic coordinates cannot start less than 1')
-            return self.seq[max(0,pos.start-1):pos.stop]                                  
-        # chromosomes start at 1, python strings start at 0                         
-        else:
-            if pos < 1:
-                raise ValueError('Genetic coordinates cannot start less than 1')
-            return self.seq[int(pos)-1]                                                
-    def __len__(self):                                                             
-        return len(self.seq)         
-
-    def __repr__(self):
-        return 'Chromosome({})'.format(
-            reprlib.repr(''.join(self.seq[1:100]))
-        )
-
-    def __eq__(self,obj):
-        if self.name == obj.name and self.seq == obj.seq:
-            return True
-        else:
-            return False
+from locuspocus import Chromosome
 
 
 class Fasta(Freezable):
@@ -131,7 +82,7 @@ class Fasta(Freezable):
             )
         ''')
 
-    def add_chrom(self,name,chrom,cur=None,force=False):
+    def add_chrom(self,chrom,cur=None,force=False):
         '''
             Add a chromosome to the Fasta object.
 
@@ -141,9 +92,9 @@ class Fasta(Freezable):
                 The name of the chromosome
         '''
         # Check for duplicates
-        if name in self:
+        if chrom.name in self:
             if not force:
-                raise ValueError(f'{name} already in FASTA')
+                raise ValueError(f'{chrom.name} already in FASTA')
         else:
             if cur is None:
                 cur = self._db.cursor()
@@ -152,15 +103,20 @@ class Fasta(Freezable):
                 INSERT OR REPLACE INTO added_order 
                     (name) 
                 VALUES (?)
-                ''',(name,)
+                ''',(chrom.name,)
             )
-        seqarray = np.array(list(chrom.seq))
-        self.log.info(f'Adding {name}') 
-        self._bcolz_array(name,seqarray)
+            for x in chrom._attrs:
+                self._add_attribute(chrom.name,x)
+        seqarray = np.array(chrom.seq)
+        self.log.info(f'Adding {chrom.name}') 
+        self._bcolz_array(chrom.name,seqarray)
+        self.cache_clear()
 
+    def cache_clear(self):
+        self.__getitem__.cache_clear()
 
     @classmethod
-    def from_file(cls,name,fasta_file,nickname=None,force=False):
+    def from_file(cls,name,fasta_file,force=False):
         '''
             Create a Fasta object from a file.
         '''    
@@ -168,29 +124,18 @@ class Fasta(Freezable):
         with open(fasta_file,'r') as IN, self._db as db: 
             cur = db.cursor()
             cur_chrom = None
-            cur_seqs = []
             for line in IN:
                 line = line.strip()
                 if line.startswith('>'):
                     # Finish the last chromosome before adding a new one
                     if cur_chrom:
-                        self.add_chrom(cur_chrom,Chromosome(cur_chrom,"".join(cur_seqs)),cur=cur,force=force)
+                        self.add_chrom(cur_chrom,cur=cur,force=force)
                     name,*attrs = line.lstrip('>').split()
-                    cur_chrom = name
-                    cur_seqs = []
-                    for attr in attrs:
-                        self.add_attribute(cur_chrom,attr,cur=cur)
-                    if nickname != None:
-                        pattern,replace = nickname
-                        alt = re.sub(pattern,replace,line)
-                        if alt != line:
-                            self.log.info('Found a nickname: mapping {} -> {}',alt,name)
-                            self._add_nickname(name,alt,cur=cur)
-                            self._add_nickname(alt,name,cur=cur)
+                    cur_chrom = Chromosome(name,'',*attrs)
                 else:
-                    cur_seqs.append(line)
+                    cur_chrom.seq = np.append(cur_chrom.seq,list(line))
             # Add the last chromosome
-            self.add_chrom(cur_chrom,Chromosome(cur_chrom,"".join(cur_seqs)),force=force,cur=cur)
+            self.add_chrom(cur_chrom,force=force,cur=cur)
         return self
 
     def __iter__(self):
@@ -233,21 +178,22 @@ class Fasta(Freezable):
             return True
         # Otherise its not here
         return False
-   
+  
+
     @lru_cache(maxsize=128)
     def __getitem__(self,chrom_name):
        try:
-           seq_array = self._bcolz_array(chrom_name)
-           return Chromosome(chrom_name,seq_array)
+            seq_array = self._bcolz_array(chrom_name)
        except Exception as e:
-           pass
-       try:
-           chrom_name = self._get_nickname(chrom_name)
-           return self[chrom_name]
-       except Exception as e:
-           raise KeyError(
-               '{} not in Fasta: {}'.format(chrom_name,self._m80_name)
-           )
+            chrom_name = self._get_nickname(chrom_name)
+            seq_array = self._bcolz_array(chrom_name)
+       finally:
+            attrs = [x[0] for x in self._db.cursor().execute('''
+                SELECT attribute FROM attributes 
+                WHERE chrom = ?
+            ''',(chrom_name,))]
+            return Chromosome(chrom_name,seq_array,*attrs)
+
 
     def _add_attribute(self,chrom_name,attr,cur=None):
         '''
@@ -267,12 +213,13 @@ class Fasta(Freezable):
             cur = self._db.cursor()
         cur.execute(
             '''
-            INSERT OR REPLACE INTO attributes 
+            INSERT INTO attributes 
                 (chrom,attribute) 
              VALUES (?,?)
              ''',
             (chrom_name,attr)
         )
+        self.cache_clear()
 
     def _add_nickname(self,chrom,nickname,cur=None):
         '''
@@ -299,16 +246,13 @@ class Fasta(Freezable):
     def _get_nickname(self,nickname):
         '''
             Get a chromosomem name by nickname
-
-
-
         '''
         return self._db.cursor().execute('''
             SELECT chrom FROM nicknames 
             WHERE nickname = ?
         ''',(nickname,)).fetchone()[0]
 
-    def __repr__(self):
+    def __repr__(self): #pragma: nocover
         return pprint.saferepr(
-            reprlib.repr(self.chroms)
+            reprlib.repr(list(self))
         )

@@ -118,21 +118,21 @@ class Loci(Freezable):
 
             Returns
             -------
-            None
+            The LID of the added locus
         '''
         # Its actually just one locus
         cur = self._db.cursor()
         cur.execute('''
-        INSERT OR IGNORE INTO loci (id,chromosome,start,end) VALUES (?,?,?,?)
+            INSERT OR IGNORE INTO loci (id,chromosome,start,end) VALUES (?,?,?,?)
         ''',(locus.name, locus.chrom, locus.start, locus.end))
-        # If the INSERT fails, add the name instead as an alias
-        #if cur.changes() == 0:
-        #    if locus
+        # add the attrs
         cur.executemany('''
             INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)
         ''',[(locus.id,key,val) for key,val in locus.attr.items()])
         # Update the cache
         self._update_cache()
+        (LID,) = cur.execute('SELECT LID FROM loci WHERE id = ?',(locus.name,)).fetchone()
+        return LID
 
     def add_loci(self,loci):
         '''
@@ -486,6 +486,7 @@ class Loci(Freezable):
                 LIMIT ?
             ''',(locus.chrom, locus.end, downstream, locus_limit)
         )]
+
     def flanking_loci(self, loci, flank_limit=2,chain=True,window_size=None):
         '''
             Returns loci upstream and downstream from a locus

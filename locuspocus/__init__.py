@@ -4,7 +4,9 @@ __all__ = ['Locus']
 #import pyximport
 #pyximport.install()
 
+from .Chromosome import Chromosome
+from .Fasta import Fasta
+
 from .Locus import Locus
 from .Loci import Loci
-from .Fasta import Fasta
 
