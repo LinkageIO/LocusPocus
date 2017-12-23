@@ -4,6 +4,8 @@ from locuspocus import Locus
 from locuspocus import Loci
 from locuspocus import Fasta
 
+import minus80.Tools as m80tools
+
 from locuspocus.Fasta import Chromosome
 
 @pytest.fixture(scope='module')
@@ -35,18 +37,33 @@ def testRefGen():
         )
     return x
 
-@pytest.fixture()                                                               
+
+@pytest.fixture(scope='module')
+def m80_Fasta():
+    '''
+        Create a Fasta which doesn't get 
+        returned. Access the Fasta through
+        the m80 API
+    '''
+    # delete the onl
+    m80tools.delete('ACGT','Fasta',force=True)
+    f = Fasta.from_file('ACGT','raw/ACGT.fasta')
+    return True
+
+
+@pytest.fixture(scope='module')                                                               
 def smpl_fasta():                                                                  
     ''' A simple fasta that agrees with smpl_annot'''                           
+    m80tools.delete('smpl_fasta','Fasta',force=True)
     fasta = Fasta('smpl_fasta')                                                             
     chr1 = Chromosome('chr1','A'*500000)                                                  
     chr2 = Chromosome('chr2','C'*500000)                                               
-    chr3 = Chromosome('chr2','G'*500000)                                               
+    chr3 = Chromosome('chr3','G'*500000)                                               
     chr4 = Chromosome('chr4','T'*500000)                                                  
-    fasta.add_chrom('chr1',chr1)                                                
-    fasta.add_chrom('chr2',chr2)                                                
-    fasta.add_chrom('chr3',chr3)                                                
-    fasta.add_chrom('chr4',chr4)                                                
+    fasta.add_chrom(chr1)                                                
+    fasta.add_chrom(chr2)                                                
+    fasta.add_chrom(chr3)                                                
+    fasta.add_chrom(chr4)                                                
     fasta._add_nickname('chr1','CHR1')
     fasta._add_attribute('chr1','foobar')
     return fasta  
