@@ -176,105 +176,105 @@ def test_random_loci_returns_correct_n(testRefGen):
 
 # New Tests
 
-def test_add_loci(simpleLoci):
+def test_add_loci(simpleRefLoci):
     new_locus = Locus(1,100,300,id='new_locus')
-    simpleLoci.add_loci(new_locus)
-    assert new_locus in simpleLoci
+    simpleRefLoci.add_loci(new_locus)
+    assert new_locus in simpleRefLoci
 
-def test_removie_locus(simpleLoci):
+def test_removie_locus(simpleRefLoci):
     new_locus = Locus(1,100,300,id='new_locus')
-    if new_locus not in simpleLoci:
-        simpleLoci.add_locus(new_locus)
-    assert new_locus in simpleLoci
-    simpleLoci.remove_locus(new_locus.id)
-    assert new_locus not in simpleLoci
+    if new_locus not in simpleRefLoci:
+        simpleRefLoci.add_locus(new_locus)
+    assert new_locus in simpleRefLoci
+    simpleRefLoci.remove_locus(new_locus.id)
+    assert new_locus not in simpleRefLoci
 
 def test_add_gff(testRefGen):
     assert len(testRefGen) > 0
 
-def test_len(simpleLoci):
-    assert isinstance(len(simpleLoci),int)
+def test_len(simpleRefLoci):
+    assert isinstance(len(simpleRefLoci),int)
 
-def test_num_loci(simpleLoci):
-    assert isinstance(simpleLoci.num_loci(),int)
+def test_num_loci(simpleRefLoci):
+    assert isinstance(simpleRefLoci.num_loci(),int)
 
-def test_random_locus(simpleLoci):
-    assert isinstance(simpleLoci.random_locus(),Locus)
+def test_random_locus(simpleRefLoci):
+    assert isinstance(simpleRefLoci.random_locus(),Locus)
 
-def test_random_loci(simpleLoci):
-    loci = simpleLoci.random_loci(n=3)
+def test_random_loci(simpleRefLoci):
+    loci = simpleRefLoci.random_loci(n=3)
     assert len(loci) == 3
     for x in loci:
         assert isinstance(x,Locus)
 
-def test_iter_loci(simpleLoci):
-    for x in simpleLoci.iter_loci():
+def test_iter_loci(simpleRefLoci):
+    for x in simpleRefLoci.iter_loci():
         assert isinstance(x,Locus)
 
 def test_intersection():
     pass
 
-def test_from_id(simpleLoci):
-    locus = simpleLoci.get_locus_from_id('gene_a')
-    assert locus.id in simpleLoci
+def test_from_id(simpleRefLoci):
+    locus = simpleRefLoci.get_locus_from_id('gene_a')
+    assert locus.id in simpleRefLoci
     assert isinstance(locus,Locus)
 
-def test_get_loci_from_ids(simpleLoci):
-    loci = simpleLoci.get_loci_from_ids(['gene_a','gene_b','gene_c'])
+def test_get_loci_from_ids(simpleRefLoci):
+    loci = simpleRefLoci.get_loci_from_ids(['gene_a','gene_b','gene_c'])
     assert len(loci) == 3
 
-def test_get_item(simpleLoci):
-    assert isinstance(simpleLoci['gene_a'],Locus)
+def test_get_item(simpleRefLoci):
+    assert isinstance(simpleRefLoci['gene_a'],Locus)
 
-def test_encompassing_loci(simpleLoci):
+def test_encompassing_loci(simpleRefLoci):
     pass
 
-def test_loci_within(simpleLoci):
+def test_loci_within(simpleRefLoci):
     pass
 
-def test_upstream_loci(simpleLoci):
+def test_upstream_loci(simpleRefLoci):
     pass
 
-def test_downstream_loci(simpleLoci):
+def test_downstream_loci(simpleRefLoci):
     pass
 
-def test_flanking_loci(simpleLoci):
+def test_flanking_loci(simpleRefLoci):
     pass
 
-def test_candidate_loci(simpleLoci):
+def test_candidate_loci(simpleRefLoci):
     pass
 
-def test_bootstrap_candidate_loci(simpleLoci):
+def test_bootstrap_candidate_loci(simpleRefLoci):
     pass
 
-def test_pairwise_distance(simpleLoci):
+def test_pairwise_distance(simpleRefLoci):
     pass
 
-def test_contains(simpleLoci):
-    assert 'gene_a' in simpleLoci 
+def test_contains(simpleRefLoci):
+    assert 'gene_a' in simpleRefLoci 
 
-def test_add_alias(simpleLoci):
-    simpleLoci._remove_aliases()
-    assert 'alias_1' not in simpleLoci
-    simpleLoci.add_alias('gene_a','alias_1')
-    assert 'alias_1' in simpleLoci
+def test_add_alias(simpleRefLoci):
+    simpleRefLoci._remove_aliases()
+    assert 'alias_1' not in simpleRefLoci
+    simpleRefLoci.add_alias('gene_a','alias_1')
+    assert 'alias_1' in simpleRefLoci
 
-def test_num_aliases(simpleLoci):
-    simpleLoci._remove_aliases()
-    simpleLoci.add_alias('gene_a','alias_1')
-    assert simpleLoci.num_aliases() == 1
-    simpleLoci._remove_aliases()
+def test_num_aliases(simpleRefLoci):
+    simpleRefLoci._remove_aliases()
+    simpleRefLoci.add_alias('gene_a','alias_1')
+    assert simpleRefLoci.num_aliases() == 1
+    simpleRefLoci._remove_aliases()
 
-def test_aliases(simpleLoci):
-    simpleLoci._remove_aliases()
-    simpleLoci.add_alias('gene_a','alias_1')
-    x = simpleLoci['alias_1']
+def test_aliases(simpleRefLoci):
+    simpleRefLoci._remove_aliases()
+    simpleRefLoci.add_alias('gene_a','alias_1')
+    x = simpleRefLoci['alias_1']
     assert x.id == 'gene_a'
-    simpleLoci._remove_aliases()
+    simpleRefLoci._remove_aliases()
 
-def test_remove_aliases(simpleLoci):
-    simpleLoci._remove_aliases()
-    assert simpleLoci.num_aliases() == 0
+def test_remove_aliases(simpleRefLoci):
+    simpleRefLoci._remove_aliases()
+    assert simpleRefLoci.num_aliases() == 0
 
 def test_has_annotations():
     pass
@@ -288,11 +288,11 @@ def test_add_annotations():
 def test_remove_annotations():
     pass
 
-def test_get_attrs(simpleLoci):
+def test_get_attrs(simpleRefLoci):
     nLocus = Locus(1,2,3,'nLocus',foo="bar",baz="bat")
-    simpleLoci.add_locus(nLocus)
+    simpleRefLoci.add_locus(nLocus)
     del nLocus
-    nLocus = simpleLoci['nLocus']
+    nLocus = simpleRefLoci['nLocus']
     assert nLocus['foo'] == 'bar'
     assert nLocus['baz'] == 'bat'
 
