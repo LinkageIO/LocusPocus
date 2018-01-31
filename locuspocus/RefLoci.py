@@ -18,10 +18,10 @@ from .Locus import Locus
 from .Exceptions import ZeroWindowError
 
 
-class Loci(Freezable):
+class RefLoci(Freezable):
     '''
-        Loci are just a bunch of locuses.
-        Just a bunch of Locuses. Loci are more than the sum of their 
+        RefLoci are just a bunch of locuses.
+        Just a bunch of Locuses. RefLoci are more than the sum of their 
         parts. They have a name and represent something bigger than
         theirselves. They are important. They live on the disk in a
         database.
@@ -56,7 +56,7 @@ class Loci(Freezable):
         if isinstance(obj,Locus):
             # you can pass in a Locus object (this expression
             # should ALWAYS be true if you
-            # created Locus object from this Loci object)
+            # created Locus object from this RefLoci object)
             if self._db.cursor().execute(
                 '''SELECT COUNT(*) FROM loci WHERE id = ?''',
                 (obj.id,)).fetchone()[0] == 1:
@@ -152,7 +152,7 @@ class Loci(Freezable):
         else:
             try:
                 # support adding lists of loci
-                self.log.info('Adding {} Loci info to database'.format(len(loci)))
+                self.log.info('Adding {} RefLoci info to database'.format(len(loci)))
                 cur = self._db.cursor()
                 cur.execute('BEGIN TRANSACTION')
                 cur.executemany(
@@ -195,7 +195,7 @@ class Loci(Freezable):
                  locus_feature='gene',
                  ID_attr='ID',attr_split='='):
         '''
-            Imports Loci from a gff (General Feature Format) file.
+            Imports RefLoci from a gff (General Feature Format) file.
             See more about the format here:
             http://www.ensembl.org/info/website/upload/gff.html
 
@@ -206,7 +206,7 @@ class Loci(Freezable):
                 The path to the GFF file.
             name : str
                 The name if the RefGen object to be stored in the core
-                camoco database.
+                minus80 database.
             locus_feature : str (default: 'gene')
                 The name of the feature (in column 2) that designates a 
                 locus. These features will be the main object that the RefGen
@@ -287,7 +287,7 @@ class Loci(Freezable):
 
             Returns
             -------
-            A Locus object (camoco.Locus based)
+            A Locus object (locuspocus.Locus based)
 
         '''
         (id,) = self._db.cursor().execute('''
@@ -598,8 +598,8 @@ class Loci(Freezable):
 
             Parameters
             ----------
-            loci : camoco.Locus (also handles an iterable containing Loci)
-                a camoco locus or iterable of loci
+            loci : locuspocus.Locus (also handles an iterable containing Loci)
+                a locus or iterable of loci
             flank_limit : int (default : 2)
                 The total number of flanking loci **on each side**
                 considered a candidate surrounding a locus
@@ -742,8 +742,8 @@ class Loci(Freezable):
 
             Parameters
             ----------
-            loci : camoco.Locus (also handles an iterable containing Loci)
-                a camoco locus or iterable of loci
+            loci : locuspocus.Locus (also handles an iterable containing Loci)
+                a locus or iterable of loci
             flank_limit : int (default : 2)
                 The total number of flanking loci **on each side**
                 considered a candidate surrounding a locus
