@@ -5,6 +5,7 @@ import re
 import numpy as np
 
 from minus80 import Freezable
+from minus80.RawFile import RawFile
 import reprlib
 import pprint
 
@@ -112,6 +113,22 @@ class Fasta(Freezable):
         self._bcolz_array(chrom.name,seqarray)
         self.cache_clear()
 
+    def chrom_names(self):
+        '''
+            Returns an iterable of chromosome names
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            An iterable of chromosome names in added order
+        '''
+        return (x for (x,) in self._db.cursor().execute('''
+            SELECT name FROM added_order ORDER BY aorder
+        '''))
+
     def cache_clear(self):
         self.__getitem__.cache_clear()
 
@@ -121,21 +138,28 @@ class Fasta(Freezable):
             Create a Fasta object from a file.
         '''    
         self = cls(name)
-        with open(fasta_file,'r') as IN, self._db as db: 
+        with RawFile(fasta_file) as IN, self._db as db: 
             cur = db.cursor()
             cur_chrom = None
+            seqs = []
+            name, attrs = None,None
             for line in IN:
                 line = line.strip()
                 if line.startswith('>'):
                     # Finish the last chromosome before adding a new one
-                    if cur_chrom:
+                    if len(seqs) > 0:
+                        cur_chrom = Chromosome(name,seqs,*attrs)
                         self.add_chrom(cur_chrom,cur=cur,force=force)
+                        seqs = []
                     name,*attrs = line.lstrip('>').split()
-                    cur_chrom = Chromosome(name,'',*attrs)
+                    #cur_chrom = Chromosome(name,'',*attrs)
                 else:
-                    cur_chrom.seq = np.append(cur_chrom.seq,list(line))
+                    seqs += line
+                    #cur_chrom.seq = np.append(cur_chrom.seq,list(line))
             # Add the last chromosome
-            self.add_chrom(cur_chrom,force=force,cur=cur)
+            cur_chrom = Chromosome(name,seqs,*attrs)
+            self.add_chrom(cur_chrom,cur=cur,force=force)
+            #self.add_chrom(cur_chrom,force=force,cur=cur)
         return self
 
     def __iter__(self):
