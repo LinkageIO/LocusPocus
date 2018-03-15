@@ -28,7 +28,7 @@ class Chromosome(object) :
             self.seq = np.array(list(seq))
         else:
             self.seq = np.array(seq)
-        self._attrs = set(args)
+        self._attrs = list(args)
 
 
     def __getitem__(self,pos):                                                     
