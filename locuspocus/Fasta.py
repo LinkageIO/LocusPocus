@@ -204,12 +204,14 @@ class Fasta(Freezable):
 
     @lru_cache(maxsize=128)
     def __getitem__(self,chrom_name):
-       try:
+        if chrom_name not in self:
+            raise ValueError(f'{chrom_name} not in {self._m80_name}')
+        try:
             seq_array = self._bcolz_array(chrom_name)
-       except Exception as e:
+        except Exception as e:
             chrom_name = self._get_nickname(chrom_name)
             seq_array = self._bcolz_array(chrom_name)
-       finally:
+        finally:
             attrs = [x[0] for x in self._db.cursor().execute('''
                 SELECT attribute FROM attributes 
                 WHERE chrom = ?
@@ -217,7 +219,7 @@ class Fasta(Freezable):
             ''',(chrom_name,))]
             return Chromosome(chrom_name,seq_array,*attrs)
 
-    def to_fasta(self,filename):
+    def to_fasta(self,filename,line_length=70):
         '''
             Print the chromosomes to a file in FASTA format
 
@@ -225,6 +227,8 @@ class Fasta(Freezable):
             ----------
             filename : str
                 The output filename
+            line_length : int (default: 70)
+                The number of nucleotides per line
 
             Returns
             -------
@@ -238,7 +242,7 @@ class Fasta(Freezable):
                 start_length = len(chrom)
                 #if easy_id == 'chrUn':
                 #    easy_id = easy_id + '_' + chrom_name
-                print(f'>{easy_id} {chrom_name} {" ".join(chrom._attrs)}',file=OUT)     
+                print(f'>{chrom_name} {"|".join(chrom._attrs)}',file=OUT)     
                 printed_length = 0
                 for i in range(0,len(chrom),70):                                        
                     sequence = chrom.seq[i:i+70]
