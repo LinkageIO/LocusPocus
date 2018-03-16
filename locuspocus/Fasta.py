@@ -152,14 +152,12 @@ class Fasta(Freezable):
                         self.add_chrom(cur_chrom,cur=cur,force=force)
                         seqs = []
                     name,*attrs = line.lstrip('>').split()
-                    #cur_chrom = Chromosome(name,'',*attrs)
                 else:
                     seqs += line
                     #cur_chrom.seq = np.append(cur_chrom.seq,list(line))
             # Add the last chromosome
             cur_chrom = Chromosome(name,seqs,*attrs)
             self.add_chrom(cur_chrom,cur=cur,force=force)
-            #self.add_chrom(cur_chrom,force=force,cur=cur)
         return self
 
     def __iter__(self):
@@ -215,9 +213,40 @@ class Fasta(Freezable):
             attrs = [x[0] for x in self._db.cursor().execute('''
                 SELECT attribute FROM attributes 
                 WHERE chrom = ?
+                ORDER BY rowid -- This preserves the ordering of attrs
             ''',(chrom_name,))]
             return Chromosome(chrom_name,seq_array,*attrs)
 
+    def to_fasta(self,filename):
+        '''
+            Print the chromosomes to a file in FASTA format
+
+            Paramaters
+            ----------
+            filename : str
+                The output filename
+
+            Returns
+            -------
+            None
+        '''
+        with open(filename,'w') as OUT:                                                                                                        
+            for chrom_name in self.chrom_names():                                        
+                print(f'Printing out {chrom_name}')
+                chrom = self[chrom_name]                                                 
+                #easy_id = ids[chrom_name]                                               
+                start_length = len(chrom)
+                #if easy_id == 'chrUn':
+                #    easy_id = easy_id + '_' + chrom_name
+                print(f'>{easy_id} {chrom_name} {" ".join(chrom._attrs)}',file=OUT)     
+                printed_length = 0
+                for i in range(0,len(chrom),70):                                        
+                    sequence = chrom.seq[i:i+70]
+                    print(''.join(sequence),file=OUT) 
+                    printed_length += len(sequence)
+                if printed_length != start_length:
+                    raise ValueError('Chromosome was truncated during printing')
+        return None
 
     def _add_attribute(self,chrom_name,attr,cur=None):
         '''
