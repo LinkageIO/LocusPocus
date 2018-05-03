@@ -33,7 +33,7 @@ setup(
     description = 'Genetic coordinates made easy!',
     url = 'http://linkage.io',
     author = 'Rob Schaefer',
-    author_email = 'rob@linkage.io'
+    author_email = 'rob@linkage.io',
     license = "Copyright Linkage Analytics 2016. Available under the MIT License",
 
     classifiers=[
