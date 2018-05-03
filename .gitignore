@@ -3,6 +3,7 @@
 *.swp
 *.swo
 *.swn
+*.sw*
 *.pdx
 *.pyc
 *.c
