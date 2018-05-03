@@ -1,34 +1,31 @@
 language: python
 python:
-  - "3.6"
-# command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
-
-# Install packages
+- '3.6'
 env:
-  - LD_LIBRARY_PATH=$HOME/.locuspocus/lib:$LD_LIBRARY_PATH PATH=$HOME/.locuspocus/bin:$HOME/.locuspocus/conda/bin:$PATH
+- LD_LIBRARY_PATH=$HOME/.locuspocus/lib:$LD_LIBRARY_PATH PATH=$HOME/.locuspocus/bin:$HOME/.locuspocus/conda/bin:$PATH
 install:
-  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  - conda info -a
-  - conda create -q -n locuspocus python=3
-  - source activate locuspocus
-  - pip install .
+- wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+- bash miniconda.sh -b -p $HOME/miniconda
+- export PATH="$HOME/miniconda/bin:$PATH"
+- hash -r
+- conda config --set always_yes yes --set changeps1 no
+- conda update -q conda
+- conda info -a
+- conda create -q -n locuspocus python=3
+- source activate locuspocus
+- pip install .
 script:
-  - pip install pytest pytest-cov
-  - cd tests
-  - py.test -v --cov=locuspocus
+- pip install pytest pytest-cov
+- cd tests
+- py.test -v --cov=locuspocus
 after_success:
-  - coveralls
-  - cd ../
+- coveralls
+- cd ../
 deploy:
   provider: pypi
   user: schae234
   password:
-    secure: wqudCGOByU7YA+R97D+lepV4BrFmizRPcQqrbHCNlRMlIJkw4sZQwRMEKcdqN4VrXjlyw1AyErwwJ2s76/PdFTlBofiUyLvBTw3Pki7PzWwYNzgTMHmGS8vWLp6nq84WMm1x3J3dxX4H/M7Sh9EkqsomAkwmXj0dMtfgfwjN/LGGy9Fv7P5174Ej0MnbQWTq+JRNUKUKxWH5XuUfTeexR40KxGMHR9gyarteewNUx3QmYnrN5RPxOsd8tdDo0R7Fgj/NWB1f/DLaj5JweykRcVtzwuZrQR3mTnbopVhkz3wbaKY4f/zqdlE6irFiNrPu3kEnz4Yt8NYpgyzhRhzskxGAoXil2m9DQVSQC9R5ovTYUxe5iyO4jbsd/Hx+DogSOdbDLGnAlTb3cbl5OQUKIjLpbkbJ2YiGcTlNcfaQ4q8f1Gg+zmyFjsNpwfdMikuIYlchjtpe/+AxGORZzHHzR8bP2ltlJ74C/avlNtPuL9BqkKEEBryaUcQyELKso9WLzV8C3iAHxEgDeIGI9eEgyX5FdR0IYYgOCYhVU+2sWYErSoyBPxXyLyR5FHXBGDJDjZEcbY33bJg06E/rFl2NW6s9LaSc0YCj3W+PwnNIE6nzLhbKXM419vCGPKLY1GQ5CBbM+SpMJT4hVBSsolH0dqBg3RsaMQa3gFSSyweCIKs=
+    secure: Y+FJUi91IEYBKyRAA6Lp0FNJPph1auEHGK/iAG2Yr0AxkjCWislsqfQScR3MqKUvaie1y3MtXv103jEWczGtn660kVA/wLMvBOcD/BKIUy2fW1+Z3/EKRvYsdAT6wkk4iL/s25In/nRnZxBz8FLIN2UYw3cyNBL8di+cnwi8bpE=
   on:
     tags: true
     distributions: sdist bdist_wheel
