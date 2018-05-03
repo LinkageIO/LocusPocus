@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 
 from setuptools import setup, find_packages, Extension
-from Cython.Distutils import build_ext
 
 import io
 import os
 import re
-import numpy
 
 from setuptools.command.develop import develop
-from setuptools.command.install import install
 from subprocess import check_call
 
 class PostDevelopCommand(develop):
@@ -20,11 +17,6 @@ class PostDevelopCommand(develop):
 	    pip install -r requirements.txt
         '''.split())
         develop.run(self)
-
-class PostInstallCommand(install):
-    """Post-installation for installation mode."""
-    def run(self): 
-        pass
 
 def read(*names, **kwargs):
     with io.open(
@@ -44,8 +36,6 @@ def find_version(*file_paths):
 locusdist = Extension(
     'locuspocus.LocusDist',
     sources=['locuspocus/LocusDist.pyx'],
-#    extra_compile_args=['-ffast-math'],
-    include_dirs=[numpy.get_include()]
 )
 
 setup(
@@ -55,17 +45,21 @@ setup(
     scripts = [],
     ext_modules = [locusdist],
     cmdclass = {
-        'build_ext' : build_ext,
         'develop': PostDevelopCommand,
-        'install': PostInstallCommand,
     },
     package_data = {
         '':['*.cyx']
     },
+    setup_requires = [
+        # Setuptools 18.0 properly handles Cython extensions.
+        'setuptools>=18.0',
+        'cython',
+    ],
     install_requires = [
-        'Cython',
-        'numpy',
-        'scipy'
+        'minus80>=0.1.2',
+        'Cython>=0.16.0',
+        'numpy>=1.14.3',
+        'scipy>=0.19.0'
     ],
     include_package_data=True,
 
