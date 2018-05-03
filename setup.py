@@ -67,7 +67,6 @@ setup(
     scripts = [],
     ext_modules = [locusdist],
     cmdclass = {
-        'develop': PostDevelopCommand,
     },
     package_data = {
         '':['*.cyx']
