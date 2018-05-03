@@ -24,11 +24,7 @@ class PostDevelopCommand(develop):
 class PostInstallCommand(install):
     """Post-installation for installation mode."""
     def run(self): 
-        print('Running post-installation setup')
-        check_call('''\
-            pip install -r requirements.txt
-        '''.split())
-        install.run(self)
+        pass
 
 def read(*names, **kwargs):
     with io.open(
@@ -67,6 +63,9 @@ setup(
         '':['*.cyx']
     },
     install_requires = [
+        'Cython',
+        'numpy',
+        'scipy'
     ],
     include_package_data=True,
 
