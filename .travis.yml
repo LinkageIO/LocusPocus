@@ -7,23 +7,22 @@ python:
 env:
   - LD_LIBRARY_PATH=$HOME/.locuspocus/lib:$LD_LIBRARY_PATH PATH=$HOME/.locuspocus/bin:$HOME/.locuspocus/conda/bin:$PATH
 install:
-  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  - conda info -a
-  - conda create -q -n locuspocus python=3 Cython numpy pandas pytest pytest-cov
-  - source activate locuspocus
-  - python setup.py install
+# - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+# - bash miniconda.sh -b -p $HOME/miniconda
+# - export PATH="$HOME/miniconda/bin:$PATH"
+# - hash -r
+# - conda config --set always_yes yes --set changeps1 no
+# - conda update -q conda
+# - conda info -a
+# - conda create -q -n locuspocus python=3 Cython numpy pandas pytest pytest-cov
+# - source activate locuspocus
+# - python setup.py install
 # command to run tests, e.g. python setup.py test
-script:  
-  - source activate locuspocus
+  - pip install .
+after_success:
+  - pip install pytest
   - cd tests
   - py.test -v --cov=locuspocus
-
-after_success:
   - coveralls
   - cd ../
 deploy:
