@@ -5,15 +5,18 @@
 
 Installation
 ------------
-Option 1: Manually install the repo
+Option 1: Use pip
 ```bash
-$ git clone git@github.com:LinkageIO/LocusPocus.git && cd LocusPocus
+$ pip install locuspocus
+```
+
+Option 2: Manually install the repo
+```bash
+$ git clone git@github.com:LinkageIO/LocusPocus.git
+$ cd LocusPocus
 $ python setup.py install
 ```
-Option 2: Use pip
-```bash
-$ pip install git+https://github.com/schae234/LocusPocus.git
-```
+
 <!-- 
 Documentation
 --------------
