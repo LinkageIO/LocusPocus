@@ -20,5 +20,6 @@ $ python setup.py install
 <!-- 
 Documentation
 --------------
+See docs here:  
 http://linkage.io/docs/locuspocus
 -->
