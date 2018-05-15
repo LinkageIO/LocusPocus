@@ -7,7 +7,7 @@ import scipy as sp
 import math
 import gzip
 import re
-import logging 
+import logging
 
 from minus80 import Freezable
 from collections import defaultdict
@@ -21,7 +21,7 @@ from .Exceptions import ZeroWindowError
 class RefLoci(Freezable):
     '''
         RefLoci are just a bunch of locuses.
-        Just a bunch of Locuses. RefLoci are more than the sum of their 
+        Just a bunch of Locuses. RefLoci are more than the sum of their
         parts. They have a name and represent something bigger than
         theirselves. They are important. They live on the disk in a
         database.
@@ -37,9 +37,9 @@ class RefLoci(Freezable):
     log.setLevel(logging.INFO)
 
 
-    # Methods 
-    def __init__(self,name):
-        super().__init__(name)
+    # Methods
+    def __init__(self,name,basedir=None):
+        super().__init__(name,basedir)
         self.name = name
         self._initialize_tables()
 
@@ -50,8 +50,8 @@ class RefLoci(Freezable):
         return self.num_loci()
 
     def __contains__(self,obj):
-        ''' 
-            Flexible on what you pass into the 'in' function 
+        '''
+            Flexible on what you pass into the 'in' function
         '''
         if isinstance(obj,Locus):
             # you can pass in a Locus object (this expression
@@ -69,7 +69,7 @@ class RefLoci(Freezable):
                 SELECT COUNT(*) FROM loci WHERE id = ?''',
                 (obj,)).fetchone()[0] == 1:
                 return True
-            elif self._db.cursor().execute(''' 
+            elif self._db.cursor().execute('''
                 SELECT COUNT(*) FROM aliases WHERE alias = ?''',
                 (obj,)).fetchone()[0] == 1:
                 return True
@@ -79,7 +79,7 @@ class RefLoci(Freezable):
             chrom,start,end = obj
             if self._db.cursor().execute('''
                 SELECT COUNT(*) FROM loci WHERE chromosome=? AND start=? and end=?
-                ''',(chrom,start,end)).fetchone()[0] > 0: 
+                ''',(chrom,start,end)).fetchone()[0] > 0:
                 return True
             else:
                 return False
@@ -208,11 +208,11 @@ class RefLoci(Freezable):
                 The name if the RefGen object to be stored in the core
                 minus80 database.
             locus_feature : str (default: 'gene')
-                The name of the feature (in column 2) that designates a 
+                The name of the feature (in column 2) that designates a
                 locus. These features will be the main object that the RefGen
-                encompasses. 
+                encompasses.
             ID_attr : str (default: ID)
-                The key in the attribute column which designates the ID or 
+                The key in the attribute column which designates the ID or
                 name of the feature.
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
@@ -296,7 +296,7 @@ class RefLoci(Freezable):
         return self.get_locus_from_id(id,**kwargs)
     def random_loci(self,n,**kwargs):
         '''
-            Return random loci from the database, without replacement. 
+            Return random loci from the database, without replacement.
 
             Parameters
             ----------
@@ -318,7 +318,7 @@ class RefLoci(Freezable):
     def intersection(self,loci):
         '''
             Return the subset of loci that are in the dataset.
-            
+
             Parameters
             ----------
             loci : list-like of Locus
@@ -355,7 +355,7 @@ class RefLoci(Freezable):
         if info == None:
             # Try to fetch an alias
             (locus_id,) = self._db.cursor().execute('''
-                SELECT id FROM aliases 
+                SELECT id FROM aliases
                 WHERE alias = ?
             ''',
                 (locus_id,)
@@ -368,7 +368,7 @@ class RefLoci(Freezable):
             for key,val in attrs:
                 locus[key] = val
             return locus
-            
+
     def get_loci_from_ids(self, locus_ids, check_shape=False):
         '''
             Returns a list of locus object from an iterable of id strings
@@ -393,7 +393,7 @@ class RefLoci(Freezable):
             import warnings
             warnings.warn(
                 'Passing single values into RefGen.from_ids is deprecated. Use RefGen.from_id() '
-                'or slicing syntax instead.'    
+                'or slicing syntax instead.'
             )
             return self.get_locus_from_id(locus_ids)
         loci = []
@@ -410,13 +410,13 @@ class RefLoci(Freezable):
 
     def upstream_loci(self,locus,locus_limit=1000,window_size=None):
         '''
-            Find loci that START upstream of a locus. 
-            Loci are ordered so that the nearest loci are 
+            Find loci that START upstream of a locus.
+            Loci are ordered so that the nearest loci are
             at the beginning of the list.
 
             Return Loci that overlap with the upstream window,
             This includes partially overlapping loci, but NOT
-            loci that are returned by the loci_within method. 
+            loci that are returned by the loci_within method.
 
             Looks like: (y=yes,returned; n=no,not returned)
 
@@ -439,10 +439,10 @@ class RefLoci(Freezable):
         return [
             self.get_locus_from_id(x) \
             for (x,) in self._db.cursor().execute('''
-                SELECT id FROM loci 
+                SELECT id FROM loci
                 INDEXED BY loci_start_end
                 WHERE chromosome = ?
-                AND start >= ?  -- Gene must end AFTER locus window (upstream) 
+                AND start >= ?  -- Gene must end AFTER locus window (upstream)
                 AND start < ? -- Gene must start BEFORE locus
                 ORDER BY start DESC
                 LIMIT ?
@@ -450,12 +450,12 @@ class RefLoci(Freezable):
         )]
     def downstream_loci(self,locus,locus_limit=1000,window_size=None):
         '''
-            Returns loci downstream of a locus. Loci are ordered 
+            Returns loci downstream of a locus. Loci are ordered
             so that the nearest loci are at the beginning of the list.
 
             Return Loci that overlap with the downstream window,
             This includes partially overlapping loci, but NOT
-            loci that are returned by the loci_within method. 
+            loci that are returned by the loci_within method.
 
             Looks like: (y=yes,returned; n=no,not returned)
 
@@ -559,7 +559,7 @@ class RefLoci(Freezable):
             return loci
     def loci_within(self,loci ,chain=True):
         '''
-            Returns the loci that START within a locus 
+            Returns the loci that START within a locus
             start/end boundry.
 
             Looks like: (y=yes,returned; n=no,not returned)
@@ -588,7 +588,7 @@ class RefLoci(Freezable):
 
     def candidate_loci(self, loci, flank_limit=2,
         chain=True, window_size=None, include_parent_locus=False,
-        include_parent_attrs=False, include_num_intervening=False, 
+        include_parent_attrs=False, include_num_intervening=False,
         include_rank_intervening=False, include_num_siblings=False,
         include_SNP_distance=False,attrs=None,return_table=False):
         '''
@@ -616,15 +616,15 @@ class RefLoci(Freezable):
                 which contains it.
             include_parent_attrs : iterable (default: False)
                 Optional parameter to include attributes from the parent
-                locus. Parent locus attrs specified here will be included. 
+                locus. Parent locus attrs specified here will be included.
                 If effective loci is > 1, the maximum value will be
-                included. E.g. - including the SNP effect size with 
+                included. E.g. - including the SNP effect size with
                 candidate loci.
             include_num_intervening : bool (default: False)
-                Optional argument which adds an attribute to each 
+                Optional argument which adds an attribute to each
                 candidate loci containing the rank of each loci
-                as a function of distance away from the parent 
-                locus. (i.e. the closest candidate is 1 and the 
+                as a function of distance away from the parent
+                locus. (i.e. the closest candidate is 1 and the
                 furthest candidate is n)
             include_rank_intervening : bool (default: False)
                 Optional argument which adds the rank of each
@@ -633,7 +633,7 @@ class RefLoci(Freezable):
                 loci is ranked n.
             include_num_siblings : bool (default: False)
                 Optional argument which adds an attribute to each
-                candidate loci containing the number of total 
+                candidate loci containing the number of total
                 candidates (siblings) identifies at the locus.
             include_SNP_distance : bool (default:False)
                 Include the distance from the canadidate loci and
@@ -658,14 +658,14 @@ class RefLoci(Freezable):
                 window_size=window_size
             )
 
-            # This always returns candidates together, if 
+            # This always returns candidates together, if
             # you want specific up,within and down loci
             # use the specific methods
             candidates = sorted(itertools.chain(up_loci,loci_within,down_loci))
             #include the number of effective loci
             if include_rank_intervening == True:
                 ranks = sp.stats.rankdata([abs(x.center_distance(locus)) for x in candidates])
-            # Iterate through candidate loci and propagate the 
+            # Iterate through candidate loci and propagate the
             # parental info
             for i,cand in enumerate(candidates):
                 # include parent locus id if thats specified
@@ -675,7 +675,7 @@ class RefLoci(Freezable):
                     cand.update({'intervening_rank':ranks[i]})
                 # update all the parent_attrs
                 if include_parent_attrs and len(include_parent_attrs) > 0:
-                    if 'all' in include_parent_attrs: 
+                    if 'all' in include_parent_attrs:
                         include_parent_attrs = locus.attr.keys()
                     for attr in include_parent_attrs:
                         attr_name = 'parent_{}'.format(attr)
@@ -714,7 +714,7 @@ class RefLoci(Freezable):
             candidates = [
                 # This is becoming a pain in the ass
                 self.candidate_loci(
-                    locus, 
+                    locus,
                     flank_limit=flank_limit,
                     chain=chain,
                     window_size=window_size,
@@ -775,7 +775,7 @@ class RefLoci(Freezable):
             random_locus = self.random_locus()
             # Snag the same number of candidates
             random_candidates = self.upstream_loci(
-                random_locus, 
+                random_locus,
                 locus_limit=num_candidates,
                 window_size=10e100
             )
@@ -804,7 +804,7 @@ class RefLoci(Freezable):
             for i,(locus,targ) in enumerate(zip(locus_list,target)):
                 # compare downstream of last locus to current locus
                 candidates = self.bootstrap_candidate_loci(
-                    locus, flank_limit=flank_limit, 
+                    locus, flank_limit=flank_limit,
                     chain=True, window_size=window_size,
                     include_parent_locus=include_parent_locus
                 )
@@ -913,7 +913,7 @@ class RefLoci(Freezable):
 
     def _remove_aliases(self):
         '''
-            Running this will delete the aliases from the 
+            Running this will delete the aliases from the
             database. Warning! This is deletorious!
 
             Parameters
@@ -930,20 +930,20 @@ class RefLoci(Freezable):
         self.num_loci.cache_clear()
 
     def add_annotations(self, filename, sep="\t", locus_col=0, skip_cols=None):
-        ''' 
+        '''
             Imports Annotation relationships from a csv file. By default will
             assume locus names are first column
 
             Parameters
             ----------
-            filename : str 
+            filename : str
                 The file containing the annotations
             sep : str (default: \\t)
                 The delimiter for the columns in the annotation file
             locus_col : int (default: 0)
                 The index of the column containing the locus IDs
             skip_cols : default:None
-                Optional names of columns to drop before adding 
+                Optional names of columns to drop before adding
                 annotations
 
             Returns
@@ -956,27 +956,27 @@ class RefLoci(Freezable):
         idx_name = tbl.columns[locus_col]
         tbl[idx_name] = tbl[idx_name].str.upper()
         # Set thie index to be the specified locus column
-        tbl.set_index(idx_name,inplace=True)        
-        
+        tbl.set_index(idx_name,inplace=True)
+
         # Drop columns if we need to
         if skip_cols is not None:
             # removing certain columns
             tbl.drop(tbl.columns[skip_cols],axis=1,inplace=True)
-        
+
         # Get rid of any locus not in the refence genome
         cur = self._db.cursor()
         cur.execute('SELECT id FROM loci;')
         rm = set(tbl.index.values) - set([id[0] for id in cur.fetchall()])
         tbl.drop(rm,axis=0,inplace=True)
         del rm, cur
-        
+
         # One Annotation per row, drop the nulls and duplicates
         tbl = tbl.reset_index()
         tbl = pd.melt(tbl,id_vars=idx_name,var_name='col',value_name='desc')
         tbl.drop('col',axis=1,inplace=True)
         tbl.dropna(axis=0,inplace=True)
         tbl.drop_duplicates(inplace=True)
-        
+
         # Run the transaction to throw them in there
         cur = self._db.cursor()
         try:
@@ -985,11 +985,11 @@ class RefLoci(Freezable):
                 'INSERT INTO func (id,desc) VALUES (?,?)'
                 ,tbl.itertuples(index=False))
             cur.execute('END TRANSACTION')
-        
+
         except Exception as e:
             self.log.info("import failed: {}",e)
             cur.execute('ROLLBACK')
-        
+
         # Make sure the indices are built
         self._build_indices()
 
@@ -1010,12 +1010,12 @@ class RefLoci(Freezable):
             ls = item
             single = True
         query = "SELECT * FROM func WHERE id IN ('{}');".format(ls)
-        
+
         # Run the query and turn the result into a list of tuples
         cur = self._db.cursor()
         cur.execute(query)
         annotes = cur.fetchall()
-        
+
         # If a list of loci was passed in, return a dictionary of lists
         if not single:
             res = {}
@@ -1024,7 +1024,7 @@ class RefLoci(Freezable):
                     res[id].append(desc)
                 else:
                     res[id] = [desc]
-        
+
         # Otherwise just return the list annotations
         else:
             res = []
@@ -1038,11 +1038,11 @@ class RefLoci(Freezable):
         # Find the default filename
         if filename == None:
             filename = self.name + '_func.tsv'
-        
+
         # Pull them all from sqlite
         cur = self._db.cursor()
         cur.execute("SELECT * FROM func;")
-        
+
         # Used pandas to save it
         df = pd.DataFrame(cur.fetchall(),columns=['locus','desc']).set_index('locus')
         df.to_csv(filename,sep=sep)
@@ -1098,7 +1098,7 @@ class RefLoci(Freezable):
     def _initialize_tables(self):
         '''
             Initializes the Tables holding all the information
-            about the Loci. 
+            about the Loci.
         '''
         cur = self._db.cursor()
         cur.execute('''
@@ -1137,7 +1137,7 @@ class RefLoci(Freezable):
                 UNIQUE(id,desc) ON CONFLICT IGNORE,
                 FOREIGN KEY(id) REFERENCES loci(id)
             );
-           
+
             -- Indexes
             ---------------------------------------------------------------------------------------
             -- loci
@@ -1151,5 +1151,5 @@ class RefLoci(Freezable):
             -- func
             CREATE INDEX IF NOT EXISTS id ON func(id);
             -- ortho_func
-            CREATE INDEX IF NOT EXISTS id ON ortho_func(id); 
+            CREATE INDEX IF NOT EXISTS id ON ortho_func(id);
             ''');
