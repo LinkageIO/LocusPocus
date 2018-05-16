@@ -16,7 +16,7 @@ from functools import lru_cache
 from .LocusDist import LocusDist
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
-#test
+
 
 class RefLoci(Freezable):
     '''
@@ -416,7 +416,7 @@ class RefLoci(Freezable):
         return loci
 
 
-    def upstream_loci(self,locus,locus_limit=1000,window_size=None):
+    def upstream_loci(self,locus,locus_limit=1000,window_size=None,within=0,feature='%'):
         '''
             Find loci that START upstream of a locus.
             Loci are ordered so that the nearest loci are
@@ -444,19 +444,37 @@ class RefLoci(Freezable):
             upstream = locus.start - window_size
         else:
             upstream = locus.upstream
-        return [
-            self.get_locus_from_id(x) \
-            for (x,) in self._db.cursor().execute('''
-                SELECT id FROM loci
-                INDEXED BY loci_start_end
-                WHERE chromosome = ?
-                AND start >= ?  -- Gene must end AFTER locus window (upstream)
-                AND start < ? -- Gene must start BEFORE locus
-                ORDER BY start DESC
-                LIMIT ?
-            ''',(locus.chrom, upstream,locus.start, locus_limit)
-        )]
-    def downstream_loci(self,locus,locus_limit=1000,window_size=None):
+        if within == 0:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND start >= ?  -- Gene must end AFTER locus window (upstream)
+                    AND end < ? -- Gene must end BEFORE locus starts
+                    AND feature_type LIKE ?
+                    ORDER BY start DESC
+                    LIMIT ?
+                    ''',(locus.chrom, upstream, locus.start, feature, locus_limit)
+                )]
+        else:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND end >= ?  -- Gene must end AFTER locus window (upstream)
+                    AND end < ? -- Gene must end BEFORE locus ends
+                    AND start < ? -- Gene must start before locus starts
+                    AND feature_type LIKE ?
+                    ORDER BY start DESC
+                    LIMIT ?
+                    ''',(locus.chrom, upstream, locus.end, locus.start, feature, locus_limit)
+                )]
+
+    def downstream_loci(self,locus,locus_limit=1000,window_size=None,within=0,feature='%'):
         '''
             Returns loci downstream of a locus. Loci are ordered
             so that the nearest loci are at the beginning of the list.
@@ -481,21 +499,35 @@ class RefLoci(Freezable):
             downstream = locus.end + window_size
         else:
             downstream = locus.downstream
+        if within == 0:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND start >= ?
+                    AND end <= ?
+                    AND feature_type LIKE ?
+                    ORDER BY start ASC
+                    LIMIT ?
+                    ''',(locus.chrom, locus.end, downstream, feature, locus_limit)
+            )]
+        else:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND start > ?
+                    AND start <= ?
+                    AND feature_type LIKE ?
+                    ORDER BY start ASC
+                    LIMIT ?
+                    ''',(locus.chrom, locus.start, downstream, locus.end, feature, locus_limit)
 
-        return [
-            self.get_locus_from_id(x) \
-            for (x,) in self._db.cursor().execute('''
-                SELECT id FROM loci
-                INDEXED BY loci_start_end
-                WHERE chromosome = ?
-                AND start > ?
-                AND start <= ?
-                ORDER BY start ASC
-                LIMIT ?
-            ''',(locus.chrom, locus.end, downstream, locus_limit)
-        )]
-
-    def flanking_loci(self, loci, flank_limit=2,chain=True,window_size=None):
+    def flanking_loci(self,loci,flank_limit=1,chain=True,window_size=None,within=0,feature='%'):
         '''
             Returns loci upstream and downstream from a locus
             ** done NOT include loci within locus **
@@ -511,10 +543,10 @@ class RefLoci(Freezable):
             upstream_locus_limit = int(flank_limit)
             downstream_locus_limit = int(flank_limit)
             up_loci = self.upstream_loci(
-                locus, locus_limit=upstream_locus_limit, window_size=window_size
+                locus, locus_limit=upstream_locus_limit,window_size=window_size,within=within,feature=feature
             )
             down_loci = self.downstream_loci(
-                locus, locus_limit=downstream_locus_limit, window_size=window_size
+                locus, locus_limit=downstream_locus_limit,window_size=window_size,within=within,feature=feature
             )
             if chain:
                 return list(itertools.chain(up_loci,down_loci))
@@ -522,9 +554,50 @@ class RefLoci(Freezable):
         else:
             iterator = iter(loci)
             loci = [
-                self.flanking_loci(locus,flank_limit=flank_limit,window_size=window_size)\
+                self.flanking_loci(locus,flank_limit=flank_limit,window_size=window_size,within=within,feature=feature)\
                 for locus in iterator
             ]
+            if chain:
+                loci = list(itertools.chain(*loci))
+            return loci
+
+    def captured(self,loci,chain=True,feature='%'):
+        '''
+            Returns the Loci captured by the locus. This method returns
+            loci that are *compeltely* within the specified loci.
+            It will NOT return loci that are partially overlapping that
+            are return using the within method.
+
+            Parameters
+            ----------
+            loci : an iterable of loci
+                The method will return encompassing loci for each
+                locus in ther iterable. If a single locus is passed,
+                a single result will be returned.
+            chain : bool (default: True)
+                Specifies whether or not to chain results. If true
+                a single list will be returned, if False, a result for
+                each locus passed in will be returned.
+            feature : str (default: %)
+                Specifies whether any locus in the database meeting the
+                requirements will be returned or only loci of a certain
+                type (gene, transposable_element, snp, etc.)
+        '''
+        if isinstance(loci,Locus):
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    WHERE chromosome = ?
+                    AND start >= ?
+                    AND end <= ?
+                    AND feature_type LIKE ?
+                    ''',
+                    (loci.chrom,loci.start,loci.end,feature))
+            ]
+        else:
+            iterator = iter(loci)
+            loci = [self.loci_within(locus,chain=chain) for locus in iterator]
             if chain:
                 loci = list(itertools.chain(*loci))
             return loci
@@ -565,10 +638,11 @@ class RefLoci(Freezable):
             if chain:
                 loci = list(itertools.chain(*loci))
             return loci
-    def loci_within(self,loci,chain=True):
+
+    def loci_within(self,loci,chain=True,feature='%'):
         '''
-            Returns the loci that START within a locus
-            start/end boundry.
+            Returns the loci that START or END within a locus
+            start/end boundary.
 
             Looks like: (y=yes,returned; n=no,not returned)
 
@@ -583,9 +657,10 @@ class RefLoci(Freezable):
                 for (x,) in self._db.cursor().execute('''
                     SELECT id FROM loci
                     WHERE chromosome = ?
-                    AND start >= ? AND start <= ?
+                    AND (start >= ? AND start <= ?) OR (end >= ? AND end <= ?)
+                    AND feature_type LIKE ?
                     ''',
-                    (loci.chrom,loci.start,loci.end))
+                    (loci.chrom,loci.start,loci.end,loci.start,loci.end,feature))
             ]
         else:
             iterator = iter(loci)
