@@ -522,10 +522,12 @@ class RefLoci(Freezable):
                     WHERE chromosome = ?
                     AND start > ?
                     AND start <= ?
+                    AND end > ?
                     AND feature_type LIKE ?
                     ORDER BY start ASC
                     LIMIT ?
                     ''',(locus.chrom, locus.start, downstream, locus.end, feature, locus_limit)
+                )]
 
     def flanking_loci(self,loci,flank_limit=1,chain=True,window_size=None,within=0,feature='%'):
         '''
