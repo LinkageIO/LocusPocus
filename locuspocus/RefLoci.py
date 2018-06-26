@@ -1048,15 +1048,13 @@ class RefLoci(Freezable):
         df.to_csv(filename,sep=sep)
 
     @classmethod
-    def from_DataFrame(cls,df,name,description,build,organism,
-            chrom_col='chrom',start_col='start',stop_col='stop',
-            id_col='ID'):
+    def from_DataFrame(cls,df,name,
+            chrom_col='chrom',start_col='start',
+            stop_col='stop', id_col='ID'):
         '''
             Imports a RefGen object from a CSV.
         '''
-        self = cls.create(name,description,type='RefGen')
-        self._global('build',build)
-        self._global('organism','organism')
+        self = cls(name)
         loci = list()
         for i,row in df.iterrows():
             loci.append(
@@ -1066,7 +1064,6 @@ class RefLoci(Freezable):
                 ).update(dict(row.items()))
             )
         self.add_loci(loci)
-        self._build_indices()
         return self
 
 
