@@ -38,8 +38,8 @@ class RefLoci(Freezable):
 
 
     # Methods
-    def __init__(self,name,basedir=None):
-        super().__init__(name,basedir)
+    def __init__(self,name,dtype=None,basedir=None):
+        super().__init__(name,dtype,basedir)
         self.name = name
         self._initialize_tables()
 
@@ -123,8 +123,8 @@ class RefLoci(Freezable):
         # Its actually just one locus
         cur = self._db.cursor()
         cur.execute('''
-            INSERT OR IGNORE INTO loci (id,chromosome,start,end) VALUES (?,?,?,?)
-        ''',(locus.name, locus.chrom, locus.start, locus.end))
+            INSERT OR IGNORE INTO loci (id,chromosome,start,end,global_order,feature_order,feature_type) VALUES (?,?,?,?,?,?,?)
+        ''',(locus.name, locus.chrom, locus.start, locus.end, locus.global_order, locus.feature_order, locus.feature_type))
         # add the attrs
         cur.executemany('''
             INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)
@@ -156,8 +156,8 @@ class RefLoci(Freezable):
                 cur = self._db.cursor()
                 cur.execute('BEGIN TRANSACTION')
                 cur.executemany(
-                    'INSERT OR IGNORE INTO loci (id,chromosome,start,end) VALUES (?,?,?,?)',
-                    ((x.name,x.chrom,x.start,x.end) for x in loci)
+                    'INSERT OR IGNORE INTO loci (id,chromosome,start,end,global_order,feature_order,feature_type) VALUES (?,?,?,?,?,?,?)',
+                    ((x.name,x.chrom,x.start,x.end,x.global_order,x.feature_order,x.feature_type) for x in loci)
                 )
                 cur.executemany(
                     'INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)',
@@ -260,6 +260,14 @@ class RefLoci(Freezable):
            ''' SELECT COUNT(*) FROM loci'''
         ).fetchone()[0]
 
+    def by_feature_type(self):
+        '''
+            Helper to summarize the Loci by feature type
+        '''
+        return self._db.cursor().execute(
+           ''' SELECT feature_type, COUNT(feature_type) FROM loci GROUP BY feature_type ORDER BY COUNT(feature_type) DESC'''
+        ).fetchall()
+
     def iter_loci(self):
         '''
             Iterates over loci in database.
@@ -350,7 +358,7 @@ class RefLoci(Freezable):
         cur = self._db.cursor()
         # The most common use case is a direct reference to an id
         info = cur.execute(
-                'SELECT chromosome,start,end,id FROM loci WHERE id = ?', [locus_id]
+                'SELECT chromosome,start,end,id,global_order,feature_order,feature_type FROM loci WHERE id = ?', [locus_id]
                ).fetchone()
         if info == None:
             # Try to fetch an alias
@@ -408,7 +416,7 @@ class RefLoci(Freezable):
         return loci
 
 
-    def upstream_loci(self,locus,locus_limit=1000,window_size=None):
+    def upstream_loci(self,locus,locus_limit=1000,window_size=None,within=0,feature='%'):
         '''
             Find loci that START upstream of a locus.
             Loci are ordered so that the nearest loci are
@@ -436,19 +444,37 @@ class RefLoci(Freezable):
             upstream = locus.start - window_size
         else:
             upstream = locus.upstream
-        return [
-            self.get_locus_from_id(x) \
-            for (x,) in self._db.cursor().execute('''
-                SELECT id FROM loci
-                INDEXED BY loci_start_end
-                WHERE chromosome = ?
-                AND start >= ?  -- Gene must end AFTER locus window (upstream)
-                AND start < ? -- Gene must start BEFORE locus
-                ORDER BY start DESC
-                LIMIT ?
-            ''',(locus.chrom, upstream,locus.start, locus_limit)
-        )]
-    def downstream_loci(self,locus,locus_limit=1000,window_size=None):
+        if within == 0:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND start >= ?  -- Gene must end AFTER locus window (upstream)
+                    AND end < ? -- Gene must end BEFORE locus starts
+                    AND feature_type LIKE ?
+                    ORDER BY start DESC
+                    LIMIT ?
+                    ''',(locus.chrom, upstream, locus.start, feature, locus_limit)
+                )]
+        else:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND end >= ?  -- Gene must end AFTER locus window (upstream)
+                    AND end < ? -- Gene must end BEFORE locus ends
+                    AND start < ? -- Gene must start before locus starts
+                    AND feature_type LIKE ?
+                    ORDER BY start DESC
+                    LIMIT ?
+                    ''',(locus.chrom, upstream, locus.end, locus.start, feature, locus_limit)
+                )]
+
+    def downstream_loci(self,locus,locus_limit=1000,window_size=None,within=0,feature='%'):
         '''
             Returns loci downstream of a locus. Loci are ordered
             so that the nearest loci are at the beginning of the list.
@@ -473,21 +499,37 @@ class RefLoci(Freezable):
             downstream = locus.end + window_size
         else:
             downstream = locus.downstream
+        if within == 0:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND start >= ?
+                    AND end <= ?
+                    AND feature_type LIKE ?
+                    ORDER BY start ASC
+                    LIMIT ?
+                    ''',(locus.chrom, locus.end, downstream, feature, locus_limit)
+            )]
+        else:
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    INDEXED BY loci_start_end
+                    WHERE chromosome = ?
+                    AND start > ?
+                    AND start <= ?
+                    AND end > ?
+                    AND feature_type LIKE ?
+                    ORDER BY start ASC
+                    LIMIT ?
+                    ''',(locus.chrom, locus.start, downstream, locus.end, feature, locus_limit)
+                )]
 
-        return [
-            self.get_locus_from_id(x) \
-            for (x,) in self._db.cursor().execute('''
-                SELECT id FROM loci
-                INDEXED BY loci_start_end
-                WHERE chromosome = ?
-                AND start > ?
-                AND start <= ?
-                ORDER BY start ASC
-                LIMIT ?
-            ''',(locus.chrom, locus.end, downstream, locus_limit)
-        )]
-
-    def flanking_loci(self, loci, flank_limit=2,chain=True,window_size=None):
+    def flanking_loci(self,loci,flank_limit=1,chain=True,window_size=None,within=0,feature='%'):
         '''
             Returns loci upstream and downstream from a locus
             ** done NOT include loci within locus **
@@ -503,10 +545,10 @@ class RefLoci(Freezable):
             upstream_locus_limit = int(flank_limit)
             downstream_locus_limit = int(flank_limit)
             up_loci = self.upstream_loci(
-                locus, locus_limit=upstream_locus_limit, window_size=window_size
+                locus, locus_limit=upstream_locus_limit,window_size=window_size,within=within,feature=feature
             )
             down_loci = self.downstream_loci(
-                locus, locus_limit=downstream_locus_limit, window_size=window_size
+                locus, locus_limit=downstream_locus_limit,window_size=window_size,within=within,feature=feature
             )
             if chain:
                 return list(itertools.chain(up_loci,down_loci))
@@ -514,9 +556,50 @@ class RefLoci(Freezable):
         else:
             iterator = iter(loci)
             loci = [
-                self.flanking_loci(locus,flank_limit=flank_limit,window_size=window_size)\
+                self.flanking_loci(locus,flank_limit=flank_limit,window_size=window_size,within=within,feature=feature)\
                 for locus in iterator
             ]
+            if chain:
+                loci = list(itertools.chain(*loci))
+            return loci
+
+    def captured(self,loci,chain=True,feature='%'):
+        '''
+            Returns the Loci captured by the locus. This method returns
+            loci that are *compeltely* within the specified loci.
+            It will NOT return loci that are partially overlapping that
+            are return using the within method.
+
+            Parameters
+            ----------
+            loci : an iterable of loci
+                The method will return encompassing loci for each
+                locus in ther iterable. If a single locus is passed,
+                a single result will be returned.
+            chain : bool (default: True)
+                Specifies whether or not to chain results. If true
+                a single list will be returned, if False, a result for
+                each locus passed in will be returned.
+            feature : str (default: %)
+                Specifies whether any locus in the database meeting the
+                requirements will be returned or only loci of a certain
+                type (gene, transposable_element, snp, etc.)
+        '''
+        if isinstance(loci,Locus):
+            return [
+                self.get_locus_from_id(x) \
+                for (x,) in self._db.cursor().execute('''
+                    SELECT id FROM loci
+                    WHERE chromosome = ?
+                    AND start >= ?
+                    AND end <= ?
+                    AND feature_type LIKE ?
+                    ''',
+                    (loci.chrom,loci.start,loci.end,feature))
+            ]
+        else:
+            iterator = iter(loci)
+            loci = [self.loci_within(locus,chain=chain) for locus in iterator]
             if chain:
                 loci = list(itertools.chain(*loci))
             return loci
@@ -557,10 +640,11 @@ class RefLoci(Freezable):
             if chain:
                 loci = list(itertools.chain(*loci))
             return loci
-    def loci_within(self,loci ,chain=True):
+
+    def loci_within(self,loci,chain=True,feature='%'):
         '''
-            Returns the loci that START within a locus
-            start/end boundry.
+            Returns the loci that START or END within a locus
+            start/end boundary.
 
             Looks like: (y=yes,returned; n=no,not returned)
 
@@ -575,9 +659,10 @@ class RefLoci(Freezable):
                 for (x,) in self._db.cursor().execute('''
                     SELECT id FROM loci
                     WHERE chromosome = ?
-                    AND start >= ? AND start <= ?
+                    AND (start >= ? AND start <= ?) OR (end >= ? AND end <= ?)
+                    AND feature_type LIKE ?
                     ''',
-                    (loci.chrom,loci.start,loci.end))
+                    (loci.chrom,loci.start,loci.end,loci.start,loci.end,feature))
             ]
         else:
             iterator = iter(loci)
@@ -929,6 +1014,66 @@ class RefLoci(Freezable):
     def _update_cache(self):
         self.num_loci.cache_clear()
 
+    def add_homologs(self, filename, sep=',', locus_col=0, skip_cols=None):
+        '''
+            Imports ortholog relationships from a csv file. By default will
+            assume locus names are first column
+
+            Parameters
+            ----------
+            filename : str
+                The file containing the annotations
+            sep : str (default: \\t)
+                The delimiter for the columns in the annotation file
+            locus_col : int (default: 0)
+                The index of the column containing the locus IDs
+            skip_cols : default:None
+                Optional names of columns to drop before adding
+                annotations
+
+            Returns
+            -------
+            None if successful
+
+        '''
+        # import from file, assume right now that in correct order
+        tbl = pd.read_table(filename,sep=sep,dtype=object)
+        idx_name = tbl.columns[locus_col]
+        tbl[idx_name] = tbl[idx_name]
+        # Set the index to be the specified locus column
+        tbl.set_index(idx_name,inplace=True)
+
+        # Drop columns if we need to
+        if skip_cols is not None:
+            # removing certain columns
+            tbl.drop(tbl.columns[skip_cols],axis=1,inplace=True)
+
+        # Get rid of any locus not in the reference genome
+        cur = self._db.cursor()
+        cur.execute('SELECT id FROM loci;')
+        rm = set(tbl.index.values) - set([id[0] for id in cur.fetchall()])
+        tbl.drop(rm,axis=0,inplace=True)
+        del rm, cur
+
+        # One Annotation per row, drop the nulls and duplicates
+        tbl = tbl.reset_index()
+        #tbl = pd.melt(tbl,id_vars=idx_name,var_name='genotype',value_name='homolog')
+        tbl.dropna(axis=0,inplace=True)
+        tbl.drop_duplicates(inplace=True)
+
+        # Run the transaction to throw them in there
+        cur = self._db.cursor()
+        try:
+            cur.execute('BEGIN TRANSACTION')
+            cur.executemany(
+                'INSERT INTO homologs (id,genotype,homolog) VALUES (?,?,?)'
+                ,tbl.itertuples(index=False))
+            cur.execute('END TRANSACTION')
+
+        except Exception as e:
+            self.log.info("import failed: {}",e)
+            cur.execute('ROLLBACK')
+
     def add_annotations(self, filename, sep="\t", locus_col=0, skip_cols=None):
         '''
             Imports Annotation relationships from a csv file. By default will
@@ -1001,6 +1146,28 @@ class RefLoci(Freezable):
         cur.execute('SELECT count(*) FROM func;')
         return (int(cur.fetchone()[0]) > 0)
 
+    def has_homologs(self) :
+        cur = self._db.cursor()
+        cur.execute('SELECT count(*) FROM homologs;')
+        return (int(cur.fetchone()[0]) > 0)
+
+    def homologs(self, item):
+        query = "SELECT * FROM homologs WHERE id IN ('{}');".format(item)
+
+        # Run the query and turn the result into a dict
+        cur = self._db.cursor()
+        cur.execute(query)
+        homologs = cur.fetchall()
+
+        res = {}
+        for id,genotype,homolog in homologs:
+            if genotype in res:
+                res[genotype].append(homolog)
+            else:
+                res[genotype] = []
+                res[genotype].append(homolog)
+        return res
+
     def get_annotations(self, item):
         # Build the query from all the loci provided
         if isinstance(item,(set,list)):
@@ -1031,6 +1198,7 @@ class RefLoci(Freezable):
             for id,desc in annotes:
                 res.append(desc)
         return res
+
     def export_annotations(self, filename=None, sep="\t"):
         '''
             Make a table of all functional annotations.
@@ -1046,6 +1214,21 @@ class RefLoci(Freezable):
         # Used pandas to save it
         df = pd.DataFrame(cur.fetchall(),columns=['locus','desc']).set_index('locus')
         df.to_csv(filename,sep=sep)
+
+    def get_feature_list(self, feature='%'):
+        '''
+        Get a list of all of the loci in the database of the specified feature type
+        '''
+        cur = self._db.cursor()
+        cur.execute('''
+            SELECT id FROM loci
+            WHERE feature_type LIKE ?
+            ORDER BY chromosome, start
+            ''',
+            (feature,))
+        p = cur.fetchall()
+        feature_list = list(itertools.chain.from_iterable(p))
+        return feature_list
 
     @classmethod
     def from_DataFrame(cls,df,name,description,build,organism,
@@ -1095,6 +1278,50 @@ class RefLoci(Freezable):
         except ValueError as e:
             raise ValueError(f'{id} not in database')
 
+    def update_chr_order(self,feature='%',scope='feature'):
+        '''
+        Pull loci from the loci table and find their order on the chrom
+        '''
+
+        cur = self._db.cursor()
+        cur.execute("PRAGMA database_list")
+        rows = cur.fetchall()
+
+        cur.execute('''
+            SELECT id, chromosome, start, end, feature_type FROM loci
+            WHERE feature_type LIKE ?
+            ''',
+            (feature,))
+        result = cur.fetchall()
+
+        tmp_order = defaultdict(lambda: defaultdict(dict))
+        orders = []
+
+        for locus in result:
+            id, chrom, start, end, feat_type = locus
+            tmp_order[chrom][start][end] = id
+
+        for chrom in tmp_order:
+            counter = 0
+            for start in sorted(tmp_order[chrom].keys()):
+                for end in sorted(tmp_order[chrom][start].keys()):
+                    id = tmp_order[chrom][start][end]
+                    orders.append([counter,id])
+                    counter += 1
+        try:
+            cur.execute('BEGIN TRANSACTION')
+            if scope == "feature":
+                cur.executemany('UPDATE loci SET feature_order = ? WHERE id = ?', (orders))
+            else:
+                cur.executemany('UPDATE loci SET global_order = ? WHERE id = ?', (orders))
+            cur.execute('END TRANSACTION')
+            # Update the cache
+            self._update_cache()
+        except Exception as e:
+            cur.execute('ROLLBACK')
+
+        return 1
+
     def _initialize_tables(self):
         '''
             Initializes the Tables holding all the information
@@ -1108,6 +1335,9 @@ class RefLoci(Freezable):
                 chromosome TEXT NOT NULL,
                 start INTEGER,
                 end INTEGER,
+                global_order INTEGER,
+                feature_order INTEGER,
+                feature_type TEXT,
                 UNIQUE(chromosome,start,end)
             );
             /*
@@ -1137,6 +1367,13 @@ class RefLoci(Freezable):
                 UNIQUE(id,desc) ON CONFLICT IGNORE,
                 FOREIGN KEY(id) REFERENCES loci(id)
             );
+            CREATE TABLE IF NOT EXISTS homologs (
+                id TEXT,
+                genotype TEXT,
+                homolog TEXT,
+                UNIQUE(id,genotype,homolog) ON CONFLICT IGNORE,
+                FOREIGN KEY(id) REFERENCES loci(id)
+            );
 
             -- Indexes
             ---------------------------------------------------------------------------------------
@@ -1148,6 +1385,8 @@ class RefLoci(Freezable):
             CREATE INDEX IF NOT EXISTS locusid ON loci (id);
             -- loci_attrs
             CREATE INDEX IF NOT EXISTS locusattr ON loci_attrs (id);
+            -- homologs
+            CREATE INDEX IF NOT EXISTS homs ON homologs (id);
             -- func
             CREATE INDEX IF NOT EXISTS id ON func(id);
             -- ortho_func
