@@ -31,7 +31,7 @@ class Locus(object):
             self._id = id
         # Chromosomes are strings
         self.chrom = str(chrom)
-        self._feature_type = str(feature_type) if feature_type is not None else str(None)
+        self._feature_type = str(feature_type) if feature_type is not None else 'LocusPocus'
         # Postitions are integers
         self._start = int(start)
         self._end = int(end) if end is not None else int(start)
@@ -94,10 +94,9 @@ class Locus(object):
             id : string
         '''
         if self._id is None:
-            return '''<{}>{}:{}-{};[{},{},{}]'''.format(
+            return '''<{}>{}:{}-{}'''.format(
                 self._id, self.chrom,
-                self.start, self.end,
-                self.global_order, self.feature_order, self.feature_type
+                self.start, self.end
             )
         else:
             return self._id
@@ -119,37 +118,37 @@ class Locus(object):
         return self
 
 
-    def as_record(self):
-        '''
-            Returns the Locus as a record.
-            NOTE: does not include Locus attributes. See Locus.as_dict()
+#   def as_record(self):
+#       '''
+#           Returns the Locus as a record.
+#           NOTE: does not include Locus attributes. See Locus.as_dict()
 
-            Parameters
-            ----------
-            None
+#           Parameters
+#           ----------
+#           None
 
-            Returns
-            -------
-            A tuple containing Locus information
-        '''
-        return (self.chrom,self.start,self.end,self.name,self.window,self.global_order,self.feature_order,self.feature_type,self.id)
+#           Returns
+#           -------
+#           A tuple containing Locus information
+#       '''
+#       return (self.chrom,self.start,self.end,self.name,self.window,self.global_order,self.feature_order,self.feature_type,self.id)
 
-    @classmethod
-    def from_record(cls,tpl):
-        '''
-            Creates a Locus object from a record.
+#   @classmethod
+#   def from_record(cls,tpl):
+#       '''
+#           Creates a Locus object from a record.
 
-            Parameters
-            ----------
-            record : tuple
-                Tuple containing Locus information.
+#           Parameters
+#           ----------
+#           record : tuple
+#               Tuple containing Locus information.
 
-            Returns
-            -------
-            Locus object
+#           Returns
+#           -------
+#           Locus object
 
-        '''
-        return cls(*tpl)
+#       '''
+#       return cls(*tpl)
 
     def __setitem__(self,key,val):
         '''
