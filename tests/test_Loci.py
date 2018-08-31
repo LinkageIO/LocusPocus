@@ -97,7 +97,7 @@ def test_candidate_loci_from_SNP(testRefGen):
     down1,down2 = testRefGen.downstream_loci(
         random_locus,locus_limit=2,window_size=50e6
     )
-    # Create a Locus that is on gene 5
+    # Create a Locus containing both down1 and down2
     test_snp = Locus(
         down1.chrom,
         down1.start-50,
