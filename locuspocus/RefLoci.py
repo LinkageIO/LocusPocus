@@ -38,8 +38,8 @@ class RefLoci(Freezable):
 
 
     # Methods
-    def __init__(self,name,dtype=None,basedir=None):
-        super().__init__(name,dtype,basedir)
+    def __init__(self,name,basedir=None):
+        super().__init__(name,basedir=basedir)
         self.name = name
         self._initialize_tables()
 
@@ -416,7 +416,7 @@ class RefLoci(Freezable):
         return loci
 
 
-    def upstream_loci(self,locus,locus_limit=1000,window_size=None,within=0,feature='%'):
+    def upstream_loci(self,locus,locus_limit=1000,window_size=None,within=False,feature='%'):
         '''
             Find loci that START upstream of a locus.
             Loci are ordered so that the nearest loci are
@@ -444,7 +444,7 @@ class RefLoci(Freezable):
             upstream = locus.start - window_size
         else:
             upstream = locus.upstream
-        if within == 0:
+        if within:
             return [
                 self.get_locus_from_id(x) \
                 for (x,) in self._db.cursor().execute('''
@@ -474,7 +474,7 @@ class RefLoci(Freezable):
                     ''',(locus.chrom, upstream, locus.end, locus.start, feature, locus_limit)
                 )]
 
-    def downstream_loci(self,locus,locus_limit=1000,window_size=None,within=0,feature='%'):
+    def downstream_loci(self,locus,locus_limit=1000,window_size=None,within=False,feature='%'):
         '''
             Returns loci downstream of a locus. Loci are ordered
             so that the nearest loci are at the beginning of the list.
@@ -499,7 +499,7 @@ class RefLoci(Freezable):
             downstream = locus.end + window_size
         else:
             downstream = locus.downstream
-        if within == 0:
+        if within:
             return [
                 self.get_locus_from_id(x) \
                 for (x,) in self._db.cursor().execute('''
@@ -529,7 +529,7 @@ class RefLoci(Freezable):
                     ''',(locus.chrom, locus.start, downstream, locus.end, feature, locus_limit)
                 )]
 
-    def flanking_loci(self,loci,flank_limit=1,chain=True,window_size=None,within=0,feature='%'):
+    def flanking_loci(self,loci,flank_limit=1,chain=True,window_size=None,within=False,feature='%'):
         '''
             Returns loci upstream and downstream from a locus
             ** done NOT include loci within locus **
@@ -659,11 +659,10 @@ class RefLoci(Freezable):
                 for (x,) in self._db.cursor().execute('''
                     SELECT id FROM loci
                     WHERE chromosome = ?
-                    AND (start >= ? AND start <= ?) OR (end >= ? AND end <= ?)
-                    AND feature_type LIKE ?
+                    AND start >= ? AND start <= ?
                     ''',
-                    (loci.chrom,loci.start,loci.end,loci.start,loci.end,feature))
-            ]
+                    (loci.chrom,loci.start,loci.end))
+	    ]
         else:
             iterator = iter(loci)
             loci = [self.loci_within(locus,chain=chain) for locus in iterator]
@@ -675,7 +674,7 @@ class RefLoci(Freezable):
         chain=True, window_size=None, include_parent_locus=False,
         include_parent_attrs=False, include_num_intervening=False,
         include_rank_intervening=False, include_num_siblings=False,
-        include_SNP_distance=False,attrs=None,return_table=False):
+        include_SNP_distance=False, attrs=None, return_table=False):
         '''
             Locus to locus mapping.
             Return loci between locus start and stop, plus additional
