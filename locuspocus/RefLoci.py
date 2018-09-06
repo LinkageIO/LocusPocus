@@ -21,7 +21,7 @@ from .Exceptions import ZeroWindowError
 class RefLoci(Freezable):
     '''
         RefLoci are just a bunch of locuses.
-        Just a bunch of Locuses. RefLoci are more than the sum of their 
+        RefLoci are more than the sum of their 
         parts. They have a name and represent something bigger than
         theirselves. They are important. They live on the disk in a
         database.
