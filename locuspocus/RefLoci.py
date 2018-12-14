@@ -197,7 +197,7 @@ class RefLoci(Freezable):
 
 
     def add_gff(self,filename,
-                 locus_feature=None,
+                 locus_feature='gene',
                  ID_attr='ID',attr_split='='):
         '''
             Imports RefLoci from a gff (General Feature Format) file.
