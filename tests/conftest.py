@@ -46,7 +46,7 @@ def m80_Fasta():
         the m80 API
     '''
     # delete the onl
-    m80tools.delete('ACGT','Fasta',force=True)
+    m80tools.delete('Fasta','ACGT',force=True)
     f = Fasta.from_file('ACGT','raw/ACGT.fasta')
     return True
 
@@ -54,7 +54,7 @@ def m80_Fasta():
 @pytest.fixture(scope='module')                                                               
 def smpl_fasta():                                                                  
     ''' A simple fasta that agrees with smpl_annot'''                           
-    m80tools.delete('smpl_fasta','Fasta',force=True)
+    m80tools.delete('Fasta','smpl_fasta',force=True)
     fasta = Fasta('smpl_fasta')                                                             
     chr1 = Chromosome('chr1','A'*500000)                                                  
     chr2 = Chromosome('chr2','C'*500000)                                               
