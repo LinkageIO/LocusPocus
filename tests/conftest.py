@@ -10,6 +10,7 @@ from locuspocus.Fasta import Chromosome
 
 @pytest.fixture(scope='module')
 def simpleRefLoci():
+    m80tools.delete('RefLoci','simpleRefLoci',force=True)
     # Create a Locus
     a = Locus(1,100,150, id='gene_a')
     # Create a couple more!
@@ -25,6 +26,7 @@ def simpleRefLoci():
 @pytest.fixture(scope="module")
 def testRefGen():
     # We have to build it
+    m80tools.delete('RefLoci','Zm5bFGS',force=True)
     gff = os.path.expanduser(
         os.path.join(
             'raw', 'ZmB73_5b_FGS.gff.gz'
