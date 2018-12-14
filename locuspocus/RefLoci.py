@@ -20,10 +20,9 @@ from .Exceptions import ZeroWindowError
 
 class RefLoci(Freezable):
     '''
-        Just a bunch of Locuses. RefLoci are more than the sum of their
-        parts. They have a name and represent something bigger than
-        theirselves. They are important. They live on the disk in a
-        database.
+        RefLoci are more than the sum of their parts. They have a name and
+        represent something bigger than theirselves. They are important. They
+        live on the disk in a database.
     '''
     # Create a class-wide logger
     log = logging.getLogger(__name__)
@@ -1236,15 +1235,13 @@ class RefLoci(Freezable):
         return feature_list
 
     @classmethod
-    def from_DataFrame(cls,df,name,description,build,organism,
-            chrom_col='chrom',start_col='start',stop_col='stop',
-            id_col='ID'):
+    def from_DataFrame(cls,df,name,
+            chrom_col='chrom',start_col='start',
+            stop_col='stop', id_col='ID'):
         '''
             Imports a RefGen object from a CSV.
         '''
-        self = cls.create(name,description,type='RefGen')
-        self._global('build',build)
-        self._global('organism','organism')
+        self = cls(name)
         loci = list()
         for i,row in df.iterrows():
             loci.append(
@@ -1254,7 +1251,6 @@ class RefLoci(Freezable):
                 ).update(dict(row.items()))
             )
         self.add_loci(loci)
-        self._build_indices()
         return self
 
 
