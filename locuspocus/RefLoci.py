@@ -20,7 +20,6 @@ from .Exceptions import ZeroWindowError
 
 class RefLoci(Freezable):
     '''
-        RefLoci are just a bunch of locuses.
         Just a bunch of Locuses. RefLoci are more than the sum of their
         parts. They have a name and represent something bigger than
         theirselves. They are important. They live on the disk in a
@@ -123,7 +122,9 @@ class RefLoci(Freezable):
         # Its actually just one locus
         cur = self._db.cursor()
         cur.execute('''
-            INSERT OR IGNORE INTO loci (id,chromosome,start,end,global_order,feature_order,feature_type) VALUES (?,?,?,?,?,?,?)
+            INSERT OR IGNORE INTO loci 
+            (id,chromosome,start,end,global_order,feature_order,feature_type) 
+            VALUES (?,?,?,?,?,?,?)
         ''',(locus.name, locus.chrom, locus.start, locus.end, locus.global_order, locus.feature_order, locus.feature_type))
         # add the attrs
         cur.executemany('''
@@ -156,8 +157,13 @@ class RefLoci(Freezable):
                 cur = self._db.cursor()
                 cur.execute('BEGIN TRANSACTION')
                 cur.executemany(
-                    'INSERT OR IGNORE INTO loci (id,chromosome,start,end,global_order,feature_order,feature_type) VALUES (?,?,?,?,?,?,?)',
-                    ((x.name,x.chrom,x.start,x.end,x.global_order,x.feature_order,x.feature_type) for x in loci)
+                    '''INSERT OR IGNORE INTO loci 
+                    (id,chromosome,start,end,global_order,feature_order,feature_type) 
+                    VALUES (?,?,?,?,?,?,?)
+                    ''',
+                    ((x.name,x.chrom,x.start,x.end,\
+                      x.global_order,x.feature_order,x.feature_type) \
+                      for x in loci)
                 )
                 cur.executemany(
                     'INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)',
@@ -192,7 +198,7 @@ class RefLoci(Freezable):
 
 
     def add_gff(self,filename,
-                 locus_feature='gene',
+                 locus_feature=None,
                  ID_attr='ID',attr_split='='):
         '''
             Imports RefLoci from a gff (General Feature Format) file.
