@@ -8,8 +8,7 @@ import pandas as pd
 
 class Locus(object):
     def __init__(self, chrom, start, end=None,
-                 id=None, global_order=0, feature_order=0,
-                 feature_type=None, window=0, sub_loci=None, **kwargs):
+                 id=None, feature_type=None, window=0, sub_loci=None, **kwargs):
         '''
             A genetic coordinate class.
 
@@ -35,8 +34,6 @@ class Locus(object):
         # Postitions are integers
         self._start = int(start)
         self._end = int(end) if end is not None else int(start)
-        self._global_order = int(global_order)
-        self._feature_order = int(feature_order)
 
         # Implement an optional window around the start and stop
         # This is used to collapse SNPs and to perform the
@@ -73,8 +70,6 @@ class Locus(object):
             'chrom' : self.chrom,
             'start' : self.start,
             'end'   : self.end,
-            'global_order': self.global_order,
-            'feature_order': self.feature_order,
             'feature_type': self.feature_type
         }
         a_dict.update(self.attr)
@@ -117,38 +112,6 @@ class Locus(object):
         self.attr.update(dict)
         return self
 
-
-#   def as_record(self):
-#       '''
-#           Returns the Locus as a record.
-#           NOTE: does not include Locus attributes. See Locus.as_dict()
-
-#           Parameters
-#           ----------
-#           None
-
-#           Returns
-#           -------
-#           A tuple containing Locus information
-#       '''
-#       return (self.chrom,self.start,self.end,self.name,self.window,self.global_order,self.feature_order,self.feature_type,self.id)
-
-#   @classmethod
-#   def from_record(cls,tpl):
-#       '''
-#           Creates a Locus object from a record.
-
-#           Parameters
-#           ----------
-#           record : tuple
-#               Tuple containing Locus information.
-
-#           Returns
-#           -------
-#           Locus object
-
-#       '''
-#       return cls(*tpl)
 
     def __setitem__(self,key,val):
         '''
@@ -252,35 +215,6 @@ class Locus(object):
 
         '''
         return (self.start,self.end)
-    @property
-    def global_order(self):
-        '''
-            Returns the chromosome order of the locus regardless of feature type
-
-            Parameters
-            ----------
-            None
-
-            Returns
-            -------
-            The chromosome order of the locus in global scope.
-        '''
-        return int(self._global_order)
-
-    @property
-    def feature_order(self):
-        '''
-            Returns the chromosome order of the locus with respect to feature type
-
-            Parameters
-            ----------
-            None
-
-            Returns
-            -------
-            The chromosome order of the locus in narrow scope.
-        '''
-        return int(self._feature_order)
 
     @property
     def feature_type(self):
@@ -647,14 +581,13 @@ class Locus(object):
             'Start Position: {}',
             'End Position: {}',
             'Window Size: {}',
-            'Feature Order: {}',
             'Feature Type: {}',
             'Additional attributes: {}',
             'Sub Loci: {}'
         ]).format(
             self._id, self.chrom,
             self.start, self.end,
-            self.window, self.feature_order,
+            self.window,
             self.feature_type, len(self.attr),
             len(self.sub_loci)
         )
