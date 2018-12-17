@@ -122,9 +122,9 @@ class RefLoci(Freezable):
         cur = self._db.cursor()
         cur.execute('''
             INSERT OR IGNORE INTO loci 
-            (id,chromosome,start,end,global_order,feature_order,feature_type) 
-            VALUES (?,?,?,?,?,?,?)
-        ''',(locus.name, locus.chrom, locus.start, locus.end, locus.global_order, locus.feature_order, locus.feature_type))
+            (id,chromosome,start,end,feature_type) 
+            VALUES (?,?,?,?,?)
+        ''',(locus.name, locus.chrom, locus.start, locus.end, locus.feature_type))
         # add the attrs
         cur.executemany('''
             INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)
@@ -157,11 +157,11 @@ class RefLoci(Freezable):
                 cur.execute('BEGIN TRANSACTION')
                 cur.executemany(
                     '''INSERT OR IGNORE INTO loci 
-                    (id,chromosome,start,end,global_order,feature_order,feature_type) 
-                    VALUES (?,?,?,?,?,?,?)
+                    (id,chromosome,start,end,feature_type) 
+                    VALUES (?,?,?,?,?)
                     ''',
                     ((x.name,x.chrom,x.start,x.end,\
-                      x.global_order,x.feature_order,x.feature_type) \
+                      x.feature_type) \
                       for x in loci)
                 )
                 cur.executemany(
@@ -363,7 +363,7 @@ class RefLoci(Freezable):
         cur = self._db.cursor()
         # The most common use case is a direct reference to an id
         info = cur.execute(
-                'SELECT chromosome,start,end,id,global_order,feature_order,feature_type FROM loci WHERE id = ?', [locus_id]
+                'SELECT chromosome,start,end,id,feature_type FROM loci WHERE id = ?', [locus_id]
                ).fetchone()
         if info == None:
             # Try to fetch an alias
@@ -823,6 +823,7 @@ class RefLoci(Freezable):
                 else:
                     candidates = list(set(itertools.chain(*candidates)))
             return candidates
+
     def bootstrap_candidate_loci(self, loci, flank_limit=2,
         chain=True, window_size=None, include_parent_locus=False):
         '''
@@ -1279,50 +1280,6 @@ class RefLoci(Freezable):
         except ValueError as e:
             raise ValueError(f'{id} not in database')
 
-    def update_chr_order(self,feature='%',scope='feature'):
-        '''
-        Pull loci from the loci table and find their order on the chrom
-        '''
-
-        cur = self._db.cursor()
-        cur.execute("PRAGMA database_list")
-        rows = cur.fetchall()
-
-        cur.execute('''
-            SELECT id, chromosome, start, end, feature_type FROM loci
-            WHERE feature_type LIKE ?
-            ''',
-            (feature,))
-        result = cur.fetchall()
-
-        tmp_order = defaultdict(lambda: defaultdict(dict))
-        orders = []
-
-        for locus in result:
-            id, chrom, start, end, feat_type = locus
-            tmp_order[chrom][start][end] = id
-
-        for chrom in tmp_order:
-            counter = 0
-            for start in sorted(tmp_order[chrom].keys()):
-                for end in sorted(tmp_order[chrom][start].keys()):
-                    id = tmp_order[chrom][start][end]
-                    orders.append([counter,id])
-                    counter += 1
-        try:
-            cur.execute('BEGIN TRANSACTION')
-            if scope == "feature":
-                cur.executemany('UPDATE loci SET feature_order = ? WHERE id = ?', (orders))
-            else:
-                cur.executemany('UPDATE loci SET global_order = ? WHERE id = ?', (orders))
-            cur.execute('END TRANSACTION')
-            # Update the cache
-            self._update_cache()
-        except Exception as e:
-            cur.execute('ROLLBACK')
-
-        return 1
-
     def _initialize_tables(self):
         '''
             Initializes the Tables holding all the information
@@ -1336,8 +1293,6 @@ class RefLoci(Freezable):
                 chromosome TEXT NOT NULL,
                 start INTEGER,
                 end INTEGER,
-                global_order INTEGER,
-                feature_order INTEGER,
                 feature_type TEXT,
                 UNIQUE(chromosome,start,end)
             );
