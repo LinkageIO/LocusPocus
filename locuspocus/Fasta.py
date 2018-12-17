@@ -92,6 +92,7 @@ class Fasta(Freezable):
             name : str
                 The name of the chromosome
         '''
+        self.log.info(f'Adding {chrom.name}') 
         # Check for duplicates
         if chrom.name in self:
             if not force:
@@ -109,7 +110,6 @@ class Fasta(Freezable):
             for x in chrom._attrs:
                 self._add_attribute(chrom.name,x)
         seqarray = np.array(chrom.seq)
-        self.log.info(f'Adding {chrom.name}') 
         self._bcolz_array(chrom.name,seqarray)
         self.cache_clear()
 
