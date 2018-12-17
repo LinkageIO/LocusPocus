@@ -20,8 +20,6 @@ def test_as_dict(simple_Locus):
             'chrom': '1',
             'start': 100,
             'end': 200 ,
-            'global_order': 0,
-            'feature_order': 0,
             'feature_type': 'LocusPocus' 
             }
     assert simple_Locus.as_dict() == simple_Locus_dict
@@ -137,7 +135,7 @@ def test_hash(simple_Locus):
     assert hash(simple_Locus) == 1035530407970800134
 
 def test_summary(simple_Locus):
-    assert simple_Locus.summary() == 'ID: None\nChromosome: 1\nStart Position: 100\nEnd Position: 200\nWindow Size: 0\nFeature Order: 0\nFeature Type: LocusPocus\nAdditional attributes: 0\nSub Loci: 1'
+    assert simple_Locus.summary() == 'ID: None\nChromosome: 1\nStart Position: 100\nEnd Position: 200\nWindow Size: 0\nFeature Type: LocusPocus\nAdditional attributes: 0\nSub Loci: 1'
 
 #def test_candidate_vs_bootstrap_length(testRefGen,testGWAS):
 #    Term = next(testGWAS.iter_terms())
