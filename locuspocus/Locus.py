@@ -5,10 +5,12 @@ from itertools import chain
 import hashlib
 import re
 import pandas as pd
+import numpy as np
 
 class Locus(object):
-    def __init__(self, chrom, start, end=None,
-                 id=None, feature_type=None, window=0, sub_loci=None, **kwargs):
+    def __init__(self, chrom, start, end=None, id=None,
+                 score=None, strand=None, frame=None, source=None,
+                 feature_type=None, window=0, sub_loci=None, **kwargs):
         '''
             A genetic coordinate class.
 
@@ -34,6 +36,12 @@ class Locus(object):
         # Postitions are integers
         self._start = int(start)
         self._end = int(end) if end is not None else int(start)
+
+        # Add GFF specific fields
+        self.strand = strand
+        self._score = score
+        self._frame = frame
+        self.source = source
 
         # Implement an optional window around the start and stop
         # This is used to collapse SNPs and to perform the
@@ -70,7 +78,12 @@ class Locus(object):
             'chrom' : self.chrom,
             'start' : self.start,
             'end'   : self.end,
-            'feature_type': self.feature_type
+            'feature_type': self.feature_type,
+            'strand' : self.strand,
+            'score' : self.score,
+            'frame' : self.frame,
+            'source': self.source,
+            'window': self.window
         }
         a_dict.update(self.attr)
         return a_dict
@@ -144,7 +157,7 @@ class Locus(object):
             val : object
                 Attribute value.
         '''
-        return self.attr[key]
+        return self.attr[str(key)]
 
     def default_getitem(self,key,default=None):
         '''
@@ -183,6 +196,29 @@ class Locus(object):
             NOTE: the minimum return value is 0
         '''
         return max(0,int(self._start))
+
+
+    @property
+    def score(self):
+        '''
+            Return the score of the locus
+        '''
+        if self._score == '.' or self._score is None:
+            return np.nan
+        else:
+            return float(self._score)
+
+
+    @property
+    def frame(self):
+        '''
+            Return the frame
+        '''
+        if self._frame is None:
+            return None
+        else:
+            return int(self._frame)
+
 
     @property
     def end(self):
@@ -461,13 +497,13 @@ class Locus(object):
 
             Returns
             -------
-            The length of the locus (plus 1 bp)
+            The length of the locus
 
         '''
         if self.start == self.end:
             return 1
         else:
-            return self.end - self.start
+            return self.end - self.start + 1
 
     # XXX I checked the python doc and this method should never be called because
     # the rich comparison operators are defined (i.e. __eq__, __lt__, __gt__)
@@ -564,6 +600,7 @@ class Locus(object):
         )
 
     def summary(self):
+        # TODO: add the rest of the properties 
         '''
             Return summary information about a locus
 
@@ -596,6 +633,7 @@ class Locus(object):
         '''
            A convenience method for iPython
         '''
+        # TODO: return an actual evalable string
         return str(self)
 
     def __hash__(self):
