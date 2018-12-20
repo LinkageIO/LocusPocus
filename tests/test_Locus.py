@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from itertools import chain
 from locuspocus import Locus
@@ -19,8 +20,13 @@ def test_as_dict(simple_Locus):
             'id': '<None>1:100-200',
             'chrom': '1',
             'start': 100,
-            'end': 200 ,
-            'feature_type': 'LocusPocus' 
+            'end': 200,
+            'feature_type': 'LocusPocus',
+            'frame': None,
+            'score': np.nan,
+            'source': None,
+            'strand': None,
+            'window': 0
             }
     assert simple_Locus.as_dict() == simple_Locus_dict
 
