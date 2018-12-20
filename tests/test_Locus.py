@@ -13,7 +13,7 @@ def test_initialization(simple_Locus):
     assert simple_Locus.chrom == '1'
     assert simple_Locus.start == 100
     assert simple_Locus.end == 200
-    assert len(simple_Locus) == 100
+    assert len(simple_Locus) == 101
 
 def test_as_dict(simple_Locus):
     simple_Locus_dict = {
@@ -105,7 +105,7 @@ def test_contains(simple_Locus):
     assert simple_Locus not in disjoint_Locus
 
 def test_len(simple_Locus):
-    assert len(simple_Locus) == 100
+    assert len(simple_Locus) == 101
     assert len(Locus(1, 100, 100)) == 1
 
 #def test_cmp(simple_Locus):
