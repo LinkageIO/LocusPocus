@@ -19,7 +19,7 @@ install:
     #- source activate locuspocus
     - pip install .
 script:
-    - pip install pytest pytest-cov
+    - pip install 'pytest>=3.6' pytest-cov
     - cd tests
     - py.test -v --cov=locuspocus
 after_success:
