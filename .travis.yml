@@ -1,26 +1,27 @@
 language: python
 python:
 - '3.6'
+- '3.7'
 env:
 - LD_LIBRARY_PATH=$HOME/.locuspocus/lib:$LD_LIBRARY_PATH PATH=$HOME/.locuspocus/bin:$HOME/.locuspocus/conda/bin:$PATH
 install:
-- wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-- bash miniconda.sh -b -p $HOME/miniconda
-- export PATH="$HOME/miniconda/bin:$PATH"
-- hash -r
-- conda config --set always_yes yes --set changeps1 no
-- conda update -q conda
-- conda info -a
-- conda create -q -n locuspocus python=3
-- source activate locuspocus
-- pip install .
+    #- wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    #- bash miniconda.sh -b -p $HOME/miniconda
+    #- export PATH="$HOME/miniconda/bin:$PATH"
+    #- hash -r
+    #- conda config --set always_yes yes --set changeps1 no
+    #- conda update -q conda
+    #- conda info -a
+    #- conda create -q -n locuspocus python=3
+    #- source activate locuspocus
+    - pip install .
 script:
-- pip install pytest pytest-cov
-- cd tests
-- py.test -v --cov=locuspocus
+    - pip install pytest pytest-cov
+    - cd tests
+    - py.test -v --cov=locuspocus
 after_success:
-- coveralls
-- cd ../
+    - coveralls
+    - cd ../
 deploy:
   provider: pypi
   user: schae234
