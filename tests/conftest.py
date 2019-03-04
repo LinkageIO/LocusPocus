@@ -34,7 +34,7 @@ def testRefGen():
     )
     x = RefLoci('Zm5bFGS')
     if len(x) == 0:
-        x.add_gff(  
+        x.import_gff(  
             gff
         )
     return x
