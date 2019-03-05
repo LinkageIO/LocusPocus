@@ -129,6 +129,10 @@ class RefLoci(Freezable):
 
     def __iter__(self):
         return self.iter_loci()
+    
+    #-------------------------------------------------------
+    #            Putters
+    #-------------------------------------------------------
 
     def add_locus(self, locus):
         """
@@ -225,7 +229,7 @@ class RefLoci(Freezable):
         else:
             raise ValueError("Cannot find: {}. Must be an ID or coordinate tuple.")
 
-    def import_gff(self, filename, feature_type="gene", ID_attr="ID", attr_split="="):
+    def import_gff(self, filename, feature_type="*", ID_attr="ID", attr_split="="):
         """
             Imports RefLoci from a gff (General Feature Format) file.
             See more about the format here:
@@ -239,10 +243,11 @@ class RefLoci(Freezable):
             name : str
                 The name if the RefGen object to be stored in the core
                 minus80 database.
-            feature_type : str (default: 'gene')
+            feature_type : str (default: '*')
                 The name of the feature (in column 2) that designates a
                 locus. These features will be the main object that the RefGen
-                encompasses.
+                encompasses. The default value '*' will import all feature
+                types.
             ID_attr : str (default: ID)
                 The key in the attribute column which designates the ID or
                 name of the feature.
@@ -278,7 +283,8 @@ class RefLoci(Freezable):
                     for field in attributes.strip(";").split(";")
                 ]
             )
-            if feature == feature_type:
+            # If feature_type option is '*' short-circuit and import it
+            if feature_type == '*' or feature == feature_type:
                 loci.append(
                     Locus(
                         chrom,
