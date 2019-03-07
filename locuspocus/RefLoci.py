@@ -124,8 +124,56 @@ class RefLoci(Freezable):
         elif isinstance(item, tuple):
             chrom, start, end = tuple
             return self.loci_within(Locus(chrom, start, end))
+
+    @lru_cache(maxsize=131072)
+    def get_locus_from_id(self, locus_id):
+        """
+            Returns a locus object from a string
+
+            Parameters
+            ----------
+            locus_id : str
+                ID of the locus you want to pull out
+
+            Returns
+            -------
+            A single Locus Object
+
+        """
+        cur = self._db.cursor()
+        # The most common use case is a direct reference to an id
+        info = cur.execute(
+            """
+                SELECT chromosome,start,end,id,feature_type,score,strand,frame,source 
+                FROM loci 
+                WHERE id = ?
+                """,
+            [locus_id],
+        ).fetchone()
+        if info is None:
+            # Try to fetch an alias
+            (locus_id,) = (
+                self._db.cursor()
+                .execute(
+                    """
+                    SELECT id FROM aliases
+                    WHERE alias = ?
+                    """,
+                    (locus_id,),
+                )
+                .fetchone()
+            )
+            return self.get_locus_from_id(locus_id)
         else:
-            return self.get_loci_from_ids(item)
+            locus = Locus(*info)
+            # Fetch the attrs
+            attrs = cur.execute(
+                "SELECT key,val FROM loci_attrs WHERE id = ?;", (locus_id,)
+            )
+            for key, val in attrs:
+                locus[key] = val
+            return locus
+
 
     def __iter__(self):
         return self.iter_loci()
@@ -135,40 +183,12 @@ class RefLoci(Freezable):
     #-------------------------------------------------------
 
     def add_locus(self, locus):
-        """
-            Add a single locus to the database
-
-            Parameters
-            ----------
-            locus : a locus object
-
-            Returns
-            -------
-            The LID of the added locus
-        """
-        # Its actually just one locus
-        cur = self._db.cursor()
-        cur.execute(
-            """
-            INSERT OR IGNORE INTO loci 
-            (id,chromosome,start,end,feature_type) 
-            VALUES (?,?,?,?,?)
-        """,
-            (locus.name, locus.chrom, locus.start, locus.end, locus.feature_type),
+        import warnings
+        warnings.warn(
+            "The add_locus method is deprecated, a single locus can now be added "
+            "using the add_loci method"
         )
-        # add the attrs
-        cur.executemany(
-            """
-            INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)
-        """,
-            [(locus.id, key, val) for key, val in locus.attr.items()],
-        )
-        # Update the cache
-        self._update_cache()
-        (LID,) = cur.execute(
-            "SELECT LID FROM loci WHERE id = ?", (locus.name,)
-        ).fetchone()
-        return LID
+        self.add_loci(locus)
 
     def add_loci(self, loci):
         """
@@ -184,28 +204,29 @@ class RefLoci(Freezable):
             None
         """
         if isinstance(loci, Locus):
-            self.add_locus(loci)
-        else:
-            try:
-                # support adding lists of loci
-                self.log.info("Adding {} RefLoci info to database".format(len(loci)))
-                cur = self._db.cursor()
-                cur.execute("BEGIN TRANSACTION")
-                cur.executemany(
-                    """INSERT OR IGNORE INTO loci 
-                    (id,chromosome,start,end,feature_type) 
-                    VALUES (?,?,?,?,?)
-                    """,
-                    ((x.name, x.chrom, x.start, x.end, x.feature_type) for x in loci),
-                )
-                cur.executemany(
-                    "INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)",
-                    ((x.id, key, val) for x in loci for key, val in x.attr.items()),
-                )
-                cur.execute("END TRANSACTION")
-                self._update_cache()
-            except Exception as e:
-                cur.execute("ROLLBACK")
+            loci = [loci]
+        try:
+            # support adding lists of loci
+            self.log.info("Adding {} RefLoci info to database".format(len(loci)))
+            cur = self._db.cursor()
+            cur.execute("BEGIN TRANSACTION")
+            cur.executemany(
+                """INSERT OR IGNORE INTO loci 
+                (id,chromosome,start,end,feature_type,score,strand,frame,source) 
+                VALUES (?,?,?,?,?,?,?,?,?)
+                """,
+                ((x.name, x.chrom, x.start, x.end, x.feature_type, x.score, x.strand, x.frame, x.source)\
+                 for x in loci),
+            )
+            cur.executemany(
+                "INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)",
+                ((x.id, key, val) for x in loci for key, val in x.attr.items()),
+            )
+            cur.execute("END TRANSACTION")
+            self._update_cache()
+        except Exception as e:
+            cur.execute("ROLLBACK")
+            raise e
 
     def remove_locus(self, item):
         """
@@ -229,7 +250,7 @@ class RefLoci(Freezable):
         else:
             raise ValueError("Cannot find: {}. Must be an ID or coordinate tuple.")
 
-    def import_gff(self, filename, feature_type="*", ID_attr="ID", attr_split="="):
+    def import_gff(self, filename, feature_type="*", ID_attr="Name", attr_split="="):
         """
             Imports RefLoci from a gff (General Feature Format) file.
             See more about the format here:
@@ -241,11 +262,11 @@ class RefLoci(Freezable):
             filename : str
                 The path to the GFF file.
             name : str
-                The name if the RefGen object to be stored in the core
+                The name if the RefLoci object to be stored in the core
                 minus80 database.
             feature_type : str (default: '*')
                 The name of the feature (in column 2) that designates a
-                locus. These features will be the main object that the RefGen
+                locus. These features will be the main object that the RefLoci
                 encompasses. The default value '*' will import all feature
                 types.
             ID_attr : str (default: ID)
@@ -411,94 +432,6 @@ class RefLoci(Freezable):
         """
         return [x for x in loci if x in self]
 
-    # --------- Getters -----------#
-    @lru_cache(maxsize=131_072)
-    def get_locus_from_id(self, locus_id):
-        """
-            Returns a locus object from a string
-
-            Parameters
-            ----------
-            locus_id : str
-                ID of the locus you want to pull out
-
-            Returns
-            -------
-            A single Locus Object
-
-        """
-        cur = self._db.cursor()
-        # The most common use case is a direct reference to an id
-        info = cur.execute(
-            """
-                SELECT chromosome,start,end,id,feature_type 
-                FROM loci 
-                WHERE id = ?
-                """,
-            [locus_id],
-        ).fetchone()
-        if info == None:
-            # Try to fetch an alias
-            (locus_id,) = (
-                self._db.cursor()
-                .execute(
-                    """
-                SELECT id FROM aliases
-                WHERE alias = ?
-            """,
-                    (locus_id,),
-                )
-                .fetchone()
-            )
-            return self[locus_id]
-        else:
-            locus = Locus(*info)
-            # Fetch the attrs
-            attrs = cur.execute(
-                "SELECT key,val FROM loci_attrs WHERE id = ?;", (locus_id,)
-            )
-            for key, val in attrs:
-                locus[key] = val
-            return locus
-
-    def get_loci_from_ids(self, locus_ids, check_shape=False):
-        """
-            Returns a list of locus object from an iterable of id strings
-            OR from a single locus id string.
-
-            Parameters
-            ----------
-            locus_ids : str OR iterable of str
-                ID(s) of the loci you want to pull out
-            check_shape : bool (default: False)
-                Check if you get back the same number of ids you
-                pass in. If false (default), just give back what
-                you find, ignoring erronous ids.
-
-            Returns
-            -------
-            A list of locus objects if you pass in an iterable,
-            otherwise a single locus
-
-        """
-        if isinstance(locus_ids, str):
-            import warnings
-
-            warnings.warn(
-                "Passing single values into RefGen.from_ids is deprecated. Use RefGen.from_id() "
-                "or slicing syntax instead."
-            )
-            return self.get_locus_from_id(locus_ids)
-        loci = []
-        for id in locus_ids:
-            try:
-                loci.append(self.get_locus_from_id(id))
-            except ValueError as e:
-                if check_shape == False:
-                    continue
-                else:
-                    raise e
-        return loci
 
     def upstream_loci(
         self, locus, locus_limit=1000, window_size=None, within=False, feature_type="%"
@@ -1071,43 +1004,41 @@ class RefLoci(Freezable):
             # self.log.info("Found {} bootstraps",len(bootstraps))
             return bootstraps
 
-    # TODO: I dont think we use pairwise distance anymore, check this 
-    # and potentially remove this
 
-   #def pairwise_distance(self, loci=None):
-   #    """
-   #        returns a vector containing the pairwise distances between loci
-   #        in loci in vector form. See np.squareform for matrix
-   #        conversion.
-   #    """
-   #    import pandas as pd
+    def pairwise_distance(self, loci=None):
+        '''
+            returns a vector containing the pairwise distances between loci
+            in loci in vector form. See np.squareform for matrix
+            conversion.
+        '''
+        import pandas as pd
 
-   #    if loci is None:
-   #        loci = list(self.iter_loci())
-   #    query = """
-   #            SELECT id, chromosome, start, end FROM loci
-   #            WHERE id in ("{}")
-   #            ORDER BY id
-   #    """.format(
-   #        '","'.join([x.id for x in loci])
-   #    )
-   #    # extract chromosome row ids and start positions for each locus
-   #    positions = pd.DataFrame(
-   #        # Grab the chromosomes rowid because its numeric
-   #        self._db.cursor().execute(query).fetchall(),
-   #        columns=["locus", "chrom", "start", "end"],
-   #    ).sort_values(by="locus")
-   #    # chromosome needs to be floats
-   #    positions.chrom = positions.chrom.astype("float")
-   #    # Do a couple of checks
-   #    assert len(positions) == len(loci), "Some genes in dataset not if RefGen"
-   #    assert all(
-   #        positions.gene == [g.id for g in loci]
-   #    ), "Loci are not in the correct order!"
-   #    distances = LocusDist.gene_distances(
-   #        positions.chrom.values, positions.start.values, positions.end.values
-   #    )
-   #    return distances
+        if loci is None:
+            loci = list(self.iter_loci())
+        query = """
+                SELECT id, chromosome, start, end FROM loci
+                WHERE id in ("{}")
+                ORDER BY id
+        """.format(
+            '","'.join([x.id for x in loci])
+        )
+        # extract chromosome row ids and start positions for each locus
+        positions = pd.DataFrame(
+            # Grab the chromosomes rowid because its numeric
+            self._db.cursor().execute(query).fetchall(),
+            columns=["locus", "chrom", "start", "end"],
+        ).sort_values(by="locus")
+        # chromosome needs to be floats
+        positions.chrom = positions.chrom.astype("float")
+        # Do a couple of checks
+        assert len(positions) == len(loci), "Some genes in dataset not if RefGen"
+        assert all(
+            positions.gene == [g.id for g in loci]
+        ), "Loci are not in the correct order!"
+        distances = LocusDist.gene_distances(
+            positions.chrom.values, positions.start.values, positions.end.values
+        )
+        return distances
 
     def summary(self):
         print("\n".join(["Loci: {} ", "{} sites"]).format(self.name, self.num_loci()))
@@ -1192,33 +1123,6 @@ class RefLoci(Freezable):
     #           Class Methods
     #
     # -----------------------------------------
-
-   #@classmethod
-   #def from_DataFrame(
-   #    cls,
-   #    df,
-   #    name,
-   #    chrom_col="chrom",
-   #    start_col="start",
-   #    stop_col="stop",
-   #    id_col="ID",
-   #):
-   #    """
-   #        Imports a RefGen object from a CSV.
-   #    """
-   #    self = cls(name)
-   #    loci = list()
-   #    for i, row in df.iterrows():
-   #        loci.append(
-   #            Locus(
-   #                row[chrom_col],
-   #                int(row[start_col]),
-   #                int(row[stop_col]),
-   #                id=row[id_col],
-   #            ).update(dict(row.items()))
-   #        )
-   #    self.add_loci(loci)
-   #    return self
 
     @lru_cache(maxsize=2 ** 23)
     def LID(self, obj):
