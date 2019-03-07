@@ -56,7 +56,7 @@ class Locus(object):
         self.strand = strand
         self._score = score
         self._frame = frame
-        self.source = source
+        self._source = source
 
         # Implement an optional window around the start and stop
         # This is used to collapse SNPs and to perform the
@@ -225,6 +225,16 @@ class Locus(object):
             return None
         else:
             return int(self._frame)
+
+    @property
+    def source(self):
+        '''
+        Return the source of the locus
+        '''
+        if self._source is None:
+            return 'locuspocus'
+        else:
+            return self._source
 
     @property
     def end(self):
@@ -636,7 +646,7 @@ class Locus(object):
             -------
             A printable string with Locus info
         """
-        return "\n".join(
+        print("\n".join(
             [
                 "ID: {}",
                 "Chromosome: {}",
@@ -656,7 +666,7 @@ class Locus(object):
             self.feature_type,
             len(self.attr),
             len(self.sub_loci),
-        )
+        ))
 
     def __repr__(self):
         """
