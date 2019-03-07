@@ -1071,40 +1071,43 @@ class RefLoci(Freezable):
             # self.log.info("Found {} bootstraps",len(bootstraps))
             return bootstraps
 
-    def pairwise_distance(self, loci=None):
-        """
-            returns a vector containing the pairwise distances between loci
-            in loci in vector form. See np.squareform for matrix
-            conversion.
-        """
-        import pandas as pd
+    # TODO: I dont think we use pairwise distance anymore, check this 
+    # and potentially remove this
 
-        if loci is None:
-            loci = list(self.iter_loci())
-        query = """
-                SELECT id, chromosome, start, end FROM loci
-                WHERE id in ("{}")
-                ORDER BY id
-        """.format(
-            '","'.join([x.id for x in loci])
-        )
-        # extract chromosome row ids and start positions for each locus
-        positions = pd.DataFrame(
-            # Grab the chromosomes rowid because its numeric
-            self._db.cursor().execute(query).fetchall(),
-            columns=["locus", "chrom", "start", "end"],
-        ).sort_values(by="locus")
-        # chromosome needs to be floats
-        positions.chrom = positions.chrom.astype("float")
-        # Do a couple of checks
-        assert len(positions) == len(loci), "Some genes in dataset not if RefGen"
-        assert all(
-            positions.gene == [g.id for g in loci]
-        ), "Loci are not in the correct order!"
-        distances = LocusDist.gene_distances(
-            positions.chrom.values, positions.start.values, positions.end.values
-        )
-        return distances
+   #def pairwise_distance(self, loci=None):
+   #    """
+   #        returns a vector containing the pairwise distances between loci
+   #        in loci in vector form. See np.squareform for matrix
+   #        conversion.
+   #    """
+   #    import pandas as pd
+
+   #    if loci is None:
+   #        loci = list(self.iter_loci())
+   #    query = """
+   #            SELECT id, chromosome, start, end FROM loci
+   #            WHERE id in ("{}")
+   #            ORDER BY id
+   #    """.format(
+   #        '","'.join([x.id for x in loci])
+   #    )
+   #    # extract chromosome row ids and start positions for each locus
+   #    positions = pd.DataFrame(
+   #        # Grab the chromosomes rowid because its numeric
+   #        self._db.cursor().execute(query).fetchall(),
+   #        columns=["locus", "chrom", "start", "end"],
+   #    ).sort_values(by="locus")
+   #    # chromosome needs to be floats
+   #    positions.chrom = positions.chrom.astype("float")
+   #    # Do a couple of checks
+   #    assert len(positions) == len(loci), "Some genes in dataset not if RefGen"
+   #    assert all(
+   #        positions.gene == [g.id for g in loci]
+   #    ), "Loci are not in the correct order!"
+   #    distances = LocusDist.gene_distances(
+   #        positions.chrom.values, positions.start.values, positions.end.values
+   #    )
+   #    return distances
 
     def summary(self):
         print("\n".join(["Loci: {} ", "{} sites"]).format(self.name, self.num_loci()))
@@ -1168,9 +1171,9 @@ class RefLoci(Freezable):
         self.num_loci.cache_clear()
 
     def get_feature_list(self, feature="%"):
-        """
+        '''
         Get a list of all of the loci in the database of the specified feature type
-        """
+        '''
         cur = self._db.cursor()
         cur.execute(
             """
@@ -1190,32 +1193,32 @@ class RefLoci(Freezable):
     #
     # -----------------------------------------
 
-    @classmethod
-    def from_DataFrame(
-        cls,
-        df,
-        name,
-        chrom_col="chrom",
-        start_col="start",
-        stop_col="stop",
-        id_col="ID",
-    ):
-        """
-            Imports a RefGen object from a CSV.
-        """
-        self = cls(name)
-        loci = list()
-        for i, row in df.iterrows():
-            loci.append(
-                Locus(
-                    row[chrom_col],
-                    int(row[start_col]),
-                    int(row[stop_col]),
-                    id=row[id_col],
-                ).update(dict(row.items()))
-            )
-        self.add_loci(loci)
-        return self
+   #@classmethod
+   #def from_DataFrame(
+   #    cls,
+   #    df,
+   #    name,
+   #    chrom_col="chrom",
+   #    start_col="start",
+   #    stop_col="stop",
+   #    id_col="ID",
+   #):
+   #    """
+   #        Imports a RefGen object from a CSV.
+   #    """
+   #    self = cls(name)
+   #    loci = list()
+   #    for i, row in df.iterrows():
+   #        loci.append(
+   #            Locus(
+   #                row[chrom_col],
+   #                int(row[start_col]),
+   #                int(row[stop_col]),
+   #                id=row[id_col],
+   #            ).update(dict(row.items()))
+   #        )
+   #    self.add_loci(loci)
+   #    return self
 
     @lru_cache(maxsize=2 ** 23)
     def LID(self, obj):
@@ -1264,6 +1267,14 @@ class RefLoci(Freezable):
                 start INTEGER,
                 end INTEGER,
                 feature_type TEXT,
+
+                /* Add in the rest of the GFF fields  */
+                score FLOAT,
+                strand INT,
+                frame INT,
+                source TEXT,
+
+                /* Define the primary key  */
                 UNIQUE(chromosome,start,end)
             );
             /*
