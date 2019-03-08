@@ -41,11 +41,14 @@ class RefLoci(Freezable):
 
     def __len__(self):
         """
-            Returns the number of Loci in the database
+            Returns the number of loci in the dataset
         """
-        return self.num_loci()
+        return self._db.cursor().execute(""" SELECT COUNT(*) FROM loci""").fetchone()[0]
+
+    # ---- Updated ----
 
     def __contains__(self, obj):
+        # TODO 
         """
             Flexible on what you pass into the 'in' function
         """
@@ -108,6 +111,7 @@ class RefLoci(Freezable):
             raise TypeError("Cannot test for containment for {}".format(obj))
 
     def __getitem__(self, item):
+        # TODO 
         """
             A convenience method to extract loci from the reference genome.
         """
@@ -127,6 +131,7 @@ class RefLoci(Freezable):
 
     @lru_cache(maxsize=131072)
     def get_locus_from_id(self, locus_id):
+        # TODO 
         """
             Returns a locus object from a string
 
@@ -176,6 +181,7 @@ class RefLoci(Freezable):
 
 
     def __iter__(self):
+        # TODO 
         return self.iter_loci()
     
     #-------------------------------------------------------
@@ -191,8 +197,10 @@ class RefLoci(Freezable):
         self.add_loci(locus)
 
     def add_loci(self, loci):
+        # TODO 
         """
-            Add loci to the database
+            Add loci to the database. Will also handle a single locus by wrapping it 
+            in a list for you.
 
             Parameters
             ----------
@@ -211,13 +219,15 @@ class RefLoci(Freezable):
             cur = self._db.cursor()
             cur.execute("BEGIN TRANSACTION")
             cur.executemany(
-                """INSERT OR IGNORE INTO loci 
+                """
+                INSERT INTO loci 
                 (id,chromosome,start,end,feature_type,score,strand,frame,source) 
                 VALUES (?,?,?,?,?,?,?,?,?)
                 """,
                 ((x.name, x.chrom, x.start, x.end, x.feature_type, x.score, x.strand, x.frame, x.source)\
                  for x in loci),
             )
+            breakpoint()
             cur.executemany(
                 "INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)",
                 ((x.id, key, val) for x in loci for key, val in x.attr.items()),
@@ -229,6 +239,7 @@ class RefLoci(Freezable):
             raise e
 
     def remove_locus(self, item):
+        # TODO 
         """
             Remove loci from the database
 
@@ -251,6 +262,7 @@ class RefLoci(Freezable):
             raise ValueError("Cannot find: {}. Must be an ID or coordinate tuple.")
 
     def import_gff(self, filename, feature_type="*", ID_attr="Name", attr_split="="):
+        # TODO 
         """
             Imports RefLoci from a gff (General Feature Format) file.
             See more about the format here:
@@ -323,18 +335,14 @@ class RefLoci(Freezable):
                     if end > chroms[chrom]:
                         chroms[chrom] = end
         IN.close()
+        return loci
         self.add_loci(loci)
 
     # ----------- Internal Methods  -----------#
 
-    @lru_cache(maxsize=8)
-    def num_loci(self, *args, **kwargs):
-        """
-            Returns the number of loci in the dataset
-        """
-        return self._db.cursor().execute(""" SELECT COUNT(*) FROM loci""").fetchone()[0]
 
     def summarize_feature_types(self):
+        # TODO 
         """
             Helper to summarize the Loci by feature type
         """
@@ -352,6 +360,7 @@ class RefLoci(Freezable):
         )
 
     def iter_loci(self):
+        # TODO 
         """
             Iterates over loci in database.
 
@@ -367,6 +376,7 @@ class RefLoci(Freezable):
             yield self[id]
 
     def random_locus(self, **kwargs):
+        # TODO 
         """
             Returns a random locus within loci.
             Also allows passing of keyword arguments to Locus
@@ -395,6 +405,7 @@ class RefLoci(Freezable):
         return self.get_locus_from_id(id, **kwargs)
 
     def random_loci(self, n, **kwargs):
+        # TODO 
         """
             Return random loci from the database, without replacement.
 
@@ -418,6 +429,7 @@ class RefLoci(Freezable):
         ]
 
     def intersection(self, loci):
+        # TODO 
         """
             Return the subset of loci that are in the dataset.
 
@@ -434,6 +446,7 @@ class RefLoci(Freezable):
 
 
     def upstream_loci(
+        # TODO 
         self, locus, locus_limit=1000, window_size=None, within=False, feature_type="%"
     ):
         """
@@ -507,6 +520,7 @@ class RefLoci(Freezable):
             ]
 
     def downstream_loci(
+        # TODO 
         self, locus, locus_limit=1000, window_size=None, within=False, feature_type="%"
     ):
         """
@@ -576,6 +590,7 @@ class RefLoci(Freezable):
             ]
 
     def flanking_loci(
+        # TODO 
         self,
         loci,
         flank_limit=1,
@@ -631,6 +646,7 @@ class RefLoci(Freezable):
             return loci
 
     def captured(self, loci, chain=True, feature_type="%"):
+        # TODO 
         """
             Returns the Loci captured by the locus. This method returns
             loci that are *compeltely* within the specified loci.
@@ -674,6 +690,7 @@ class RefLoci(Freezable):
             return loci
 
     def encompassing_loci(self, loci, chain=True):
+        # TODO 
         """
             Returns the Loci encompassing the locus. In other words
             if a locus (e.g. a SNP) is inside of another locus, i.e. the
@@ -713,6 +730,7 @@ class RefLoci(Freezable):
             return loci
 
     def loci_within(self, loci, chain=True, feature="%"):
+        # TODO 
         """
             Returns the loci that START or END within a locus
             start/end boundary.
@@ -744,6 +762,7 @@ class RefLoci(Freezable):
             return loci
 
     def candidate_loci(
+        # TODO 
         self,
         loci,
         flank_limit=2,
@@ -907,6 +926,7 @@ class RefLoci(Freezable):
             return candidates
 
     def bootstrap_candidate_loci(
+        # TODO 
         self,
         loci,
         flank_limit=2,
@@ -1005,42 +1025,8 @@ class RefLoci(Freezable):
             return bootstraps
 
 
-    def pairwise_distance(self, loci=None):
-        '''
-            returns a vector containing the pairwise distances between loci
-            in loci in vector form. See np.squareform for matrix
-            conversion.
-        '''
-        import pandas as pd
-
-        if loci is None:
-            loci = list(self.iter_loci())
-        query = """
-                SELECT id, chromosome, start, end FROM loci
-                WHERE id in ("{}")
-                ORDER BY id
-        """.format(
-            '","'.join([x.id for x in loci])
-        )
-        # extract chromosome row ids and start positions for each locus
-        positions = pd.DataFrame(
-            # Grab the chromosomes rowid because its numeric
-            self._db.cursor().execute(query).fetchall(),
-            columns=["locus", "chrom", "start", "end"],
-        ).sort_values(by="locus")
-        # chromosome needs to be floats
-        positions.chrom = positions.chrom.astype("float")
-        # Do a couple of checks
-        assert len(positions) == len(loci), "Some genes in dataset not if RefGen"
-        assert all(
-            positions.gene == [g.id for g in loci]
-        ), "Loci are not in the correct order!"
-        distances = LocusDist.gene_distances(
-            positions.chrom.values, positions.start.values, positions.end.values
-        )
-        return distances
-
     def summary(self):
+        # TODO 
         print("\n".join(["Loci: {} ", "{} sites"]).format(self.name, self.num_loci()))
 
     """----------------------------------------------------------------
@@ -1048,6 +1034,7 @@ class RefLoci(Freezable):
     """
 
     def add_alias(self, locus_id, alias):
+        # TODO 
         """
             Add an alias name for a locus
 
@@ -1065,6 +1052,7 @@ class RefLoci(Freezable):
         return True
 
     def num_aliases(self):
+        # TODO 
         """
             Returns the number of aliases currently in the database
 
@@ -1084,6 +1072,7 @@ class RefLoci(Freezable):
             return num[0]
 
     def _remove_aliases(self):
+        # TODO 
         """
             Running this will delete the aliases from the
             database. Warning! This is deletorious!
@@ -1099,9 +1088,11 @@ class RefLoci(Freezable):
         self._db.cursor().execute("DELETE FROM aliases;")
 
     def _update_cache(self):
+        # TODO 
         self.num_loci.cache_clear()
 
     def get_feature_list(self, feature="%"):
+        # TODO 
         '''
         Get a list of all of the loci in the database of the specified feature type
         '''
@@ -1123,38 +1114,18 @@ class RefLoci(Freezable):
     #           Class Methods
     #
     # -----------------------------------------
-
-    @lru_cache(maxsize=2 ** 23)
-    def LID(self, obj):
-        """
-            Return the numeric Locus Identifier (LID) from a locus
-
-            Parameters
-            ----------
-            locus : either a locus name or a locus object
-                The LID of this locus will be returned
-
-            Returns
-            -------
-            LID : int
-        """
-        if isinstance(obj, Locus):
-            id = obj.id
-        else:
-            id = obj
-        try:
-            return (
-                self._db.cursor()
-                .execute(
-                    """
-                SELECT LID FROM loci WHERE id = ?
-            """,
-                    (id,),
-                )
-                .fetchone()[0]
-            )
-        except ValueError as e:
-            raise ValueError(f"{id} not in database")
+    
+    def _nuke_tables(self):
+        cur = self._db.cursor()
+        cur.execute(
+            '''
+            DROP TABLE IF EXISTS loci;
+            DROP TABLE IF EXISTS loci_attrs;
+            DROP TABLE IF EXISTS aliases;
+            DROP VIEW IF EXISTS named_loci;
+            '''
+        )
+        self._initialize_tables()
 
     def _initialize_tables(self):
         """
@@ -1163,49 +1134,67 @@ class RefLoci(Freezable):
         """
         cur = self._db.cursor()
         cur.execute(
-            """
+            '''
             CREATE TABLE IF NOT EXISTS loci (
                 LID INTEGER PRIMARY KEY AUTOINCREMENT,
-                id TEXT NOT NULL UNIQUE,
+
+                /* Store the locus values  */
                 chromosome TEXT NOT NULL,
+                source TEXT,
+                feature_type TEXT,
                 start INTEGER,
                 end INTEGER,
-                feature_type TEXT,
 
                 /* Add in the rest of the GFF fields  */
                 score FLOAT,
                 strand INT,
-                frame INT,
-                source TEXT,
-
-                /* Define the primary key  */
-                UNIQUE(chromosome,start,end)
+                frame INT
+                
+                /* Add in a constraint  */
+                UNIQUE(chromosome,source,feature_type,start,end) 
             );
-            /*
-            ---- Create a table that contains loci attribute
-                mappings
-            */
+            '''
+        )
+        cur.execute(
+        # Create a table that contains loci attribute mapping
+        '''
             CREATE TABLE IF NOT EXISTS loci_attrs (
-                id TEXT NOT NULL,
+                LID INT NOT NULL,
                 key TEXT,
                 val TEXT,
-                FOREIGN KEY(id) REFERENCES loci(id)
+                FOREIGN KEY(LID) REFERENCES loci(LID)
             );
+            '''
+        )
+        cur.execute(
+        # Create a table with aliases
+        '''
             CREATE TABLE IF NOT EXISTS aliases (
-                alias TEXT UNIQUE,
-                id TEXT,
-                FOREIGN KEY(id) REFERENCES loci(id)
+                alias TEXT PRIMARY KEY,
+                LID INTEGER,
+                FOREIGN KEY(LID) REFERENCES loci(LID)
             );
-
-            -- Indexes
-            ---------------------------------------------------------------------------------------
-            -- loci
-            CREATE INDEX IF NOT EXISTS loci_start_end ON loci (chromosome,start DESC, end ASC, id);
-            CREATE INDEX IF NOT EXISTS loci_end_start ON loci (chromosome,end DESC,start DESC,id);
-            CREATE INDEX IF NOT EXISTS loci_start ON loci (chromosome,start);
-            CREATE INDEX IF NOT EXISTS loci_end ON loci (chromosome,end);
-            CREATE INDEX IF NOT EXISTS locusid ON loci (id);
-            -- loci_attrs
-            CREATE INDEX IF NOT EXISTS locusattr ON loci_attrs (id);
-            """
+        ''')
+        cur.execute(
+        # Create a view with names
+            '''
+            CREATE VIEW IF NOT EXISTS named_loci AS
+            SELECT alias, chromosome, source, feature_type, start, end, score, strand, frame
+            FROM aliases 
+            JOIN loci ON aliases.LID = loci.LID;
+            '''
+        )
+        cur.execute(
+            '''
+            CREATE TRIGGER IF NOT EXISTS assign_LID INSTEAD OF INSERT ON named_loci
+            FOR EACH ROW
+            BEGIN
+                INSERT OR IGNORE INTO loci 
+                (chromosome,source,feature_type,start,end,score,strand,frame)
+                VALUES 
+                (NEW.chromosome, NEW.source, NEW.feature_type, NEW.start, NEW.end, NEW.score, NEW.strand, NEW.frame);
+                INSERT INTO aliases 
+                SELECT NEW.alias, last_insert_rowid();
+            END
+            '''
         )
