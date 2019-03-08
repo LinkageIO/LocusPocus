@@ -17,24 +17,18 @@ def test_initialization(simple_Locus):
 
 def test_as_dict(simple_Locus):
     simple_Locus_dict = {
-            'id': '<None>1:100-200',
+            'name': None,
             'chrom': '1',
             'start': 100,
             'end': 200,
-            'feature_type': 'LocusPocus',
+            'feature_type': 'locus',
             'frame': None,
             'score': np.nan,
-            'source': None,
+            'source': 'locuspocus',
             'strand': None,
             'window': 0
             }
     assert simple_Locus.as_dict() == simple_Locus_dict
-
-def test_id_getter(simple_Locus):
-    another_Locus = Locus(1,100,200, id='a_locus') 
-
-    assert simple_Locus.id == '<None>1:100-200'
-    assert another_Locus.id == 'a_locus'
 
 def test_update(simple_Locus):
     new_data = {'name': 'simple_Locus'}
@@ -82,7 +76,7 @@ def test_downstream(simple_Locus):
     assert simple_Locus.downstream == 200
 
 def test_name(simple_Locus):
-    assert simple_Locus.name == '<None>1:100-200'
+    assert simple_Locus.name is None
 
 def test_add_same_chrom(simple_Locus):
     another_Locus = Locus(1, 110, 220)
@@ -141,7 +135,7 @@ def test_hash(simple_Locus):
     assert hash(simple_Locus) == 1035530407970800134
 
 def test_summary(simple_Locus):
-    assert simple_Locus.summary() == 'ID: None\nChromosome: 1\nStart Position: 100\nEnd Position: 200\nWindow Size: 0\nFeature Type: LocusPocus\nAdditional attributes: 0\nSub Loci: 1'
+    assert simple_Locus.summary()
 
 #def test_candidate_vs_bootstrap_length(testRefGen,testGWAS):
 #    Term = next(testGWAS.iter_terms())
