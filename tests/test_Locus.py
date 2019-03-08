@@ -137,19 +137,4 @@ def test_hash(simple_Locus):
 def test_summary(simple_Locus):
     assert simple_Locus.summary()
 
-#def test_candidate_vs_bootstrap_length(testRefGen,testGWAS):
-#    Term = next(testGWAS.iter_terms())
-#    snps = Term.effective_loci(window_size=50000)
-#    candidates = testRefGen.candidate_genes(snps,chain=False)
-#    bootstraps = testRefGen.bootstrap_candidate_genes(snps,chain=False)
-#    # Make sure we are pulling out the same number of random genes for
-#    # Each locus
-#    for c,b in zip(candidates,bootstraps):
-#        assert len(c) == len(b)
-#    assert len(set(chain(*candidates))) == len(set(chain(*bootstraps)))
-
-#def test_generate_from_id(Zm5bFGS):
-#   random_gene = Zm5bFGS.random_gene()
-#   assert random_gene == Zm5bFGS[random_gene.id]
-
 
