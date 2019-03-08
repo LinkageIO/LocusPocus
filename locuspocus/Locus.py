@@ -14,10 +14,10 @@ class Locus(object):
         chrom,
         start,
         end=None,
-        id=None,
-        score=None,
+        name=None,
         strand=None,
         frame=None,
+        score=None,
         source=None,
         feature_type=None,
         window=0,
@@ -39,14 +39,14 @@ class Locus(object):
 
         """
         # Intelligently assign an ID, which is not required
-        if id is None or id.startswith("<None>") or id == ".":
-            self._id = None
+        if name is None or name.startswith("<None>") or name == ".":
+            self._name = None
         else:
-            self._id = id
+            self._name = name
         # Chromosomes are strings
         self.chrom = str(chrom)
         self._feature_type = (
-            str(feature_type) if feature_type is not None else "LocusPocus"
+            str(feature_type) if feature_type is not None else "locus"
         )
         # Postitions are integers
         self._start = int(start)
@@ -87,7 +87,7 @@ class Locus(object):
 
         """
         a_dict = {
-            "id": self.id,
+            "name": self.name,
             "chrom": self.chrom,
             "start": self.start,
             "end": self.end,
@@ -100,24 +100,6 @@ class Locus(object):
         }
         a_dict.update(self.attr)
         return a_dict
-
-    @property
-    def id(self):
-        """
-            Return the Locus id
-
-            Parameters
-            ----------
-            None
-
-            Returns
-            -------
-            id : string
-        """
-        if self._id is None:
-            return """<{}>{}:{}-{}""".format(self._id, self.chrom, self.start, self.end)
-        else:
-            return self._id
 
     def update(self, dict):
         """
@@ -322,7 +304,7 @@ class Locus(object):
     @property
     def name(self):
         """
-            A convenience method to access a Locus id
+            Access a Locus name
 
             Parameters
             ----------
@@ -330,9 +312,9 @@ class Locus(object):
 
             Returns
             -------
-            The locus id (name)
+            The locus name
         """
-        return self.id
+        return self._name
 
     @property
     def center(self):
@@ -625,7 +607,7 @@ class Locus(object):
             str
         """
         return """<{}>{}:{}-{}+{}({})""".format(
-            self._id,
+            self._name,
             self.chrom,
             self.start,
             self.end,
@@ -648,7 +630,7 @@ class Locus(object):
         """
         print("\n".join(
             [
-                "ID: {}",
+                "Name: {}",
                 "Chromosome: {}",
                 "Start Position: {}",
                 "End Position: {}",
@@ -658,7 +640,7 @@ class Locus(object):
                 "Sub Loci: {}",
             ]
         ).format(
-            self._id,
+            self._name,
             self.chrom,
             self.start,
             self.end,
@@ -667,6 +649,7 @@ class Locus(object):
             len(self.attr),
             len(self.sub_loci),
         ))
+        return True
 
     def __repr__(self):
         """
