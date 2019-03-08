@@ -1,19 +1,12 @@
 #!/usr/bin/python3
 import itertools
-import collections
 import random
-import numpy as np
 import scipy as sp
-import math
 import gzip
-import re
 import logging
 
 from minus80 import Freezable
-from collections import defaultdict
-from functools import lru_cache
 
-from .LocusDist import LocusDist
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
 
@@ -115,7 +108,6 @@ class RefLoci(Freezable):
         """
             A convenience method to extract loci from the reference genome.
         """
-        # NOTE: Dont LRU cache this, it gets cached in from_id
         if isinstance(item, str):
             return self.get_locus_from_id(item)
         elif isinstance(item, slice):
@@ -129,7 +121,6 @@ class RefLoci(Freezable):
             chrom, start, end = tuple
             return self.loci_within(Locus(chrom, start, end))
 
-    @lru_cache(maxsize=131072)
     def get_locus_from_id(self, locus_id):
         # TODO 
         """
@@ -211,32 +202,46 @@ class RefLoci(Freezable):
             -------
             None
         """
+        # wrap a single locus in a list
         if isinstance(loci, Locus):
             loci = [loci]
-        try:
-            # support adding lists of loci
-            self.log.info("Adding {} RefLoci info to database".format(len(loci)))
-            cur = self._db.cursor()
-            cur.execute("BEGIN TRANSACTION")
+        # Split out loci into named and unnamed 
+        anon,named = [],[]
+        for loc in loci:
+            if loc.name is None:
+                anon.append(loc)
+            else:
+                named.append(loc)
+        # support adding lists of loci
+        self.log.info("Adding {} named loci to database".format(len(named)))
+        self.log.info("Adding {} anonymous loci to database".format(len(anon)))
+        # Commit to the database
+        with self._bulk_transaction() as cur:
+            # Put in the anonymous features
             cur.executemany(
                 """
-                INSERT INTO loci 
-                (id,chromosome,start,end,feature_type,score,strand,frame,source) 
-                VALUES (?,?,?,?,?,?,?,?,?)
+                INSERT OR IGNORE INTO loci 
+                    (chromosome,source,feature_type,start,end,strand,frame)
+                    VALUES (?,?,?,?,?,?,?)
                 """,
-                ((x.name, x.chrom, x.start, x.end, x.feature_type, x.score, x.strand, x.frame, x.source)\
-                 for x in loci),
+                ((x.chrom, x.source, x.feature_type, x.start, x.end, x.strand, x.frame)\
+                for x in anon),
             )
-            breakpoint()
+            # Put in the named features
+            cur.executemany(
+                """
+                INSERT INTO named_loci 
+                    (alias, chromosome,source,feature_type,start,end,strand,frame)
+                    VALUES (?,?,?,?,?,?,?)
+                """,
+                ((x.name, x.chrom, x.source, x.feature_type, x.start, x.end, x.strand, x.frame)\
+                for x in anon),
+            )
+            # Put in the key values
             cur.executemany(
                 "INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)",
                 ((x.id, key, val) for x in loci for key, val in x.attr.items()),
             )
-            cur.execute("END TRANSACTION")
-            self._update_cache()
-        except Exception as e:
-            cur.execute("ROLLBACK")
-            raise e
 
     def remove_locus(self, item):
         # TODO 
@@ -1087,10 +1092,6 @@ class RefLoci(Freezable):
         """
         self._db.cursor().execute("DELETE FROM aliases;")
 
-    def _update_cache(self):
-        # TODO 
-        self.num_loci.cache_clear()
-
     def get_feature_list(self, feature="%"):
         # TODO 
         '''
@@ -1146,13 +1147,14 @@ class RefLoci(Freezable):
                 end INTEGER,
 
                 /* Add in the rest of the GFF fields  */
-                score FLOAT,
                 strand INT,
-                frame INT
+                frame INT,
                 
                 /* Add in a constraint  */
-                UNIQUE(chromosome,source,feature_type,start,end) 
+                UNIQUE(chromosome,source,feature_type,start,end,strand) 
             );
+            CREATE INDEX IF NOT EXISTS uniq_locus 
+              ON LOCI (chromosome,source,feature_type,start,end,strand); 
             '''
         )
         cur.execute(
@@ -1170,31 +1172,51 @@ class RefLoci(Freezable):
         # Create a table with aliases
         '''
             CREATE TABLE IF NOT EXISTS aliases (
-                alias TEXT PRIMARY KEY,
-                LID INTEGER,
-                FOREIGN KEY(LID) REFERENCES loci(LID)
+              alias TEXT PRIMARY KEY,
+              LID INTEGER,
+              FOREIGN KEY(LID) REFERENCES loci(LID)
             );
         ''')
+        cur.execute(
+        # Create a table with parent-child relationships        
+        '''
+            CREATE TABLE IF NOT EXISTS relationships (
+                parent INT,
+                child INT,
+                FOREIGN KEY(parent) REFERENCES loci(LID),
+                FOREIGN KEY(child) REFERENCES loic(LID)
+            )
+        '''
+        )
         cur.execute(
         # Create a view with names
             '''
             CREATE VIEW IF NOT EXISTS named_loci AS
-            SELECT alias, chromosome, source, feature_type, start, end, score, strand, frame
-            FROM aliases 
-            JOIN loci ON aliases.LID = loci.LID;
+              SELECT alias, chromosome, source, feature_type, start, end, strand, frame
+              FROM aliases 
+              JOIN loci ON aliases.LID = loci.LID;
             '''
         )
         cur.execute(
+        # Create a trigger to handle LID on INSERTS to named_loci
             '''
             CREATE TRIGGER IF NOT EXISTS assign_LID INSTEAD OF INSERT ON named_loci
             FOR EACH ROW
             BEGIN
                 INSERT OR IGNORE INTO loci 
-                (chromosome,source,feature_type,start,end,score,strand,frame)
+                (chromosome,source,feature_type,start,end,strand,frame)
                 VALUES 
-                (NEW.chromosome, NEW.source, NEW.feature_type, NEW.start, NEW.end, NEW.score, NEW.strand, NEW.frame);
+                (NEW.chromosome, NEW.source, NEW.feature_type, 
+                 NEW.start, NEW.end, NEW.strand, NEW.frame);
                 INSERT INTO aliases 
-                SELECT NEW.alias, last_insert_rowid();
+                SELECT NEW.alias, LID FROM loci 
+                WHERE 
+                  chromosome=NEW.chromosome
+                  AND source=NEW.source
+                  AND feature_type=NEW.feature_type
+                  AND start=NEW.start
+                  AND end=NEW.end
+                  AND strand=NEW.strand;
             END
             '''
         )
