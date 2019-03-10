@@ -1,14 +1,99 @@
 #!/usr/bin/python3
 from collections import defaultdict
+from dataclasses import dataclass,field,InitVar
 from itertools import chain
 
 import hashlib
 import re
 import pandas as pd
 import numpy as np
+import locuspocus
+import dataclasses
+
+@dataclass(frozen=True)
+class Locus:
+    chromosome: str
+    start: int 
+
+    source: str = None
+    feature_type: str = None
+    end: int = None
+    strand: int = None
+    frame: int = None
+
+    # Extra locus stuff
+    name: str = None
+    window: int = None
+    sub_loci: list = field(default=None,hash=False)
+    attrs: dict = field(default=None,hash=False)
+    _refloci: dict = None
 
 
-class Locus(object):
+    def __getitem__(self,item):
+        try:
+            return self.attrs[item]
+        except KeyError as e:
+            raise e
+
+    def as_record(self,include_name=False):
+        if include_name is False:
+            return (
+                self.chromosome,
+                self.source,
+                self.feature_type,
+                self.start,
+                self.end,
+                self.strand,
+                self.frame
+            )
+        else:
+            return (
+                self.name,
+                self.chromosome,
+                self.source,
+                self.feature_type,
+                self.start,
+                self.end,
+                self.strand,
+                self.frame
+        )
+
+    def as_dict(self):
+        return dataclasses.asdict(self) 
+
+    def __setitem__(self,key,val):
+        pass
+
+    def default_getitem(self,key,default=None):
+        pass
+
+
+    @property
+    def coor(self):
+        pass
+
+    @property
+    def upstream(self):
+        pass
+
+    @property
+    def downstream(self):
+        pass
+
+    @property
+    def center(self):
+        pass
+
+    def center_distance(self, locus):
+        pass
+
+    def __add__(self, locus):
+        pass
+
+
+
+
+class oldLocus(object):
     def __init__(
         self,
         chrom,
@@ -38,6 +123,8 @@ class Locus(object):
               Upstream   start   end       downstream
 
         """
+
+
         # Intelligently assign an ID, which is not required
         if name is None or name.startswith("<None>") or name == ".":
             self._name = None
@@ -63,7 +150,10 @@ class Locus(object):
         # upstream and downstream methods
         self.window = int(window)
         # Keep a dictionary for special locus attributes
-        self.attr = kwargs
+        if len(kwargs) != 0:
+            self._attr = kwargs
+        else:
+            self._attr = None
 
         # Loci can also have sub loci (for exons, snps, etc)
         self.sub_loci = set(sub_loci) if sub_loci is not None else set()
