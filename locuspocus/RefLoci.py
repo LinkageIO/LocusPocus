@@ -6,6 +6,7 @@ import gzip
 import logging
 
 from minus80 import Freezable
+from collections.abc import Iterable
 
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
@@ -39,6 +40,24 @@ class RefLoci(Freezable):
         return self._db.cursor().execute(""" SELECT COUNT(*) FROM loci""").fetchone()[0]
 
     # ---- Updated ----
+
+    def _get_LID(self,locus):
+        result = self._db.cursor().execute(
+            '''
+                SELECT LID FROM loci WHERE 
+                chromosome = ? AND
+                source = ? OR source IS NULL AND
+                feature_type = ? OR feature_type IS NULL AND
+                start = ? AND
+                end = ? AND
+                strand = ? OR strand IS NULL AND
+                frame = ? OR frame IS NULL
+            ''',
+            locus.as_record()
+        ).fetchone()
+        if result is None:
+            raise ValueError('Locus not in database!')
+        return result[0]
 
     def __contains__(self, obj):
         # TODO 
@@ -203,7 +222,7 @@ class RefLoci(Freezable):
             None
         """
         # wrap a single locus in a list
-        if isinstance(loci, Locus):
+        if not isinstance(loci,Iterable):
             loci = [loci]
         # Split out loci into named and unnamed 
         anon,named = [],[]
@@ -216,7 +235,7 @@ class RefLoci(Freezable):
         self.log.info("Adding {} named loci to database".format(len(named)))
         self.log.info("Adding {} anonymous loci to database".format(len(anon)))
         # Commit to the database
-        with self._bulk_transaction() as cur:
+        with self.bulk_transaction() as cur:
             # Put in the anonymous features
             cur.executemany(
                 """
@@ -224,8 +243,7 @@ class RefLoci(Freezable):
                     (chromosome,source,feature_type,start,end,strand,frame)
                     VALUES (?,?,?,?,?,?,?)
                 """,
-                ((x.chrom, x.source, x.feature_type, x.start, x.end, x.strand, x.frame)\
-                for x in anon),
+                (x.as_record() for x in anon),
             )
             # Put in the named features
             cur.executemany(
@@ -234,14 +252,13 @@ class RefLoci(Freezable):
                     (alias, chromosome,source,feature_type,start,end,strand,frame)
                     VALUES (?,?,?,?,?,?,?)
                 """,
-                ((x.name, x.chrom, x.source, x.feature_type, x.start, x.end, x.strand, x.frame)\
-                for x in anon),
+                (x.as_record(include_name=True) for x in named),
             )
             # Put in the key values
-            cur.executemany(
-                "INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)",
-                ((x.id, key, val) for x in loci for key, val in x.attr.items()),
-            )
+            #cur.executemany(
+            #    "INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)",
+            #    ((x.id, key, val) for x in loci for key, val in x.attr.items()),
+            #)
 
     def remove_locus(self, item):
         # TODO 
@@ -1143,8 +1160,8 @@ class RefLoci(Freezable):
                 chromosome TEXT NOT NULL,
                 source TEXT,
                 feature_type TEXT,
-                start INTEGER,
-                end INTEGER,
+                start INTEGER NOT NULL,
+                end INTEGER NOT NULL,
 
                 /* Add in the rest of the GFF fields  */
                 strand INT,
