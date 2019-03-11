@@ -37,11 +37,15 @@ class RefLoci(Freezable):
         """
             Returns the number of loci in the dataset
         """
-        return self._db.cursor().execute(""" SELECT COUNT(*) FROM loci""").fetchone()[0]
+        return self._db.cursor().execute(
+            """ SELECT COUNT(*) FROM loci"""
+        ).fetchone()[0]
 
-    # ---- Updated ----
 
     def _get_LID(self,locus):
+        '''
+            Return the Locus Identifier used internally by RefLoci
+        '''
         result = self._db.cursor().execute(
             '''
                 SELECT LID FROM loci WHERE 
@@ -58,6 +62,70 @@ class RefLoci(Freezable):
         if result is None:
             raise ValueError('Locus not in database!')
         return result[0]
+
+    def add_loci(self, loci):
+        """
+            Add loci to the database. Will also handle a single locus by wrapping it 
+            in a list for you.
+
+            Parameters
+            ----------
+            loci : an iterable of loci
+                These loci are added to the database
+
+            Returns
+            -------
+            None
+        """
+        # wrap a single locus in a list
+        if not isinstance(loci,Iterable):
+            loci = [loci]
+        # Split out loci into named and unnamed 
+        anon,named = [],[]
+        for loc in loci:
+            if loc.name is None:
+                anon.append(loc)
+            else:
+                named.append(loc)
+        # support adding lists of loci
+        self.log.info("Adding {} named loci to database".format(len(named)))
+        self.log.info("Adding {} anonymous loci to database".format(len(anon)))
+        # Commit to the database
+        with self.bulk_transaction() as cur:
+            # Put in the anonymous features
+            cur.executemany(
+                """
+                INSERT OR IGNORE INTO loci 
+                    (chromosome,source,feature_type,start,end,strand,frame)
+                    VALUES (?,?,?,?,?,?,?)
+                """,
+                (x.as_record() for x in anon),
+            )
+            # Put in the named features
+            cur.executemany(
+                """
+                INSERT INTO named_loci 
+                    (alias, chromosome,source,feature_type,start,end,strand,frame)
+                    VALUES (?,?,?,?,?,?,?)
+                """,
+                (x.as_record(include_name=True) for x in named),
+            )
+            # Put in the key values
+            keyvals = []
+            for loc in loci:
+                LID = self._get_LID(loc)
+                for key,val in loc.attrs.items():
+                    keyvals.append((LID,key,val))
+            cur.executemany(
+                '''
+                INSERT OR REPLACE 
+                INTO loci_attrs (LID,key,val) VALUES (?,?,?)
+                ''', keyvals
+            )
+
+
+
+    # ---- Updated ----
 
     def __contains__(self, obj):
         # TODO 
@@ -194,72 +262,6 @@ class RefLoci(Freezable):
         # TODO 
         return self.iter_loci()
     
-    #-------------------------------------------------------
-    #            Putters
-    #-------------------------------------------------------
-
-    def add_locus(self, locus):
-        import warnings
-        warnings.warn(
-            "The add_locus method is deprecated, a single locus can now be added "
-            "using the add_loci method"
-        )
-        self.add_loci(locus)
-
-    def add_loci(self, loci):
-        # TODO 
-        """
-            Add loci to the database. Will also handle a single locus by wrapping it 
-            in a list for you.
-
-            Parameters
-            ----------
-            loci : an iterable of loci
-                These loci are added to the database
-
-            Returns
-            -------
-            None
-        """
-        # wrap a single locus in a list
-        if not isinstance(loci,Iterable):
-            loci = [loci]
-        # Split out loci into named and unnamed 
-        anon,named = [],[]
-        for loc in loci:
-            if loc.name is None:
-                anon.append(loc)
-            else:
-                named.append(loc)
-        # support adding lists of loci
-        self.log.info("Adding {} named loci to database".format(len(named)))
-        self.log.info("Adding {} anonymous loci to database".format(len(anon)))
-        # Commit to the database
-        with self.bulk_transaction() as cur:
-            # Put in the anonymous features
-            cur.executemany(
-                """
-                INSERT OR IGNORE INTO loci 
-                    (chromosome,source,feature_type,start,end,strand,frame)
-                    VALUES (?,?,?,?,?,?,?)
-                """,
-                (x.as_record() for x in anon),
-            )
-            # Put in the named features
-            cur.executemany(
-                """
-                INSERT INTO named_loci 
-                    (alias, chromosome,source,feature_type,start,end,strand,frame)
-                    VALUES (?,?,?,?,?,?,?)
-                """,
-                (x.as_record(include_name=True) for x in named),
-            )
-            # Put in the key values
-            #cur.executemany(
-            #    "INSERT OR REPLACE INTO loci_attrs (id,key,val) VALUES (?,?,?)",
-            #    ((x.id, key, val) for x in loci for key, val in x.attr.items()),
-            #)
-
     def remove_locus(self, item):
         # TODO 
         """
