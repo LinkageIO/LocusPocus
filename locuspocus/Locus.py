@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from collections import defaultdict
-from dataclasses import dataclass,field,InitVar
+from dataclasses import dataclass,field,InitVar,FrozenInstanceError
 from itertools import chain
 
 import hashlib
@@ -10,34 +10,48 @@ import numpy as np
 import locuspocus
 import dataclasses
 
+
 @dataclass(frozen=True)
 class Locus:
     chromosome: str
     start: int 
+    end: int
 
-    source: str = None
-    feature_type: str = None
-    end: int = None
-    strand: int = None
-    frame: int = None
+    source: str = 'locuspocus'
+    feature_type: str = 'locus'
+    strand: int = '.'
+    frame: int = '.'
 
     # Extra locus stuff
-    name: str = None
-    window: int = None
-    sub_loci: list = field(default=None,hash=False)
+    name: str = field(default=None,hash=False)
     attrs: dict = field(default=None,hash=False)
-    _refloci: dict = None
-
+    parent: str = field(default=None,hash=False)
+    _refloci: str = field(default=None,hash=False)
 
     def __getitem__(self,item):
-        try:
+        if self.attrs is not None: 
             return self.attrs[item]
-        except KeyError as e:
-            raise e
+        #elif self._refloci is not None:
+    def __setitem__(self,key,val):
+        raise FrozenInstanceError("Cannot change attrs of Locus")
+
+    def __eq__(self,locus):
+        if self.chromosome == locus.chromosome \
+        and self.start == locus.start \
+        and self.end == locus.end \
+        and self.source == locus.source \
+        and self.feature_type == locus.feature_type \
+        and self.strand == locus.strand \
+        and self.frame == locus.frame:
+            return True
+        else:
+            return False
+
 
     def as_record(self,include_name=False):
         if include_name is False:
             return (
+                hash(self),
                 self.chromosome,
                 self.source,
                 self.feature_type,
@@ -49,6 +63,7 @@ class Locus:
         else:
             return (
                 self.name,
+                hash(self),
                 self.chromosome,
                 self.source,
                 self.feature_type,
@@ -61,36 +76,36 @@ class Locus:
     def as_dict(self):
         return dataclasses.asdict(self) 
 
-    def __setitem__(self,key,val):
-        pass
-
     def default_getitem(self,key,default=None):
-        pass
-
+        try:
+            val = self.attrs[key]
+        except KeyError as e:
+            val = default
+        finally:
+            return val
 
     @property
     def coor(self):
-        pass
+        return (self.start,self.end)
 
     @property
-    def upstream(self):
-        pass
+    def upstream(self,distance):
+        return self.start - distance
 
     @property
-    def downstream(self):
-        pass
+    def downstream(self,distance):
+        return self.end + distance
 
     @property
     def center(self):
-        pass
+        return abs(self.start - self.end)
 
     def center_distance(self, locus):
-        pass
-
-    def __add__(self, locus):
-        pass
-
-
+        if self.chromosome != locus.chromosome:
+            distance = np.inf
+        else:
+            distance = abs(self.center - locus.center)
+        return distance
 
 
 class oldLocus(object):
