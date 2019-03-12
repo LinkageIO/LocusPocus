@@ -88,6 +88,10 @@ class RefLoci(Freezable):
                 ' SELECT LID FROM aliases WHERE alias = ?',
                 (locus,)
             ).fetchone()
+            if result is None:
+                raise ValueError('Locus not in database!')
+            else:
+                LID = result[0]
         else:
             # Try to get the LID by using the hash
             possible_lids = [x[0] for x in \
@@ -95,18 +99,20 @@ class RefLoci(Freezable):
                     'SELECT LID FROM loci WHERE hash = ?',(hash(locus),)
                 ).fetchall()
             ]
+            # If the hash is not in the db, there is no LID
             if len(possible_lids) == 0:
-                result = None
+                raise ValueError('Locus not in database!')
+            # If there is one possible hash, return the LID
             elif len(possible_lids) == 1:
-                #result = possible_lids
-            #else:
+                LID = possible_lids[0]
+            # Iterate through the loci and find the right one
+            else:
                 for lid in possible_lids:
                     loc = self._get_locus_by_LID(lid)
-                    if locus == p:
-                        return lid
-        if result is None:
-            raise ValueError('Locus not in database!')
-        return result[0]
+                    if locus == loc:
+                        resuld = [lid]
+                        break
+        return LID
 
     def add_loci(self, loci):
         """
@@ -137,47 +143,46 @@ class RefLoci(Freezable):
                 [x.as_record() for x in loci],
             )
     
-           ## Put in the key values
-           #relationships = []
-           #keyvals = []
-           #aliases = []
-           #self.log.info(f'Getting LIDs')
-           #for loc in loci:
-           #    LID = self._get_LID(loc,cur=cur)
-           #    breakpoint()
-           #    if loc.name is not None:
-           #        aliases.append((loc.name,LID))
-           #    if loc.attrs is not None:
-           #        for key,val in loc.attrs.items():
-           #            keyvals.append((LID,key,val))
-           #    if loc.parent is not None:
-           #        relationships.append((loc.parent,LID))
+            # Put in the key values
+            relationships = []
+            keyvals = []
+            aliases = []
+            self.log.info(f'Getting LIDs')
+            for loc in loci:
+                LID = self._get_LID(loc,cur=cur)
+                if loc.name is not None:
+                    aliases.append((loc.name,LID))
+                if loc.attrs is not None:
+                    for key,val in loc.attrs.items():
+                        keyvals.append((LID,key,val))
+                if loc.parent is not None:
+                    relationships.append((loc.parent,LID))
 
-           #self.log.info('Adding aliases to database')
-           #cur.executemany(
-           #    '''
-           #    INSERT INTO aliases (alias,LID) VALUES (?,?)
-           #    ''',
-           #    aliases
-           #)
+            self.log.info('Adding aliases to database')
+            cur.executemany(
+                '''
+                INSERT INTO aliases (alias,LID) VALUES (?,?)
+                ''',
+                aliases
+            )
 
-           #self.log.info('Adding attributes to database')
-           #cur.executemany(
-           #    '''
-           #    INSERT OR REPLACE 
-           #    INTO loci_attrs (LID,key,val) VALUES (?,?,?)
-           #    ''', 
-           #    keyvals
-           #)
+            self.log.info('Adding attributes to database')
+            cur.executemany(
+                '''
+                INSERT OR REPLACE 
+                INTO loci_attrs (LID,key,val) VALUES (?,?,?)
+                ''', 
+                keyvals
+            )
 
-           #self.log.info('Adding relationships to database')
-           #cur.executemany(
-           #    '''
-           #    INSERT INTO relationships (parent,child)
-           #    VALUES (?,?)
-           #    ''',
-           #    relationships
-           #)
+            self.log.info('Adding relationships to database')
+            cur.executemany(
+                '''
+                INSERT INTO relationships (parent,child)
+                VALUES (?,?)
+                ''',
+                relationships
+            )
 
     def import_gff(
         self, 
