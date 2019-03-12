@@ -41,24 +41,69 @@ class RefLoci(Freezable):
             """ SELECT COUNT(*) FROM loci"""
         ).fetchone()[0]
 
+    def _get_locus_by_LID(self,LID):
+        '''
+            Get a locus by its LID
+        '''
+        try:
+            chromosome,start,end,source,feature_type,strand,frame = self._db.cursor().execute('''
+                SELECT chromosome, start, end, source, feature_type, strand, frame 
+                FROM loci  
+                WHERE LID = ?
+            ''',(LID,)).fetchone()
+            locus = Locus(
+                chromosome=chromosome,
+                start=start,
+                end=end,
+                source=source,
+                feature_type=feature_type,
+                strand=strand,
+                frame=frame,
+                _refloci = self
+            )
+            return locus
+        except TypeError as e:
+            raise ValueError(f'There is no locus in the database with LID of {LID}')
 
-    def _get_LID(self,locus):
+    def _get_LID(self,locus,cur=None):
         '''
             Return the Locus Identifier used internally by RefLoci
+
+            Parameters
+            ----------
+            locus : one of (str,Locus)
+                The locus for which to find the LID of, this can
+                be either a Locus object OR a name/alias
+            cur : apsw Cursor object
+                If you are looking up LIDS within a transaction
+                you need to pass in the cursor you are using or
+                as the LIDS are not visible to new cursors until
+                the transaction has completed.
         '''
-        result = self._db.cursor().execute(
-            '''
-                SELECT LID FROM loci WHERE 
-                chromosome = ? AND
-                source = ? OR source IS NULL AND
-                feature_type = ? OR feature_type IS NULL AND
-                start = ? AND
-                end = ? AND
-                strand = ? OR strand IS NULL AND
-                frame = ? OR frame IS NULL
-            ''',
-            locus.as_record()
-        ).fetchone()
+        if cur is None:
+            cur = self._db.cursor()
+        if isinstance(locus,str):
+            # Handle the easy case where we have a name
+            result = cur.execute(
+                ' SELECT LID FROM aliases WHERE alias = ?',
+                (locus,)
+            ).fetchone()
+        else:
+            # Try to get the LID by using the hash
+            possible_lids = [x[0] for x in \
+                cur.execute(
+                    'SELECT LID FROM loci WHERE hash = ?',(hash(locus),)
+                ).fetchall()
+            ]
+            if len(possible_lids) == 0:
+                result = None
+            elif len(possible_lids) == 1:
+                #result = possible_lids
+            #else:
+                for lid in possible_lids:
+                    loc = self._get_locus_by_LID(lid)
+                    if locus == p:
+                        return lid
         if result is None:
             raise ValueError('Locus not in database!')
         return result[0]
@@ -80,49 +125,154 @@ class RefLoci(Freezable):
         # wrap a single locus in a list
         if not isinstance(loci,Iterable):
             loci = [loci]
-        # Split out loci into named and unnamed 
-        anon,named = [],[]
-        for loc in loci:
-            if loc.name is None:
-                anon.append(loc)
-            else:
-                named.append(loc)
-        # support adding lists of loci
-        self.log.info("Adding {} named loci to database".format(len(named)))
-        self.log.info("Adding {} anonymous loci to database".format(len(anon)))
-        # Commit to the database
+        # Put in the anonymous features
         with self.bulk_transaction() as cur:
-            # Put in the anonymous features
+            self.log.info("Adding {} loci to database".format(len(loci)))
             cur.executemany(
                 """
                 INSERT OR IGNORE INTO loci 
-                    (chromosome,source,feature_type,start,end,strand,frame)
-                    VALUES (?,?,?,?,?,?,?)
+                    (hash,chromosome,source,feature_type,start,end,strand,frame)
+                    VALUES (?,?,?,?,?,?,?,?)
                 """,
-                (x.as_record() for x in anon),
+                [x.as_record() for x in loci],
             )
-            # Put in the named features
-            cur.executemany(
-                """
-                INSERT INTO named_loci 
-                    (alias, chromosome,source,feature_type,start,end,strand,frame)
-                    VALUES (?,?,?,?,?,?,?)
-                """,
-                (x.as_record(include_name=True) for x in named),
-            )
-            # Put in the key values
-            keyvals = []
-            for loc in loci:
-                LID = self._get_LID(loc)
-                for key,val in loc.attrs.items():
-                    keyvals.append((LID,key,val))
-            cur.executemany(
-                '''
-                INSERT OR REPLACE 
-                INTO loci_attrs (LID,key,val) VALUES (?,?,?)
-                ''', keyvals
-            )
+    
+           ## Put in the key values
+           #relationships = []
+           #keyvals = []
+           #aliases = []
+           #self.log.info(f'Getting LIDs')
+           #for loc in loci:
+           #    LID = self._get_LID(loc,cur=cur)
+           #    breakpoint()
+           #    if loc.name is not None:
+           #        aliases.append((loc.name,LID))
+           #    if loc.attrs is not None:
+           #        for key,val in loc.attrs.items():
+           #            keyvals.append((LID,key,val))
+           #    if loc.parent is not None:
+           #        relationships.append((loc.parent,LID))
 
+           #self.log.info('Adding aliases to database')
+           #cur.executemany(
+           #    '''
+           #    INSERT INTO aliases (alias,LID) VALUES (?,?)
+           #    ''',
+           #    aliases
+           #)
+
+           #self.log.info('Adding attributes to database')
+           #cur.executemany(
+           #    '''
+           #    INSERT OR REPLACE 
+           #    INTO loci_attrs (LID,key,val) VALUES (?,?,?)
+           #    ''', 
+           #    keyvals
+           #)
+
+           #self.log.info('Adding relationships to database')
+           #cur.executemany(
+           #    '''
+           #    INSERT INTO relationships (parent,child)
+           #    VALUES (?,?)
+           #    ''',
+           #    relationships
+           #)
+
+    def import_gff(
+        self, 
+        filename, 
+        feature_type="*", 
+        ID_attr="ID", 
+        parent_attr='Parent',
+        attr_split="="
+    ):
+        """
+            Imports RefLoci from a gff (General Feature Format) file.
+            See more about the format here:
+            http://www.ensembl.org/info/website/upload/gff.html
+
+            Parameters
+            ----------
+
+            filename : str
+                The path to the GFF file.
+            name : str
+                The name if the RefLoci object to be stored in the core
+                minus80 database.
+            ID_attr : str (default: ID)
+                The key in the attribute column which designates the ID or
+                name of the feature.
+            parent_attr : str (default: Parent)
+                The key in the attribute column which designates the Parent of
+                the Locus
+            attr_split : str (default: '=')
+                The delimiter for keys and values in the attribute column
+        """
+        loci = list()
+        if filename.endswith(".gz"):
+            IN = gzip.open(filename, "rt")
+        else:
+            IN = open(filename, "r")
+        for line in IN:
+            # skip comment lines
+            if line.startswith("#"):
+                continue
+            # Get the main information
+            (
+                chrom,
+                source,
+                feature,
+                start,
+                end,
+                score,
+                strand,
+                frame,
+                attributes,
+            ) = line.strip().split("\t")
+            # Cast data into appropriate types
+            start = int(start)
+            end = int(end)
+            strand = '.' if strand == '.' else strand
+            frame = '.' if frame == '.' else int(frame)
+            # Get the attributes
+            attributes = dict(
+                [
+                    (field.strip().split(attr_split))
+                    for field in attributes.strip(";").split(";")
+                ]
+            )
+            # Store the score in the attrs if it exists
+            if score != '.':
+                attributes['score'] = float(score)
+            # Parse out the Identifier
+            if ID_attr in attributes:
+                name = attributes[ID_attr]
+                del attributes[ID_attr]
+            else:
+                name = None
+            # Parse out the parent info
+            if parent_attr in attributes:
+                parent = attributes[parent_attr]
+                del attributes[parent_attr]
+            else:
+                parent = None
+            loci.append(
+                Locus(
+                    chrom, 
+                    start, 
+                    source=source, 
+                    feature_type=feature, 
+                    end=end, 
+                    strand=strand, 
+                    frame=frame, 
+                    name=name, 
+                    attrs=attributes, 
+                    parent=parent 
+                )
+            )
+        IN.close()
+        self.add_loci(loci)
 
 
     # ---- Updated ----
@@ -284,83 +434,6 @@ class RefLoci(Freezable):
             pass
         else:
             raise ValueError("Cannot find: {}. Must be an ID or coordinate tuple.")
-
-    def import_gff(self, filename, feature_type="*", ID_attr="Name", attr_split="="):
-        # TODO 
-        """
-            Imports RefLoci from a gff (General Feature Format) file.
-            See more about the format here:
-            http://www.ensembl.org/info/website/upload/gff.html
-
-            Parameters
-            ----------
-
-            filename : str
-                The path to the GFF file.
-            name : str
-                The name if the RefLoci object to be stored in the core
-                minus80 database.
-            feature_type : str (default: '*')
-                The name of the feature (in column 2) that designates a
-                locus. These features will be the main object that the RefLoci
-                encompasses. The default value '*' will import all feature
-                types.
-            ID_attr : str (default: ID)
-                The key in the attribute column which designates the ID or
-                name of the feature.
-            attr_split : str (default: '=')
-                The delimiter for keys and values in the attribute column
-        """
-        loci = list()
-        chroms = dict()
-        if filename.endswith(".gz"):
-            IN = gzip.open(filename, "rt")
-        else:
-            IN = open(filename, "r")
-        for line in IN:
-            # skip comment lines
-            if line.startswith("#"):
-                continue
-            # Get the main information
-            (
-                chrom,
-                source,
-                feature,
-                start,
-                end,
-                score,
-                strand,
-                frame,
-                attributes,
-            ) = line.strip().split("\t")
-            # Get the attributes
-            attributes = dict(
-                [
-                    (field.strip().split(attr_split))
-                    for field in attributes.strip(";").split(";")
-                ]
-            )
-            # If feature_type option is '*' short-circuit and import it
-            if feature_type == '*' or feature == feature_type:
-                loci.append(
-                    Locus(
-                        chrom,
-                        int(start),
-                        int(end),
-                        attributes[ID_attr].upper().strip('"'),
-                        strand=strand,
-                        **attributes,
-                    ).update(attributes)
-                )
-                # Keep track of seen chromosomes
-                if chrom not in chroms:
-                    chroms[chrom] = end
-                else:
-                    if end > chroms[chrom]:
-                        chroms[chrom] = end
-        IN.close()
-        return loci
-        self.add_loci(loci)
 
     # ----------- Internal Methods  -----------#
 
@@ -1143,6 +1216,7 @@ class RefLoci(Freezable):
             DROP TABLE IF EXISTS loci_attrs;
             DROP TABLE IF EXISTS aliases;
             DROP VIEW IF EXISTS named_loci;
+            DROP TABLE IF EXISTS relationships;
             '''
         )
         self._initialize_tables()
@@ -1157,23 +1231,23 @@ class RefLoci(Freezable):
             '''
             CREATE TABLE IF NOT EXISTS loci (
                 LID INTEGER PRIMARY KEY AUTOINCREMENT,
+                hash INTEGER NOT NULL,
 
                 /* Store the locus values  */
                 chromosome TEXT NOT NULL,
                 source TEXT,
                 feature_type TEXT,
                 start INTEGER NOT NULL,
-                end INTEGER NOT NULL,
+                end INTEGER,
 
                 /* Add in the rest of the GFF fields  */
-                strand INT,
+                strand TEXT,
                 frame INT,
                 
                 /* Add in a constraint  */
-                UNIQUE(chromosome,source,feature_type,start,end,strand) 
+                UNIQUE(chromosome,source,feature_type,start,end,strand,frame)
             );
-            CREATE INDEX IF NOT EXISTS uniq_locus 
-              ON LOCI (chromosome,source,feature_type,start,end,strand); 
+            CREATE INDEX IF NOT EXISTS locus_hash ON loci (hash); 
             '''
         )
         cur.execute(
@@ -1231,11 +1305,13 @@ class RefLoci(Freezable):
                 SELECT NEW.alias, LID FROM loci 
                 WHERE 
                   chromosome=NEW.chromosome
-                  AND source=NEW.source
-                  AND feature_type=NEW.feature_type
+                  AND (source=NEW.source OR source IS NULL)
+                  AND (feature_type=NEW.feature_type OR feature_type IS NULL)
                   AND start=NEW.start
                   AND end=NEW.end
-                  AND strand=NEW.strand;
+                  AND (strand=NEW.strand OR strand IS NULL)
+                  AND (frame=NEW.frame OR frame IS NULL)
+                  ;
             END
             '''
         )
