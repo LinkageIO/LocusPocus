@@ -20,18 +20,20 @@ class RefLoci(Freezable):
     """
 
     # Create a class-wide logger
-    log = logging.getLogger(__name__)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
-    log.setLevel(logging.INFO)
 
     # Methods
     def __init__(self, name, basedir=None):
         super().__init__(name, basedir=basedir)
         self.name = name
         self._initialize_tables()
+
+        self.log = logging.getLogger(__name__)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
+        handler.setFormatter(formatter)
+        self.log.addHandler(handler)
+        self.log.setLevel(logging.INFO)
+
 
     def __len__(self):
         """
