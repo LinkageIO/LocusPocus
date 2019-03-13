@@ -313,64 +313,12 @@ class RefLoci(Freezable):
         LID = self._get_LID(item)
         return self._get_locus_by_LID(LID)
 
-    def get_locus_from_id(self, locus_id):
-        # TODO 
-        """
-            Returns a locus object from a string
-
-            Parameters
-            ----------
-            locus_id : str
-                ID of the locus you want to pull out
-
-            Returns
-            -------
-            A single Locus Object
-
-        """
-        cur = self._db.cursor()
-        # The most common use case is a direct reference to an id
-        info = cur.execute(
-            """
-                SELECT chromosome,start,end,id,feature_type,score,strand,frame,source 
-                FROM loci 
-                WHERE id = ?
-                """,
-            [locus_id],
-        ).fetchone()
-        if info is None:
-            # Try to fetch an alias
-            (locus_id,) = (
-                self._db.cursor()
-                .execute(
-                    """
-                    SELECT id FROM aliases
-                    WHERE alias = ?
-                    """,
-                    (locus_id,),
-                )
-                .fetchone()
-            )
-            return self.get_locus_from_id(locus_id)
-        else:
-            locus = Locus(*info)
-            # Fetch the attrs
-            attrs = cur.execute(
-                "SELECT key,val FROM loci_attrs WHERE id = ?;", (locus_id,)
-            )
-            for key, val in attrs:
-                locus[key] = val
-            return locus
-
-
     def __iter__(self):
-        # TODO 
-        return self.iter_loci()
+        raise NotImplementedError()
     
-    def remove_locus(self, item):
-        # TODO 
+    def __del__(self, item):
         """
-            Remove loci from the database
+            Remove a locus and all of its sub loci from the database
 
             Parameters
             ----------
@@ -380,15 +328,7 @@ class RefLoci(Freezable):
             -------
             The number of loci removed
         """
-        if isinstance(item, str):
-            # We have a single locus
-            cur = self._db.cursor()
-            cur.execute("DELETE FROM loci WHERE id = ?", (item,))
-        elif isinstance(item, tuple):
-            # We have coordinates
-            pass
-        else:
-            raise ValueError("Cannot find: {}. Must be an ID or coordinate tuple.")
+        raise NotImplementedError()
 
     # ----------- Internal Methods  -----------#
 
@@ -411,23 +351,8 @@ class RefLoci(Freezable):
             .fetchall()
         )
 
-    def iter_loci(self):
-        # TODO 
-        """
-            Iterates over loci in database.
 
-            Returns
-            -------
-            A generator containing loci
-        """
-        for (id,) in self._db.cursor().execute(
-            """
-                SELECT id FROM loci
-            """
-        ):
-            yield self[id]
-
-    def random_locus(self, **kwargs):
+    def random(self,n=1):
         # TODO 
         """
             Returns a random locus within loci.
@@ -445,16 +370,10 @@ class RefLoci(Freezable):
             A Locus object (locuspocus.Locus based)
 
         """
-        (id,) = (
-            self._db.cursor()
-            .execute(
-                """
-            SELECT id from loci ORDER BY RANDOM() LIMIT 1;
-        """
-            )
-            .fetchone()
-        )
-        return self.get_locus_from_id(id, **kwargs)
+        LID, = self._db.cursor().execute(
+                'SELECT LID from loci ORDER BY RANDOM() LIMIT ?;',(n,)
+            ).fetchone()
+        return self._get_locus_by_LID(LID)
 
     def random_loci(self, n, **kwargs):
         # TODO 
