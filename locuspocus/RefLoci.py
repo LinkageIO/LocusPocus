@@ -5,6 +5,8 @@ import scipy as sp
 import gzip
 import logging
 
+import numpy as np
+
 from minus80 import Freezable
 from collections.abc import Iterable
 
@@ -330,6 +332,44 @@ class RefLoci(Freezable):
         """
         raise NotImplementedError()
 
+    def random(self,n=1):
+        """
+            Returns a random locus within loci.
+            Also allows passing of keyword arguments to Locus
+            constructor method allowing for flexible generation.
+            See Locus.__init__ for more details.
+
+            Parameters
+            ----------
+            n : int 
+                The number of loci to return
+            check_distinct : bool (default:True)
+                By default, the loci need to be distinct so 
+                no duplicates are allowed in the output. If 
+                set to False, this check will not be made 
+                and duplicates are possible
+
+            Returns
+            -------
+            A list of n Locus objects
+
+        """
+        loci = set()
+        maxLID, = self._db.cursor().execute(
+            'SELECT MAX(LID) from loci;'
+        ).fetchone()
+        if n > maxLID:
+            raise ValueError('More than the maximum loci in the database was requested')
+        while len(loci) < n:
+            try:
+                rand_LID = int(np.random.randint(0,maxLID,1)[0])
+                loci.add(self._get_locus_by_LID(rand_LID))
+            except ValueError as e:
+                #self.log.info(f'hit a tombstone! LID {rand_LID}')
+                continue
+        return list(loci)
+
+
     # ----------- Internal Methods  -----------#
 
 
@@ -351,69 +391,6 @@ class RefLoci(Freezable):
             .fetchall()
         )
 
-
-    def random(self,n=1):
-        # TODO 
-        """
-            Returns a random locus within loci.
-            Also allows passing of keyword arguments to Locus
-            constructor method allowing for flexible generation.
-            See Locus.__init__ for more details.
-
-            Parameters
-            ----------
-            **kwargs : key,value pairs
-                Extra parameters passed onto the locus init method.
-
-            Returns
-            -------
-            A Locus object (locuspocus.Locus based)
-
-        """
-        LID, = self._db.cursor().execute(
-                'SELECT LID from loci ORDER BY RANDOM() LIMIT ?;',(n,)
-            ).fetchone()
-        return self._get_locus_by_LID(LID)
-
-    def random_loci(self, n, **kwargs):
-        # TODO 
-        """
-            Return random loci from the database, without replacement.
-
-            Parameters
-            ----------
-            n : int
-
-            **kwargs : key,value pairs
-                Extra parameters passed onto the locus init method
-
-            Returns
-            -------
-            An iterable containing n (unique) random loci
-
-        """
-        return [
-            self.get_locus_from_id(x, **kwargs)
-            for (x,) in self._db.cursor().execute(
-                "SELECT id from loci ORDER BY RANDOM() LIMIT ?", (n,)
-            )
-        ]
-
-    def intersection(self, loci):
-        # TODO 
-        """
-            Return the subset of loci that are in the dataset.
-
-            Parameters
-            ----------
-            loci : list-like of Locus
-
-            Returns
-            -------
-            a list like object containing loci that
-            are in the dataset.
-        """
-        return [x for x in loci if x in self]
 
 
     def upstream_loci(
