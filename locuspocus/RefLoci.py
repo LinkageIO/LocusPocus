@@ -284,86 +284,34 @@ class RefLoci(Freezable):
 
     # ---- Updated ----
 
-    def __contains__(self, obj):
-        # TODO 
+    def __contains__(self, locus):
         """
-            Flexible on what you pass into the 'in' function
+            Returns True or False based on whether or not the Locus is
+            in the database. 
+
+            Parameters
+            ----------
+            locus : Locus object or str (alias)
+                An input locus or the name of a locus for which 
+                to look up. 
+
+            Returns
+            -------
+            True or False
         """
-        if isinstance(obj, Locus):
-            # you can pass in a Locus object (this expression
-            # should ALWAYS be true if you
-            # created Locus object from this RefLoci object)
-            if (
-                self._db.cursor()
-                .execute("""SELECT COUNT(*) FROM loci WHERE id = ?""", (obj.id,))
-                .fetchone()[0]
-                == 1
-            ):
-                return True
-            else:
-                return False
-        elif isinstance(obj, str):
-            # Can be a string object
-            if (
-                self._db.cursor()
-                .execute(
-                    """
-                SELECT COUNT(*) FROM loci WHERE id = ?""",
-                    (obj,),
-                )
-                .fetchone()[0]
-                == 1
-            ):
-                return True
-            elif (
-                self._db.cursor()
-                .execute(
-                    """
-                SELECT COUNT(*) FROM aliases WHERE alias = ?""",
-                    (obj,),
-                )
-                .fetchone()[0]
-                == 1
-            ):
-                return True
-            else:
-                return False
-        elif isinstance(obj, tuple):
-            chrom, start, end = obj
-            if (
-                self._db.cursor()
-                .execute(
-                    """
-                SELECT COUNT(*) FROM loci WHERE chromosome=? AND start=? and end=?
-                """,
-                    (chrom, start, end),
-                )
-                .fetchone()[0]
-                > 0
-            ):
-                return True
-            else:
-                return False
-        else:
-            raise TypeError("Cannot test for containment for {}".format(obj))
+        try:
+            # If we can get an LID, it exists
+            LID = self._get_LID(locus)
+            return True
+        except ValueError as e:
+            return False
 
     def __getitem__(self, item):
-        # TODO 
         """
             A convenience method to extract loci from the reference genome.
         """
-        if isinstance(item, str):
-            return self.get_locus_from_id(item)
-        elif isinstance(item, slice):
-            # Map the slice vocab to the locus vocab
-            chrom = item.start
-            start = item.stop
-            end = item.step
-            return self.loci_within(Locus(chrom, start, end))
-        # Allow for iterables of items to be passed in
-        elif isinstance(item, tuple):
-            chrom, start, end = tuple
-            return self.loci_within(Locus(chrom, start, end))
+        LID = self._get_LID(item)
+        return self._get_locus_by_LID(LID)
 
     def get_locus_from_id(self, locus_id):
         # TODO 
