@@ -148,9 +148,7 @@ class RefLoci(Freezable):
             )
     
             # Put in the key values
-            relationships = []
             keyvals = []
-            aliases = []
             self.log.info(f'Getting LIDs')
             for loc in loci:
                 LID = self._get_LID(loc,cur=cur)
@@ -281,10 +279,10 @@ class RefLoci(Freezable):
                 )
             )
         IN.close()
+        breakpoint()
         self.add_loci(loci)
 
 
-    # ---- Updated ----
 
     def __contains__(self, locus):
         """
@@ -390,7 +388,6 @@ class RefLoci(Freezable):
             )
             .fetchall()
         )
-
 
 
     def upstream_loci(
@@ -977,9 +974,6 @@ class RefLoci(Freezable):
         # TODO 
         print("\n".join(["Loci: {} ", "{} sites"]).format(self.name, self.num_loci()))
 
-    """----------------------------------------------------------------
-        Aliases
-    """
 
     def add_alias(self, locus_id, alias):
         # TODO 
@@ -1018,22 +1012,6 @@ class RefLoci(Freezable):
             return 0
         else:
             return num[0]
-
-    def _remove_aliases(self):
-        # TODO 
-        """
-            Running this will delete the aliases from the
-            database. Warning! This is deletorious!
-
-            Parameters
-            ----------
-            None
-
-            Returns
-            -------
-            None
-        """
-        self._db.cursor().execute("DELETE FROM aliases;")
 
     def get_feature_list(self, feature="%"):
         # TODO 
@@ -1083,6 +1061,10 @@ class RefLoci(Freezable):
             CREATE TABLE IF NOT EXISTS loci (
                 LID INTEGER PRIMARY KEY AUTOINCREMENT,
                 hash INTEGER NOT NULL,
+                
+                /* Store things to make my life easier */
+                ID TEXT,
+                parent TEXT,
 
                 /* Store the locus values  */
                 chromosome TEXT NOT NULL,
@@ -1099,6 +1081,8 @@ class RefLoci(Freezable):
                 UNIQUE(chromosome,source,feature_type,start,end,strand,frame)
             );
             CREATE INDEX IF NOT EXISTS locus_hash ON loci (hash); 
+            CREATE INDEX IF NOT EXISTS locus_id ON loci (ID);
+            CREATE INDEX IF NOT EXISTS locus_parent LOCI (parent);
             '''
         )
         cur.execute(
@@ -1112,57 +1096,57 @@ class RefLoci(Freezable):
             );
             '''
         )
-        cur.execute(
-        # Create a table with aliases
-        '''
-            CREATE TABLE IF NOT EXISTS aliases (
-              alias TEXT PRIMARY KEY,
-              LID INTEGER,
-              FOREIGN KEY(LID) REFERENCES loci(LID)
-            );
-        ''')
-        cur.execute(
-        # Create a table with parent-child relationships        
-        '''
-            CREATE TABLE IF NOT EXISTS relationships (
-                parent INT,
-                child INT,
-                FOREIGN KEY(parent) REFERENCES loci(LID),
-                FOREIGN KEY(child) REFERENCES loic(LID)
-            )
-        '''
-        )
-        cur.execute(
-        # Create a view with names
-            '''
-            CREATE VIEW IF NOT EXISTS named_loci AS
-              SELECT alias, chromosome, source, feature_type, start, end, strand, frame
-              FROM aliases 
-              JOIN loci ON aliases.LID = loci.LID;
-            '''
-        )
-        cur.execute(
-        # Create a trigger to handle LID on INSERTS to named_loci
-            '''
-            CREATE TRIGGER IF NOT EXISTS assign_LID INSTEAD OF INSERT ON named_loci
-            FOR EACH ROW
-            BEGIN
-                INSERT OR IGNORE INTO loci 
-                (chromosome,source,feature_type,start,end,strand,frame)
-                VALUES 
-                (NEW.chromosome, NEW.source, NEW.feature_type, 
-                 NEW.start, NEW.end, NEW.strand, NEW.frame);
-                INSERT INTO aliases 
-                SELECT NEW.alias, LID FROM loci 
-                WHERE 
-                  chromosome=NEW.chromosome
-                  AND (source=NEW.source OR source IS NULL)
-                  AND (feature_type=NEW.feature_type OR feature_type IS NULL)
-                  AND start=NEW.start
-                  AND end=NEW.end
-                  AND (strand=NEW.strand OR strand IS NULL)
-                  AND (frame=NEW.frame OR frame IS NULL)
-                  ;
-            END
-            '''
-        )
+#       cur.execute(
+#       # Create a table with aliases
+#       '''
+#           CREATE TABLE IF NOT EXISTS aliases (
+#             alias TEXT PRIMARY KEY,
+#             LID INTEGER,
+#             FOREIGN KEY(LID) REFERENCES loci(LID)
+#           );
+#       ''')
+#       cur.execute(
+#       # Create a table with parent-child relationships        
+#       '''
+#           CREATE TABLE IF NOT EXISTS relationships (
+#               parent INT,
+#               child INT,
+#               FOREIGN KEY(parent) REFERENCES loci(LID),
+#               FOREIGN KEY(child) REFERENCES loic(LID)
+#           )
+#       '''
+#       )
+#       cur.execute(
+#       # Create a view with names
+#           '''
+#           CREATE VIEW IF NOT EXISTS named_loci AS
+#             SELECT alias, chromosome, source, feature_type, start, end, strand, frame
+#             FROM aliases 
+#             JOIN loci ON aliases.LID = loci.LID;
+#           '''
+#       )
+#       cur.execute(
+#       # Create a trigger to handle LID on INSERTS to named_loci
+#           '''
+#           CREATE TRIGGER IF NOT EXISTS assign_LID INSTEAD OF INSERT ON named_loci
+#           FOR EACH ROW
+#           BEGIN
+#               INSERT OR IGNORE INTO loci 
+#               (chromosome,source,feature_type,start,end,strand,frame)
+#               VALUES 
+#               (NEW.chromosome, NEW.source, NEW.feature_type, 
+#                NEW.start, NEW.end, NEW.strand, NEW.frame);
+#               INSERT INTO aliases 
+#               SELECT NEW.alias, LID FROM loci 
+#               WHERE 
+#                 chromosome=NEW.chromosome
+#                 AND (source=NEW.source OR source IS NULL)
+#                 AND (feature_type=NEW.feature_type OR feature_type IS NULL)
+#                 AND start=NEW.start
+#                 AND end=NEW.end
+#                 AND (strand=NEW.strand OR strand IS NULL)
+#                 AND (frame=NEW.frame OR frame IS NULL)
+#                 ;
+#           END
+#           '''
+#       )
