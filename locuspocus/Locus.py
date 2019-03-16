@@ -18,22 +18,29 @@ class Locus:
     end: int
 
     source: str = 'locuspocus'
-    feature_type: str = 'locus'
-    strand: int = '.'
-    frame: int = '.'
+    feature_type: str = None
+    strand: int = None
+    frame: int = None
 
     # Extra locus stuff
-    name: str = field(default=None,hash=False)
+    name: str = None
+    subloci: list = field(default=None,hash=False)
     attrs: dict = field(default=None,hash=False)
-    parent: str = field(default=None,hash=False)
+
     _refloci: str = field(default=None,hash=False)
 
     def __getitem__(self,item):
         if self.attrs is not None: 
             return self.attrs[item]
-        #elif self._refloci is not None:
+
     def __setitem__(self,key,val):
         raise FrozenInstanceError("Cannot change attrs of Locus")
+
+    def add_sublocus(self,locus):
+        if self.subloci is None:
+            self.subloci = list(locus)
+        else:
+            self.subloci.append(locus)
 
     def __eq__(self,locus):
         if self.chromosome == locus.chromosome \
@@ -42,35 +49,28 @@ class Locus:
         and self.source == locus.source \
         and self.feature_type == locus.feature_type \
         and self.strand == locus.strand \
+        and self.parent == locus.parent \
+        and self.name == locus.name \
+        and self.attrs == locus.attrs \
         and self.frame == locus.frame:
             return True
         else:
             return False
 
 
-    def as_record(self,include_name=False):
-        if include_name is False:
-            return (
-                hash(self),
-                self.chromosome,
-                self.source,
-                self.feature_type,
-                self.start,
-                self.end,
-                self.strand,
-                self.frame
-            )
-        else:
-            return (
-                self.name,
-                hash(self),
-                self.chromosome,
-                self.source,
-                self.feature_type,
-                self.start,
-                self.end,
-                self.strand,
-                self.frame
+    def as_record(self):
+        ((
+            self.chromosome,
+            self.start,
+            self.end,
+            self.source,
+            self.feature_type,
+            self.strand,
+            self.frame,
+            self.name,
+            self.parent
+        ),
+            self.attrs
         )
 
     def as_dict(self):

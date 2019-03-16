@@ -216,18 +216,19 @@ class RefLoci(Freezable):
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
         """
-        loci = list()
         if filename.endswith(".gz"):
             IN = gzip.open(filename, "rt")
         else:
             IN = open(filename, "r")
+        loci = []
+        name_index = {}
         for line in IN:
             # skip comment lines
             if line.startswith("#"):
                 continue
             # Get the main information
             (
-                chrom,
+                chromosome,
                 source,
                 feature,
                 start,
@@ -240,8 +241,8 @@ class RefLoci(Freezable):
             # Cast data into appropriate types
             start = int(start)
             end = int(end)
-            strand = '.' if strand == '.' else strand
-            frame = '.' if frame == '.' else int(frame)
+            strand = None if strand == '.' else strand
+            frame = None if frame == '.' else int(frame)
             # Get the attributes
             attributes = dict(
                 [
@@ -264,10 +265,10 @@ class RefLoci(Freezable):
                 del attributes[parent_attr]
             else:
                 parent = None
-            loci.append(
-                Locus(
-                    chrom, 
-                    start, 
+
+            l =  Locus(
+                    chromosome=chromosome, 
+                    start=start, 
                     source=source, 
                     feature_type=feature, 
                     end=end, 
@@ -275,14 +276,17 @@ class RefLoci(Freezable):
                     frame=frame, 
                     name=name, 
                     attrs=attributes, 
-                    parent=parent 
                 )
-            )
+            if name is not None:    
+                name_index[name] = l
+            if parent is None:
+                loci.append(l)
+            else:
+                name_index[parent].add_sublocus(l)
+
         IN.close()
         breakpoint()
         self.add_loci(loci)
-
-
 
     def __contains__(self, locus):
         """
@@ -316,7 +320,7 @@ class RefLoci(Freezable):
     def __iter__(self):
         raise NotImplementedError()
     
-    def __del__(self, item):
+    def __delitem__(self,item):
         """
             Remove a locus and all of its sub loci from the database
 
@@ -1060,29 +1064,24 @@ class RefLoci(Freezable):
             '''
             CREATE TABLE IF NOT EXISTS loci (
                 LID INTEGER PRIMARY KEY AUTOINCREMENT,
-                hash INTEGER NOT NULL,
                 
-                /* Store things to make my life easier */
-                ID TEXT,
-                parent TEXT,
-
                 /* Store the locus values  */
                 chromosome TEXT NOT NULL,
-                source TEXT,
-                feature_type TEXT,
                 start INTEGER NOT NULL,
                 end INTEGER,
 
-                /* Add in the rest of the GFF fields  */
+                source TEXT,
+                feature_type TEXT,
                 strand TEXT,
                 frame INT,
+
+                /* Store things to make my life easier */
+                name TEXT,
+                parent TEXT
                 
-                /* Add in a constraint  */
-                UNIQUE(chromosome,source,feature_type,start,end,strand,frame)
             );
-            CREATE INDEX IF NOT EXISTS locus_hash ON loci (hash); 
-            CREATE INDEX IF NOT EXISTS locus_id ON loci (ID);
-            CREATE INDEX IF NOT EXISTS locus_parent LOCI (parent);
+            CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
+            CREATE INDEX IF NOT EXISTS locus_parent ON loci (parent);
             '''
         )
         cur.execute(
