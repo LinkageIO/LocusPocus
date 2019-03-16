@@ -2,6 +2,7 @@
 from collections import defaultdict
 from dataclasses import dataclass,field,InitVar,FrozenInstanceError
 from itertools import chain
+from typing import Union, Any, List, Optional, cast, Callable, Iterable
 
 import hashlib
 import re
@@ -19,15 +20,13 @@ class Locus:
 
     source: str = 'locuspocus'
     feature_type: str = None
-    strand: int = None
+    strand: str = '+'
     frame: int = None
 
     # Extra locus stuff
     name: str = None
-    subloci: list = field(default=None,hash=False)
-    attrs: dict = field(default=None,hash=False)
-
-    _refloci: str = field(default=None,hash=False)
+    subloci: list = field(default_factory=list,hash=False)
+    attrs: dict = field(default_factory=dict,hash=False)
 
     def __getitem__(self,item):
         if self.attrs is not None: 
@@ -38,28 +37,12 @@ class Locus:
 
     def add_sublocus(self,locus):
         if self.subloci is None:
-            self.subloci = list(locus)
+            self.subloci = [locus]
         else:
             self.subloci.append(locus)
 
-    def __eq__(self,locus):
-        if self.chromosome == locus.chromosome \
-        and self.start == locus.start \
-        and self.end == locus.end \
-        and self.source == locus.source \
-        and self.feature_type == locus.feature_type \
-        and self.strand == locus.strand \
-        and self.parent == locus.parent \
-        and self.name == locus.name \
-        and self.attrs == locus.attrs \
-        and self.frame == locus.frame:
-            return True
-        else:
-            return False
-
-
     def as_record(self):
-        ((
+        return ((
             self.chromosome,
             self.start,
             self.end,
@@ -67,16 +50,15 @@ class Locus:
             self.feature_type,
             self.strand,
             self.frame,
-            self.name,
-            self.parent
+            self.name
         ),
             self.attrs
         )
 
-    def as_dict(self):
+    def as_dict(self) -> dict:
         return dataclasses.asdict(self) 
 
-    def default_getitem(self,key,default=None):
+    def default_getitem(self,key,default=None) -> Any:
         try:
             val = self.attrs[key]
         except KeyError as e:
@@ -88,17 +70,15 @@ class Locus:
     def coor(self):
         return (self.start,self.end)
 
-    @property
-    def upstream(self,distance):
-        return self.start - distance
+    def upstream(self,distance: int) -> int:
+        return max(0,self.start - distance)
 
-    @property
-    def downstream(self,distance):
+    def downstream(self,distance: int) -> int:
         return self.end + distance
 
     @property
     def center(self):
-        return abs(self.start - self.end)
+        return abs(self.start - self.end) 
 
     def center_distance(self, locus):
         if self.chromosome != locus.chromosome:
