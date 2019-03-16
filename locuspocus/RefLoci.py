@@ -118,73 +118,59 @@ class RefLoci(Freezable):
                         break
         return LID
 
-    def add_loci(self, loci):
+    def add_locus(self, locus, cur=None):
         """
-            Add loci to the database. Will also handle a single locus by wrapping it 
-            in a list for you.
+            Add locus to the database. 
 
             Parameters
             ----------
-            loci : an iterable of loci
-                These loci are added to the database
+            locus : a Locus object
+                This locus will be added to the db
+            cur : a db curson
+                An optional cursor object to use. If none, a 
+                cursor will be created. If importing many 
+                loci in a loop, use a bulk transaction.
 
             Returns
             -------
-            None
+            The locus ID of the feshly added locus
         """
-        # wrap a single locus in a list
-        if not isinstance(loci,Iterable):
-            loci = [loci]
-        # Put in the anonymous features
-        with self.bulk_transaction() as cur:
-            self.log.info("Adding {} loci to database".format(len(loci)))
-            cur.executemany(
-                """
-                INSERT OR IGNORE INTO loci 
-                    (hash,chromosome,source,feature_type,start,end,strand,frame)
-                    VALUES (?,?,?,?,?,?,?,?)
-                """,
-                [x.as_record() for x in loci],
-            )
-    
-            # Put in the key values
-            keyvals = []
-            self.log.info(f'Getting LIDs')
-            for loc in loci:
-                LID = self._get_LID(loc,cur=cur)
-                if loc.name is not None:
-                    aliases.append((loc.name,LID))
-                if loc.attrs is not None:
-                    for key,val in loc.attrs.items():
-                        keyvals.append((LID,key,val))
-                if loc.parent is not None:
-                    relationships.append((loc.parent,LID))
-
-            self.log.info('Adding aliases to database')
-            cur.executemany(
+        if cur is None:
+            cur = self._db.cursor()
+        # insert the core feature data
+        core,attrs = locus.as_record()
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO loci 
+                (chromosome,start,end,source,feature_type,strand,frame,name)
+                VALUES (?,?,?,?,?,?,?,?)
+            """,
+            core,
+        )
+        # get the fresh LID
+        (LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
+        # Add the key val pairs
+        for key,val in attrs.items():
+            cur.execute(
                 '''
-                INSERT INTO aliases (alias,LID) VALUES (?,?)
-                ''',
-                aliases
-            )
-
-            self.log.info('Adding attributes to database')
-            cur.executemany(
-                '''
-                INSERT OR REPLACE 
-                INTO loci_attrs (LID,key,val) VALUES (?,?,?)
+                INSERT INTO loci_attrs 
+                (LID,key,val) 
+                VALUES (?,?,?)
                 ''', 
-                keyvals
+                (LID,key,val)
             )
-
-            self.log.info('Adding relationships to database')
-            cur.executemany(
+        # get childrem LIDS using recursion
+        children_LIDs = [self.add_locus(c,cur=cur) for c in locus.subloci]
+        # Add relationships  
+        for CID in children_LIDs:
+            cur.execute(
                 '''
                 INSERT INTO relationships (parent,child)
                 VALUES (?,?)
                 ''',
-                relationships
+                (LID,CID)
             )
+        return LID
 
     def import_gff(
         self, 
@@ -285,8 +271,9 @@ class RefLoci(Freezable):
                 name_index[parent].add_sublocus(l)
 
         IN.close()
-        breakpoint()
-        self.add_loci(loci)
+        with self.bulk_transaction() as cur:
+            for l in loci:
+                self.add_locus(l,cur=cur)
 
     def __contains__(self, locus):
         """
@@ -1076,12 +1063,10 @@ class RefLoci(Freezable):
                 frame INT,
 
                 /* Store things to make my life easier */
-                name TEXT,
-                parent TEXT
+                name TEXT
                 
             );
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
-            CREATE INDEX IF NOT EXISTS locus_parent ON loci (parent);
             '''
         )
         cur.execute(
@@ -1104,17 +1089,17 @@ class RefLoci(Freezable):
 #             FOREIGN KEY(LID) REFERENCES loci(LID)
 #           );
 #       ''')
-#       cur.execute(
-#       # Create a table with parent-child relationships        
-#       '''
-#           CREATE TABLE IF NOT EXISTS relationships (
-#               parent INT,
-#               child INT,
-#               FOREIGN KEY(parent) REFERENCES loci(LID),
-#               FOREIGN KEY(child) REFERENCES loic(LID)
-#           )
-#       '''
-#       )
+        cur.execute(
+        # Create a table with parent-child relationships        
+        '''
+            CREATE TABLE IF NOT EXISTS relationships (
+                parent INT,
+                child INT,
+                FOREIGN KEY(parent) REFERENCES loci(LID),
+                FOREIGN KEY(child) REFERENCES loic(LID)
+            )
+        '''
+        )
 #       cur.execute(
 #       # Create a view with names
 #           '''
