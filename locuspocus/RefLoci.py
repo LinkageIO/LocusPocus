@@ -1097,7 +1097,9 @@ class RefLoci(Freezable):
                 child INT,
                 FOREIGN KEY(parent) REFERENCES loci(LID),
                 FOREIGN KEY(child) REFERENCES loic(LID)
-            )
+            );
+            CREATE INDEX IF NOT EXISTS relationships_parent ON relationships (parent);
+            CREATE INDEX IF NOT EXISTS relationships_child ON relationships (child);
         '''
         )
 #       cur.execute(
