@@ -62,8 +62,7 @@ class RefLoci(Freezable):
                 source=source,
                 feature_type=feature_type,
                 strand=strand,
-                frame=frame,
-                _refloci = self
+                frame=frame
             )
             return locus
         except TypeError as e:
@@ -89,7 +88,7 @@ class RefLoci(Freezable):
         if isinstance(locus,str):
             # Handle the easy case where we have a name
             result = cur.execute(
-                ' SELECT LID FROM aliases WHERE alias = ?',
+                ' SELECT LID FROM loci WHERE name = ?',
                 (locus,)
             ).fetchone()
             if result is None:
@@ -111,11 +110,14 @@ class RefLoci(Freezable):
                 LID = possible_lids[0]
             # Iterate through the loci and find the right one
             else:
+                LID = None
                 for lid in possible_lids:
                     loc = self._get_locus_by_LID(lid)
                     if locus == loc:
-                        resuld = [lid]
+                        LID = lid
                         break
+                if LID is None:
+                    raise ValueError(f"NO LID for locus {locus}")
         return LID
 
     def add_locus(self, locus, cur=None):
@@ -142,8 +144,8 @@ class RefLoci(Freezable):
         cur.execute(
             """
             INSERT OR IGNORE INTO loci 
-                (chromosome,start,end,source,feature_type,strand,frame,name)
-                VALUES (?,?,?,?,?,?,?,?)
+                (chromosome,start,end,source,feature_type,strand,frame,name,hash)
+                VALUES (?,?,?,?,?,?,?,?,?)
             """,
             core,
         )
@@ -315,24 +317,7 @@ class RefLoci(Freezable):
             ----------
             loci : an iterable of IDs or a single ID
 
-            Returns
-            -------
-            The number of loci removed
-        """
-        raise NotImplementedError()
-
-    def random(self,n=1):
-        """
-            Returns a random locus within loci.
-            Also allows passing of keyword arguments to Locus
-            constructor method allowing for flexible generation.
-            See Locus.__init__ for more details.
-
-            Parameters
-            ----------
-            n : int 
-                The number of loci to return
-            check_distinct : bool (default:True)
+            Return: bool (default:True)
                 By default, the loci need to be distinct so 
                 no duplicates are allowed in the output. If 
                 set to False, this check will not be made 
@@ -1063,7 +1048,8 @@ class RefLoci(Freezable):
                 frame INT,
 
                 /* Store things to make my life easier */
-                name TEXT
+                name TEXT,
+                hash INT
                 
             );
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
