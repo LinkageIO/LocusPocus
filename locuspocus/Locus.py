@@ -25,7 +25,7 @@ class Locus:
 
     # Extra locus stuff
     name: str = None
-    subloci: list = field(default_factory=frozenset)
+    subloci: set = field(default_factory=set,hash=False)
     attrs: dict = field(default_factory=dict,hash=False)
 
     def __getitem__(self,item):
@@ -39,7 +39,7 @@ class Locus:
         if self.subloci is None:
             self.subloci = [locus]
         else:
-            self.subloci.append(locus)
+            self.subloci.add(locus)
 
     def as_record(self):
         return ((
@@ -50,7 +50,8 @@ class Locus:
             self.feature_type,
             self.strand,
             self.frame,
-            self.name
+            self.name,
+            hash(self)
         ),
             self.attrs
         )
