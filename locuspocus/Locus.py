@@ -25,7 +25,7 @@ class Locus:
 
     # Extra locus stuff
     name: str = None
-    subloci: list = field(default_factory=list,hash=False)
+    subloci: list = field(default_factory=frozenset)
     attrs: dict = field(default_factory=dict,hash=False)
 
     def __getitem__(self,item):
