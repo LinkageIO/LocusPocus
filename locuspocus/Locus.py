@@ -11,8 +11,22 @@ import numpy as np
 import locuspocus
 import dataclasses
 
+class smartsubloci(list):
+    def __init__(self, lid_list, refloci=None):
+        super().__init__(lid_list)
+        self.refloci = refloci
 
-@dataclass(frozen=True)
+    def __getitem__(self, key):
+        val = super().__getitem__(key)
+        if isinstance(val,Locus):
+            return val
+        elif self.refloci is not None:
+            return self.refloci._get_locus_by_LID(val)
+        else:
+            raise KeyError(f'Cannot resolve {key}')
+
+
+@dataclass
 class Locus:
     chromosome: str
     start: int 
@@ -25,8 +39,16 @@ class Locus:
 
     # Extra locus stuff
     name: str = None
-    subloci: set = field(default_factory=set,hash=False)
     attrs: dict = field(default_factory=dict,hash=False)
+    subloci: InitVar[subloci] = None 
+    refloci: InitVar[str] = None
+    _frozen: bool = field(hash=False,default=False,repr=False)
+
+    def __post_init__(self, subloci, refloci):
+        if subloci is None:
+            subloci = []
+        self.subloci = smartsubloci(subloci,refloci)
+        self._frozen = True
 
     def __getitem__(self,item):
         if self.attrs is not None: 
@@ -34,6 +56,12 @@ class Locus:
 
     def __setitem__(self,key,val):
         raise FrozenInstanceError("Cannot change attrs of Locus")
+
+    def __setattr__(self,key,val):
+        if self._frozen is True:
+            raise FrozenInstanceError("Cannot change attrs of Locus")
+        else:
+            super().__setattr__(key,val)
 
     def add_sublocus(self,locus):
         if self.subloci is None:
