@@ -192,9 +192,6 @@ class RefLoci(Freezable):
 
             filename : str
                 The path to the GFF file.
-            name : str
-                The name if the RefLoci object to be stored in the core
-                minus80 database.
             ID_attr : str (default: ID)
                 The key in the attribute column which designates the ID or
                 name of the feature.
