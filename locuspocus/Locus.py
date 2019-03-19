@@ -16,14 +16,23 @@ class smartsubloci(list):
         super().__init__(lid_list)
         self.refloci = refloci
 
-    def __getitem__(self, key):
-        val = super().__getitem__(key)
+    def resolve_val(self,val):
         if isinstance(val,Locus):
             return val
         elif self.refloci is not None:
             return self.refloci._get_locus_by_LID(val)
         else:
             raise KeyError(f'Cannot resolve {key}')
+
+    def __getitem__(self, key):
+        val = super().__getitem__(key)
+        self.resolve_val(val)
+
+    def __iter__(self):
+        return (self.resolve_val(i) for i in super().__iter__())
+
+    def __repr__(self):
+        return repr(list(self))
 
 
 @dataclass
