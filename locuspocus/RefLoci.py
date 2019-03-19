@@ -50,11 +50,16 @@ class RefLoci(Freezable):
             Get a locus by its LID
         '''
         try:
-            chromosome,start,end,source,feature_type,strand,frame = self._db.cursor().execute('''
+            cur = self._db.cursor()
+            chromosome,start,end,source,feature_type,strand,frame = cur.execute('''
                 SELECT chromosome, start, end, source, feature_type, strand, frame 
                 FROM loci  
                 WHERE LID = ?
             ''',(LID,)).fetchone()
+            children = [x[0] for x in cur.execute('''
+                SELECT child FROM relationships
+                WHERE parent = ?
+            ''',(LID,)).fetchall()]
             locus = Locus(
                 chromosome=chromosome,
                 start=start,
@@ -62,7 +67,9 @@ class RefLoci(Freezable):
                 source=source,
                 feature_type=feature_type,
                 strand=strand,
-                frame=frame
+                frame=frame,
+                subloci=children,
+                refloci=self
             )
             return locus
         except TypeError as e:
