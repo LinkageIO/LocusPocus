@@ -35,7 +35,7 @@ class smartsubloci(list):
         return repr(list(self))
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Locus:
     chromosome: str
     start: int 
@@ -49,8 +49,8 @@ class Locus:
     # Extra locus stuff
     name: str = None
     attrs: dict = field(default_factory=dict,hash=False)
-    subloci: InitVar[subloci] = None 
-    refloci: InitVar[str] = None
+    subloci: InitVar[subloci] = field(default=None,hash=False) 
+    refloci: InitVar[str] = field(default=None,hash=False)
     _frozen: bool = field(hash=False,default=False,repr=False)
 
     def __post_init__(self, subloci, refloci):
@@ -76,7 +76,7 @@ class Locus:
         if self.subloci is None:
             self.subloci = [locus]
         else:
-            self.subloci.add(locus)
+            self.subloci.append(locus)
 
     def as_record(self):
         return ((
