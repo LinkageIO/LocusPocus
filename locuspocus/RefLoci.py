@@ -1068,6 +1068,7 @@ class RefLoci(Freezable):
                 
             );
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
+            CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
             '''
         )
         cur.execute(
