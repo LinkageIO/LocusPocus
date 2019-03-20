@@ -51,7 +51,7 @@ class Locus:
     attrs: dict = field(default_factory=dict,hash=False)
     subloci: InitVar[subloci] = field(default=None,hash=False) 
     refloci: InitVar[str] = field(default=None,hash=False)
-    _frozen: bool = field(hash=False,default=False,repr=False)
+    _frozen: bool = field(default=False,repr=False,hash=False)
 
     def __post_init__(self, subloci, refloci):
         if subloci is None:
