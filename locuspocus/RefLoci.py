@@ -179,6 +179,13 @@ class RefLoci(Freezable):
                 ''',
                 (LID,CID)
             )
+        # Add the position to the R*Tree
+        cur.execute(
+            '''
+            INSERT INTO positions (LID,start,end) VALUES (?,?,?)
+            ''',
+            (LID,locus.start,locus.end)
+        )
         return LID
 
     def import_gff(
@@ -208,13 +215,16 @@ class RefLoci(Freezable):
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
         """
+        self.log.info(f"Importing Loci from {filename}")
         if filename.endswith(".gz"):
             IN = gzip.open(filename, "rt")
         else:
             IN = open(filename, "r")
         loci = []
         name_index = {}
-        for line in IN:
+        total_loci = 0
+        for i,line in enumerate(IN):
+            total_loci += 1
             # skip comment lines
             if line.startswith("#"):
                 continue
@@ -257,7 +267,6 @@ class RefLoci(Freezable):
                 del attributes[parent_attr]
             else:
                 parent = None
-
             l =  Locus(
                     chromosome=chromosome, 
                     start=start, 
@@ -275,11 +284,12 @@ class RefLoci(Freezable):
                 loci.append(l)
             else:
                 name_index[parent].add_sublocus(l)
-
+        self.log.info(f'Found {len(loci)} primary loci and {total_loci} total_loci, adding them to database')
         IN.close()
-        with self.bulk_transaction() as cur:
+        with self._bulk_transaction() as cur:
             for l in loci:
                 self.add_locus(l,cur=cur)
+        self.log.info('Done!')
 
     def __contains__(self, locus):
         """
@@ -1026,6 +1036,7 @@ class RefLoci(Freezable):
             DROP TABLE IF EXISTS aliases;
             DROP VIEW IF EXISTS named_loci;
             DROP TABLE IF EXISTS relationships;
+            DROP TABLE IF EXISTS positions;
             '''
         )
         self._initialize_tables()
@@ -1090,6 +1101,16 @@ class RefLoci(Freezable):
             );
             CREATE INDEX IF NOT EXISTS relationships_parent ON relationships (parent);
             CREATE INDEX IF NOT EXISTS relationships_child ON relationships (child);
+        '''
+        )
+
+        cur.execute(
+        '''
+            CREATE VIRTUAL TABLE IF NOT EXISTS positions USING rtree_i32( 
+                LID, 
+                start INT,
+                end INT
+            );
         '''
         )
 #       cur.execute(
