@@ -77,7 +77,7 @@ setup(
         'cython',
     ],
     install_requires = [
-        'minus80>=0.2.0',
+        'minus80>=0.3.0',
         'Cython>=0.16.0',
         'numpy>=1.14.3',
         'scipy>=0.19.0'
