@@ -182,9 +182,9 @@ class RefLoci(Freezable):
         # Add the position to the R*Tree
         cur.execute(
             '''
-            INSERT INTO positions (LID,start,end) VALUES (?,?,?)
+            INSERT INTO positions (LID,start,end,chromosome) VALUES (?,?,?,?)
             ''',
-            (LID,locus.start,locus.end)
+            (LID,locus.start,locus.end,locus.chromosome)
         )
         return LID
 
@@ -1082,15 +1082,6 @@ class RefLoci(Freezable):
             );
             '''
         )
-#       cur.execute(
-#       # Create a table with aliases
-#       '''
-#           CREATE TABLE IF NOT EXISTS aliases (
-#             alias TEXT PRIMARY KEY,
-#             LID INTEGER,
-#             FOREIGN KEY(LID) REFERENCES loci(LID)
-#           );
-#       ''')
         cur.execute(
         # Create a table with parent-child relationships        
         '''
@@ -1104,47 +1095,27 @@ class RefLoci(Freezable):
             CREATE INDEX IF NOT EXISTS relationships_child ON relationships (child);
         '''
         )
-
+        # Create a R*Tree table so we can efficiently query by ranges
         cur.execute(
         '''
             CREATE VIRTUAL TABLE IF NOT EXISTS positions USING rtree_i32( 
                 LID, 
                 start INT,
-                end INT
+                end INT,
+                +chromosome TEXT
             );
         '''
         )
-#       cur.execute(
-#       # Create a view with names
-#           '''
-#           CREATE VIEW IF NOT EXISTS named_loci AS
-#             SELECT alias, chromosome, source, feature_type, start, end, strand, frame
-#             FROM aliases 
-#             JOIN loci ON aliases.LID = loci.LID;
-#           '''
-#       )
-#       cur.execute(
-#       # Create a trigger to handle LID on INSERTS to named_loci
-#           '''
-#           CREATE TRIGGER IF NOT EXISTS assign_LID INSTEAD OF INSERT ON named_loci
-#           FOR EACH ROW
-#           BEGIN
-#               INSERT OR IGNORE INTO loci 
-#               (chromosome,source,feature_type,start,end,strand,frame)
-#               VALUES 
-#               (NEW.chromosome, NEW.source, NEW.feature_type, 
-#                NEW.start, NEW.end, NEW.strand, NEW.frame);
-#               INSERT INTO aliases 
-#               SELECT NEW.alias, LID FROM loci 
-#               WHERE 
-#                 chromosome=NEW.chromosome
-#                 AND (source=NEW.source OR source IS NULL)
-#                 AND (feature_type=NEW.feature_type OR feature_type IS NULL)
-#                 AND start=NEW.start
-#                 AND end=NEW.end
-#                 AND (strand=NEW.strand OR strand IS NULL)
-#                 AND (frame=NEW.frame OR frame IS NULL)
-#                 ;
-#           END
-#           '''
-#       )
+        # Create a view that inlcudes only top-level primary loci
+        # In this table, the LIDS are loci that do not have any parents
+        # and are thus top-level or "primary" features such
+        cur.execute(
+        '''
+            CREATE TEMP VIEW IF NOT EXISTS primary_loci AS 
+                SELECT LID FROM loci l 
+                LEFT JOIN relationships r 
+                ON l.LID = r.child 
+                WHERE child IS NULL -- if the child listing is NULL, there is no parent locus
+        '''
+        )
+
