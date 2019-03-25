@@ -34,8 +34,34 @@ class smartsubloci(list):
     def __repr__(self):
         return repr(list(self))
 
+class smartattrs(dict):
+    def __init__(self, attrs, refloci=None, LID=None):
+        if attrs is None and refloci is None:
+            attrs = {}
+        if attrs is not None:
+            super().__init__(attrs)
+            self.db_backed = False
+        elif refloci is not None:
+            self.db_backed = True
+            self.refloci = refloci
+            self.LID = LID
+    def __getitem__(self,key):
+        if not self.db_backed:
+            super().__getitem__(key)
+        else:
+            return self.db_getitem(key)
+    def db_getitem(self,key):
+        if not self.db_backed:
+            raise ValueError('The locus is not backed by a database')
+        cur = self.refloci._db.cursor()
+        results = cur.execute(
+            '''SELECT val FROM loci_attrs WHERE LID = ? AND key = ? ''',
+            (self.LID,key)
+        )
 
-@dataclass(unsafe_hash=True)
+
+
+@dataclass()
 class Locus:
     chromosome: str
     start: int 
@@ -48,20 +74,48 @@ class Locus:
 
     # Extra locus stuff
     name: str = None
-    attrs: dict = field(default_factory=dict,hash=False)
-    subloci: InitVar[subloci] = field(default=None,hash=False) 
-    refloci: InitVar[str] = field(default=None,hash=False)
-    _frozen: bool = field(default=False,repr=False,hash=False)
+    attrs: InitVar[attrs] = field(default=None)
+    subloci: InitVar[subloci] = field(default=None) 
+    refloci: InitVar[str] = field(default=None)
+    _frozen: bool = field(default=False,repr=False)
+    _LID: int = None
 
-    def __post_init__(self, subloci, refloci):
+    def __post_init__(self, attrs, subloci, refloci):
+        self.refloci = refloci
+        # Handle the "smart" things
         if subloci is None:
             subloci = []
         self.subloci = smartsubloci(subloci,refloci)
+        if attrs is None:
+            attrs = None 
+        self.attrs = smartattrs(attrs,refloci,self.LID)
+        # Freeze the object
         self._frozen = True
+
+    def __hash__(self):
+        return hash((str(x) for x in (
+            self.chromosome,
+            self.start,
+            self.end,
+            self.source,
+            self.feature_type,
+            self.strand,
+            self.frame,
+            self.name
+        )))
+
+    @property
+    def LID(self):
+        if self.refloci is None:
+            return None
+        else:
+            return self.refloci._get_LID(self)
 
     def __getitem__(self,item):
         if self.attrs is not None: 
             return self.attrs[item]
+        elif self.refloci is not None:
+            return self.refloci._db.cursor().execute('')
 
     def __setitem__(self,key,val):
         raise FrozenInstanceError("Cannot change attrs of Locus")
