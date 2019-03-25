@@ -51,8 +51,8 @@ class RefLoci(Freezable):
         '''
         try:
             cur = self._db.cursor()
-            chromosome,start,end,source,feature_type,strand,frame = cur.execute('''
-                SELECT chromosome, start, end, source, feature_type, strand, frame 
+            chromosome,start,end,source,feature_type,strand,frame,name = cur.execute('''
+                SELECT chromosome, start, end, source, feature_type, strand, frame, name 
                 FROM loci  
                 WHERE LID = ?
             ''',(LID,)).fetchone()
@@ -69,6 +69,7 @@ class RefLoci(Freezable):
                 strand=strand,
                 frame=frame,
                 subloci=children,
+                name=name,
                 refloci=self
             )
             return locus
@@ -1067,8 +1068,13 @@ class RefLoci(Freezable):
                 hash INT
                 
             );
+            '''
+        )
+
+        cur.execute('''
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
             CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
+            CREATE INDEX IF NOT EXISTS locus_hash ON LOCI (hash);
             '''
         )
         cur.execute(
