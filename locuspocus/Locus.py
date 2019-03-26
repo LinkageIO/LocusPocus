@@ -35,6 +35,7 @@ class smartsubloci(list):
         return repr(list(self))
 
 class smartattrs(dict):
+
     def __init__(self, attrs, refloci=None, LID=None):
         if attrs is None and refloci is None:
             attrs = {}
@@ -45,11 +46,36 @@ class smartattrs(dict):
             self.db_backed = True
             self.refloci = refloci
             self.LID = LID
+
     def __getitem__(self,key):
         if not self.db_backed:
             super().__getitem__(key)
         else:
             return self.db_getitem(key)
+
+    def keys(self):
+        if not self.db_backed:
+            return super().keys()
+        else:
+            cur = self.refloci._db.cursor()
+            keys = cur.execute(
+                '''SELECT key FROM loci_attrs WHERE LID = ?''',
+                (self.LID,)
+            ).fetchall()
+            if keys is None:
+                raise KeyError(f'locus has no attr keys')
+            return (k[0] for k in keys)
+    def __contains__(self,key):
+        if not self.db_backed:
+             return dict.__contains__(self,key)
+        else:
+            try:
+                val = self.db_getitem(key)
+                return True
+            except KeyError as e:
+                return False
+
+            
     def db_getitem(self,key):
         if not self.db_backed:
             raise ValueError('The locus is not backed by a database')
@@ -57,7 +83,11 @@ class smartattrs(dict):
         results = cur.execute(
             '''SELECT val FROM loci_attrs WHERE LID = ? AND key = ? ''',
             (self.LID,key)
-        )
+        ).fetchone()
+        if results is None:
+            raise KeyError(f'{key} not in attrs')
+        else:
+            return results[0]
 
 
 
@@ -93,7 +123,27 @@ class Locus:
         self._frozen = True
 
     def __hash__(self):
-        return hash((str(x) for x in (
+        """
+            Convert the locus to a hash, uses md5.
+
+            Parameters
+            ----------
+            None
+
+            Returns
+            -------
+            str : md5 hash of locus
+
+            Notes
+            -----
+            The fields used for this computation are: 
+            (chromosome, start, end, source, feature_type,
+            strand, frame, name). Collisions will happen
+            if two loci only differ by attrs or subloci.
+            This is **NOT** a uuid.
+
+        """
+        loc_string  = "_".join([str(x) for x in (
             self.chromosome,
             self.start,
             self.end,
@@ -102,7 +152,9 @@ class Locus:
             self.strand,
             self.frame,
             self.name
-        )))
+        )])
+        digest = hashlib.md5(str.encode(loc_string)).hexdigest()
+        return int(digest, base=16)
 
     @property
     def LID(self):
@@ -835,18 +887,4 @@ class oldLocus(object):
         # TODO: return an actual evalable string
         return str(self)
 
-    def __hash__(self):
-        """
-            Convert the locus to a hash, uses md5.
 
-            Parameters
-            ----------
-            None
-
-            Returns
-            -------
-            str : md5 hash of locus
-
-        """
-        digest = hashlib.md5(str.encode(str(self))).hexdigest()
-        return int(digest, base=16)
