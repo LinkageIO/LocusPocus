@@ -65,6 +65,22 @@ class smartattrs(dict):
             if keys is None:
                 raise KeyError(f'locus has no attr keys')
             return (k[0] for k in keys)
+
+    def values(self): 
+        if not self.db_backed:
+            return super().values()
+        else:
+            cur = self.refloci._db.cursor()
+            vals = cur.execute(
+                '''SELECT val FROM loci_attrs WHERE LID = ?''',
+                (self.LID,)
+            ).fetchall()
+            if vals is None:
+                raise KeyError(f'locus has no attr keys')
+            return (v[0] for v in vals)
+
+
+
     def __contains__(self,key):
         if not self.db_backed:
              return dict.__contains__(self,key)
