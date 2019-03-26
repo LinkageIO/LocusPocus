@@ -80,6 +80,13 @@ class smartattrs(dict):
             return (v[0] for v in vals)
 
 
+    def items(self):
+        if not self.db_backed:
+            return super().items()
+        else:
+            return (
+                (k,v) for k,v in zip(self.keys(),self.values())        
+            )
 
     def __contains__(self,key):
         if not self.db_backed:
