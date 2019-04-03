@@ -46,22 +46,37 @@ class SubLoci(object):
     def __len__(self):
         return len(self._subloci)
 
-class smartattrs(dict):
+class LociAttrs(object):
 
     def __init__(self, attrs, refloci=None, LID=None):
-        if attrs is None and refloci is None:
-            attrs = {}
-        if attrs is not None:
-            super().__init__(attrs)
+        if refloci is None and LID is None:
+            if attrs is None:
+                self._attrs = {}
+            else:
+                assert isinstance(attrs,dict)
+                self._attrs = attrs
             self.db_backed = False
-        elif refloci is not None:
+        elif refloci is not None and LID is not None:
+            self._LID = LID
+            self._refloci = refloci
             self.db_backed = True
-            self.refloci = refloci
-            self.LID = LID
+
+    def db_getitem(self,key):
+        if not self.db_backed:
+            raise ValueError('The locus is not backed by a database')
+        cur = self._refloci._db.cursor()
+        results = cur.execute(
+            '''SELECT val FROM loci_attrs WHERE LID = ? AND key = ? ''',
+            (self._LID,key)
+        ).fetchone()
+        if results is None:
+            raise KeyError(f'{key} not in attrs')
+        else:
+            return results[0]
 
     def __getitem__(self,key):
         if not self.db_backed:
-            return super().__getitem__(key)
+            return self._attrs[key]
         else:
             return self.db_getitem(key)
 
@@ -70,34 +85,35 @@ class smartattrs(dict):
 
     def keys(self):
         if not self.db_backed:
-            return super().keys()
+            return self._attrs.keys()
         else:
-            cur = self.refloci._db.cursor()
+            cur = self._refloci._db.cursor()
             keys = cur.execute(
                 '''SELECT key FROM loci_attrs WHERE LID = ?''',
-                (self.LID,)
+                (self._LID,)
             ).fetchall()
             if keys is None:
-                raise KeyError(f'locus has no attr keys')
-            return (k[0] for k in keys)
+                return []
+            else:
+                return (k[0] for k in keys)
 
     def values(self): 
         if not self.db_backed:
-            return super().values()
+            return self._attrs.values()
         else:
-            cur = self.refloci._db.cursor()
+            cur = self._refloci._db.cursor()
             vals = cur.execute(
                 '''SELECT val FROM loci_attrs WHERE LID = ?''',
-                (self.LID,)
+                (self._LID,)
             ).fetchall()
             if vals is None:
-                raise KeyError(f'locus has no attr keys')
-            return (v[0] for v in vals)
-
+                return []
+            else:
+                return (v[0] for v in vals)
 
     def items(self):
         if not self.db_backed:
-            return super().items()
+            return self._attrs.items()
         else:
             return (
                 (k,v) for k,v in zip(self.keys(),self.values())        
@@ -105,7 +121,7 @@ class smartattrs(dict):
 
     def __contains__(self,key):
         if not self.db_backed:
-             return dict.__contains__(self,key)
+             return key in self._attrs
         else:
             try:
                 val = self.db_getitem(key)
@@ -113,21 +129,8 @@ class smartattrs(dict):
             except KeyError as e:
                 return False
 
-            
-    def db_getitem(self,key):
-        if not self.db_backed:
-            raise ValueError('The locus is not backed by a database')
-        cur = self.refloci._db.cursor()
-        results = cur.execute(
-            '''SELECT val FROM loci_attrs WHERE LID = ? AND key = ? ''',
-            (self.LID,key)
-        ).fetchone()
-        if results is None:
-            raise KeyError(f'{key} not in attrs')
-        else:
-            return results[0]
-
-
+    def __repr__(self):
+        return str(dict(self.items()))
 
 @dataclass()
 class Locus:
@@ -152,7 +155,7 @@ class Locus:
         self.refloci = refloci
         # Handle the "smart" things
         self.subloci = SubLoci(subloci,refloci)
-        self.attrs = smartattrs(attrs,refloci,self.LID)
+        self.attrs = LociAttrs(attrs,refloci,self.LID)
         # Freeze the object
         self._frozen = True
 
