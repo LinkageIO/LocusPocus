@@ -80,6 +80,7 @@ setup(
         'minus80>=0.3.1',
         'Cython>=0.16.0',
         'numpy>=1.14.3',
+        'anytree==2.6.0',
         'scipy>=0.19.0'
     ],
     include_package_data=True,
