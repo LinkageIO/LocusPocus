@@ -6,53 +6,48 @@ from locuspocus import Locus
 
 @pytest.fixture
 def simple_Locus():
-    return Locus(1,100,200) 
+    return Locus(1,100,200,attrs={'foo':'bar'}) 
 
 def test_initialization(simple_Locus):
     # numeric chromosomes
-    assert simple_Locus.chrom == '1'
+    assert simple_Locus.chromosome == 1
     assert simple_Locus.start == 100
     assert simple_Locus.end == 200
     assert len(simple_Locus) == 101
 
 def test_as_dict(simple_Locus):
     simple_Locus_dict = {
-            'name': None,
-            'chrom': '1',
-            'start': 100,
-            'end': 200,
-            'feature_type': 'locus',
-            'frame': None,
-            'score': np.nan,
-            'source': 'locuspocus',
-            'strand': None,
-            'window': 0
-            }
+            'chromosome': 1, 
+            'start': 100, 
+            'end': 200, 
+            'source': 'locuspocus', 
+            'feature_type': None, 
+            'strand': '+', 
+            'frame': None, 
+            'name': None, 
+            '_frozen': True, 
+            '_LID': None
+    }
     assert simple_Locus.as_dict() == simple_Locus_dict
 
-def test_update(simple_Locus):
-    new_data = {'name': 'simple_Locus'}
-    new_Locus = simple_Locus.update(new_data)
-    assert set(new_data.keys()) <= set(new_Locus.attr.keys()) 
+def test_frozen(simple_Locus):
+    try:
+        # This should throw an exception
+        simple_Locus.chromosome = 2
+    except Exception as e:
+        return True
 
-    # probably we should also check the values on a key per key basis
-    for k in new_data.keys():
-        assert new_data[k] == new_Locus[k]
-
-#def test_as_record(simple_Locus):
-#    assert simple_Locus.as_record() == ('1', 100, 200, '<None>1:100-200', 0, 0, 0, 'LocusPocus', '<None>1:100-200')
-
-#def test_from_record(simple_Locus):
-#    assert Locus.from_record(
-#        ('1', 100, 200, '<None>1:100-200', 0, 0, 0, '<None>1:100-200')) == simple_Locus
 
 def test_setitem(simple_Locus):
-    simple_Locus.attr['name'] = 'simple_Locus'
-    assert simple_Locus['name'] == 'simple_Locus'
+    try:
+        # This should throw an exception
+        simple_Locus['foo'] = 'baz'
+    except Exception as e:
+        return True
+
 
 def test_getitem(simple_Locus):
-    simple_Locus.attr['name'] = 'simple_Locus'
-    assert simple_Locus['name'] == simple_Locus.attr['name']
+    assert simple_Locus['foo'] == 'bar'
 
 #def test_update(simple_Locus):
 #    assert False
@@ -70,22 +65,13 @@ def test_coor(simple_Locus):
     assert simple_Locus.coor == (100, 200)
 
 def test_upstream(simple_Locus):
-    assert simple_Locus.upstream == 100
+    assert simple_Locus.upstream(50) == 50
 
 def test_downstream(simple_Locus):
-    assert simple_Locus.downstream == 200
+    assert simple_Locus.downstream(50) == 250
 
 def test_name(simple_Locus):
     assert simple_Locus.name is None
-
-def test_add_same_chrom(simple_Locus):
-    another_Locus = Locus(1, 110, 220)
-    assert simple_Locus + another_Locus == Locus(1, 100, 220)
-
-def test_add_diff_chrom(simple_Locus):
-    another_Locus = Locus(2, 110, 220)
-    with pytest.raises(TypeError):
-        simple_Locus + another_Locus
 
 def test_eq(simple_Locus):
     another_Locus = Locus(1, 110, 220)
