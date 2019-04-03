@@ -11,35 +11,40 @@ import numpy as np
 import locuspocus
 import dataclasses
 
-class smartsubloci(list):
-    def __init__(self, lid_list, refloci=None):
-        super().__init__(lid_list)
-        self.refloci = refloci
-        if refloci is not None:
-            self.db_backed = True
-        else:
+class SubLoci(object):
+    '''
+        This class can either be an actual list of subloci OR
+        a list of LIDS and a reference to the database where the 
+        subloci can be accessed as they are needed.
+    '''
+    def __init__(self, subloci, refloci=None):
+        self._subloci = subloci
+        if refloci is None:
+            # If there is not db ref, make sure all items are Locuses
+            assert all([isinstance(x,Locus) for x in self._subloci])
             self.db_backed = False
-
-    def resolve_val(self,val):
-        if isinstance(val,Locus):
-            return val
-        elif self.refloci is not None:
-            return self.refloci._get_locus_by_LID(val)
         else:
-            raise KeyError(f'Cannot resolve {key}')
+            assert all([isinstance(x,int) for x in self._subloci])
+            self._refloci = refloci
+            self.db_backed = True
 
     def __getitem__(self, key):
         if not self.db_backed :
-            val = super().__getitem__(key)
-            self.resolve_val(val)
+            return self._subloci[key]
         else:
-            return list(self)[key]
+            return self._refloci._get_locus_by_LID(self._subloci[key])
 
     def __iter__(self):
-        return (self.resolve_val(i) for i in super().__iter__())
+        if not self.db_backed:
+            return (x for x in self._subloci)
+        else:
+            return (self._refloci._get_locus_by_LID(i) for i in self._subloci)
 
     def __repr__(self):
         return repr(list(self))
+
+    def __len__(self):
+        return len(self._subloci)
 
 class smartattrs(dict):
 
@@ -146,11 +151,7 @@ class Locus:
     def __post_init__(self, attrs, subloci, refloci):
         self.refloci = refloci
         # Handle the "smart" things
-        if subloci is None:
-            subloci = []
-        self.subloci = smartsubloci(subloci,refloci)
-        if attrs is None:
-            attrs = None 
+        self.subloci = SubLoci(subloci,refloci)
         self.attrs = smartattrs(attrs,refloci,self.LID)
         # Freeze the object
         self._frozen = True
@@ -202,8 +203,6 @@ class Locus:
     def __getitem__(self,item):
         if self.attrs is not None: 
             return self.attrs[item]
-        elif self.refloci is not None:
-            return self.refloci._db.cursor().execute('')
 
     def __setitem__(self,key,val):
         raise FrozenInstanceError("Cannot change attrs of Locus")
