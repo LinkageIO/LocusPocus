@@ -18,7 +18,7 @@ class SubLoci(object):
         subloci can be accessed as they are needed.
     '''
     def __init__(self, subloci, refloci=None):
-        self._subloci = subloci
+        self._subloci = subloci if subloci is not None else []
         if refloci is None:
             # If there is not db ref, make sure all items are Locuses
             assert all([isinstance(x,Locus) for x in self._subloci])
@@ -253,7 +253,7 @@ class Locus:
 
     @property
     def coor(self):
-        return sorted(self.start,self.end)
+        return tuple(sorted((self.start,self.end)))
 
     def upstream(self,distance: int) -> int:
         return max(0,self.start - distance)
