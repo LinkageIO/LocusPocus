@@ -36,6 +36,16 @@ class RefLoci(Freezable):
         self.log.addHandler(handler)
         self.log.setLevel(logging.INFO)
 
+    @property
+    def _primary_LIDS(self):
+        try:
+            return self.__primary_LIDS
+        except AttributeError as e:
+            self.log.info("Caching LIDS from database")
+            LIDS = [x[0] for x in self._db.cursor().execute('SELECT LID FROM primary_loci')]
+            self.__primary_LIDS = LIDS
+            return LIDS
+
 
     def __len__(self):
         """
