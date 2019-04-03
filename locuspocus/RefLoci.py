@@ -336,39 +336,39 @@ class RefLoci(Freezable):
         return self._get_locus_by_LID(LID)
 
     def __iter__(self):
-        raise NotImplementedError()
-    
-    def __delitem__(self,item):
+        return (self._get_locus_by_LID(l) for l in self._primary_LIDS)
+
+    def rand(self, n=1, distinct=True):
         """
-            Remove a locus and all of its sub loci from the database
+            Fetch random Loci
 
             Parameters
             ----------
-            loci : an iterable of IDs or a single ID
+            n : int (default=1)
+                The number of random locus objects to fetch
+            distinct : bool (default: True)
+                If True, the return set will not contain duplicates
+            primary_only : bool (default: True)
+                If True, the return set will not include sub-features
+                such as exons. Typically, primary features include genes.
 
-            Return: bool (default:True)
-                By default, the loci need to be distinct so 
-                no duplicates are allowed in the output. If 
-                set to False, this check will not be made 
-                and duplicates are possible
 
             Returns
             -------
             A list of n Locus objects
 
         """
+        import random
         loci = set()
-        maxLID, = self._db.cursor().execute(
-            'SELECT MAX(LID) from loci;'
-        ).fetchone()
-        if n > maxLID:
+        LIDS = self._primary_LIDS
+        if n > len(LIDS):
             raise ValueError('More than the maximum loci in the database was requested')
         while len(loci) < n:
             try:
-                rand_LID = int(np.random.randint(0,maxLID,1)[0])
+                rand_LID = random.choice(LIDS) 
                 loci.add(self._get_locus_by_LID(rand_LID))
             except ValueError as e:
-                #self.log.info(f'hit a tombstone! LID {rand_LID}')
+                self.log.info(f'hit a tombstone! LID {rand_LID}')
                 continue
         return list(loci)
 
