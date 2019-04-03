@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from setuptools import setup, find_packages, Extension
-
 import io
 import os
 import re
+
+from setuptools import setup, find_packages, Extension
 
 def read(*names, **kwargs):
     with io.open(
@@ -77,7 +77,7 @@ setup(
         'cython',
     ],
     install_requires = [
-        'minus80>=0.3.0',
+        'minus80>=0.3.1',
         'Cython>=0.16.0',
         'numpy>=1.14.3',
         'scipy>=0.19.0'
