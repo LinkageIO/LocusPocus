@@ -15,6 +15,10 @@ class smartsubloci(list):
     def __init__(self, lid_list, refloci=None):
         super().__init__(lid_list)
         self.refloci = refloci
+        if refloci is not None:
+            self.db_backed = True
+        else:
+            self.db_backed = False
 
     def resolve_val(self,val):
         if isinstance(val,Locus):
@@ -25,8 +29,11 @@ class smartsubloci(list):
             raise KeyError(f'Cannot resolve {key}')
 
     def __getitem__(self, key):
-        val = super().__getitem__(key)
-        self.resolve_val(val)
+        if not self.db_backed :
+            val = super().__getitem__(key)
+            self.resolve_val(val)
+        else:
+            return list(self)[key]
 
     def __iter__(self):
         return (self.resolve_val(i) for i in super().__iter__())
@@ -49,9 +56,12 @@ class smartattrs(dict):
 
     def __getitem__(self,key):
         if not self.db_backed:
-            super().__getitem__(key)
+            return super().__getitem__(key)
         else:
             return self.db_getitem(key)
+
+    def __setitem__(self,key,val):
+        raise ValueError('Loci attrs cannot be changed')
 
     def keys(self):
         if not self.db_backed:
@@ -131,7 +141,7 @@ class Locus:
     subloci: InitVar[subloci] = field(default=None) 
     refloci: InitVar[str] = field(default=None)
     _frozen: bool = field(default=False,repr=False)
-    _LID: int = None
+    _LID: int = field(default=None,repr=False)
 
     def __post_init__(self, attrs, subloci, refloci):
         self.refloci = refloci
@@ -144,6 +154,9 @@ class Locus:
         self.attrs = smartattrs(attrs,refloci,self.LID)
         # Freeze the object
         self._frozen = True
+
+    def __len__(self):
+        return abs(self.end - self.start) + 1
 
     def __hash__(self):
         """
@@ -235,7 +248,7 @@ class Locus:
 
     @property
     def coor(self):
-        return (self.start,self.end)
+        return sorted(self.start,self.end)
 
     def upstream(self,distance: int) -> int:
         return max(0,self.start - distance)
@@ -253,6 +266,16 @@ class Locus:
         else:
             distance = abs(self.center - locus.center)
         return distance
+
+    def __contains__(self, l):
+        if self.chromosome == l.chromosome:
+            pass 
+        else:
+            return False
+       
+    def __str__(self):
+        return ""
+
 
 
 class oldLocus(object):
