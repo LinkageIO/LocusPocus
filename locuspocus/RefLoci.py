@@ -158,9 +158,6 @@ class RefLoci(Freezable):
         if cur is None:
             cur = self._db.cursor()
 
-        if locus.name == 'AC148152.3_FGT001':
-            print(f"The hash for {locus.name} is {hash(locus)}")
-            print(f"{locus}")
         # insert the core feature data
         core,attrs = locus.as_record()
         cur.execute(
