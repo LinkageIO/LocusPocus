@@ -47,7 +47,10 @@ class SubLoci(object):
         return len(self._subloci)
 
 class LociAttrs(object):
-
+    '''
+        This class can either be a normal dictionary with attributes OR
+        a reference to a RefLoci database and a LID for the locus.
+    '''
     def __init__(self, attrs, refloci=None, LID=None):
         if refloci is None and LID is None:
             if attrs is None:
@@ -61,7 +64,7 @@ class LociAttrs(object):
             self._refloci = refloci
             self.db_backed = True
 
-    def db_getitem(self,key):
+    def _db_getitem(self,key):
         if not self.db_backed:
             raise ValueError('The locus is not backed by a database')
         cur = self._refloci._db.cursor()
@@ -78,7 +81,7 @@ class LociAttrs(object):
         if not self.db_backed:
             return self._attrs[key]
         else:
-            return self.db_getitem(key)
+            return self._db_getitem(key)
 
     def __setitem__(self,key,val):
         raise ValueError('Loci attrs cannot be changed')
@@ -124,7 +127,7 @@ class LociAttrs(object):
              return key in self._attrs
         else:
             try:
-                val = self.db_getitem(key)
+                val = self._db_getitem(key)
                 return True
             except KeyError as e:
                 return False
