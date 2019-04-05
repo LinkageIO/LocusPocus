@@ -244,6 +244,20 @@ class Locus:
         return dataclasses.asdict(self) 
 
     def default_getitem(self,key,default=None) -> Any:
+        '''
+        Returns the attr value of the Locus based on the key.
+        similar to: Locus['Name'] -> "Locus1".
+        If the attr key (e.g. 'Name') does not exist,
+        a default can be specified.
+
+        Parameters
+        ----------
+        key : str
+            The key value of the attr
+        default : Any
+            If the key is not in the Locus attributes, return
+            this value by default.
+        '''
         try:
             val = self.attrs[key]
         except KeyError as e:
@@ -253,19 +267,65 @@ class Locus:
 
     @property
     def coor(self):
-        return tuple(sorted((self.start,self.end)))
+        '''
+        Returns a tuple containing the start and end
+        positions of the locus
+        '''
+        return (self.start,self.end)
 
     def upstream(self,distance: int) -> int:
-        return max(0,self.start - distance)
+        '''
+        Calculates a base pair position 5' of the 
+        locus.
+
+        Parameters
+        ----------
+        distance : int
+            The distance upstream of the locus
+        '''
+        if self.strand == '+':
+            return max(0,self.start - distance)
+        elif self.strand == '-':
+            return self.end + distance
 
     def downstream(self,distance: int) -> int:
-        return self.end + distance
+        '''
+        Calculates a base pair position 3' of the 
+        locus
+        
+        Parameters
+        ----------
+        distance : int
+            The distance downstream of the locus
+        '''
+        if self.strand == '+':
+            return self.end + distance
+        elif self.strand == '-':
+            return max(0,self.start) - distance
+        #return self.end + distance
 
     @property
     def center(self):
+        '''
+        Calculates the center base pair position of
+        the locus
+        '''
         return abs(self.start - self.end) 
 
     def center_distance(self, locus):
+        '''
+        Return the absolute distance between tnhe center of two loci. 
+        If the loci are on different chromosomes, return np.inf.
+
+        Parameters
+        ----------
+        locus : Locus Object
+            A second locus object used to calculate a distance.
+
+        Returns
+        -------
+        int : the distance between the center of two loci.
+        '''
         if self.chromosome != locus.chromosome:
             distance = np.inf
         else:
