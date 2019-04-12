@@ -208,10 +208,12 @@ class Locus:
 
     @property
     def LID(self):
-        if self.refloci is None:
-            return None
-        else:
-            return self.refloci._get_LID(self)
+        return self._LID
+
+       # if self.refloci is None:
+       #     return None
+       # else:
+       #     return self.refloci._get_LID(self)
 
     def __getitem__(self,item):
         if self.attrs is not None: 
