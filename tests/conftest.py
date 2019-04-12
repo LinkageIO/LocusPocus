@@ -1,5 +1,6 @@
 import pytest
 import os
+
 from locuspocus import Locus
 from locuspocus import RefLoci
 from locuspocus import Fasta
@@ -26,6 +27,8 @@ def simpleRefLoci():
 @pytest.fixture(scope="module")
 def testRefGen():
     # We have to build it
+    if m80tools.available('RefLoci','Zm5bFGS'):
+        return RefLoci('Zm5bFGS')
     m80tools.delete('RefLoci','Zm5bFGS',force=True)
     gff = os.path.expanduser(
         os.path.join(
