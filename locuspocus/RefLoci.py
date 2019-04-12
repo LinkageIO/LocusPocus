@@ -9,9 +9,20 @@ import numpy as np
 
 from minus80 import Freezable
 from collections.abc import Iterable
+from functools import lru_cache
 
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
+
+__all__ = ['RefLoci']
+
+def invalidates_primary_loci_cache(fn):
+    from functools import wraps
+    @wraps(fn)
+    def wrapped(self,*args,**kwargs):
+        fn(self,*args,**kwargs) 
+        self._primary_LIDS.cache_clear()
+    return wrapped
 
 
 class RefLoci(Freezable):
@@ -36,24 +47,18 @@ class RefLoci(Freezable):
         self.log.addHandler(handler)
         self.log.setLevel(logging.INFO)
 
-    @property
+    @lru_cache(maxsize=1)
     def _primary_LIDS(self):
-        try:
-            return self.__primary_LIDS
-        except AttributeError as e:
-            self.log.info("Caching LIDS from database")
-            LIDS = [x[0] for x in self._db.cursor().execute('SELECT LID FROM primary_loci')]
-            self.__primary_LIDS = LIDS
-            return LIDS
+        self.log.info("Caching LIDS from database")
+        LIDS = [x[0] for x in self._db.cursor().execute('SELECT LID FROM primary_loci')]
+        return LIDS
 
 
     def __len__(self):
         """
-            Returns the number of loci in the dataset
+            Returns the number of primary loci in the dataset
         """
-        return self._db.cursor().execute(
-            """ SELECT COUNT(*) FROM loci"""
-        ).fetchone()[0]
+        return len(self._primary_LIDS())
 
     def _get_locus_by_LID(self,LID):
         '''
@@ -301,7 +306,10 @@ class RefLoci(Freezable):
                 loci.append(l)
             else:
                 name_index[parent].add_sublocus(l)
-        self.log.info(f'Found {len(loci)} top level loci and {total_loci} total loci, adding them to database')
+        self.log.info((
+            f'Found {len(loci)} top level loci and {total_loci} '
+            f'total loci, adding them to database'
+        ))
         IN.close()
         with self._bulk_transaction() as cur:
             for l in loci:
@@ -338,7 +346,30 @@ class RefLoci(Freezable):
         return self._get_locus_by_LID(LID)
 
     def __iter__(self):
-        return (self._get_locus_by_LID(l) for l in self._primary_LIDS)
+        return (self._get_locus_by_LID(l) for l in self._primary_LIDS())
+
+    @invalidates_primary_loci_cache
+    def set_primary_feature_type(self,feature_type,clear_previous=True):
+        '''
+        Set the primary feature type.
+        
+        Parameters
+        ----------
+        feature_type : str
+            The feature type of the primary locus type
+        clear_previous : bool (default: True)
+            If true, delete previous entries for primary loci.
+            If false, append types
+
+        '''
+        with self._bulk_transaction() as cur: 
+            if clear_previous:
+                cur.execute('DELETE FROM primary_loci')
+            cur.execute('''
+                INSERT INTO primary_loci (LID) 
+                SELECT LID FROM loci WHERE feature_type = ?
+            ''',(feature_type,))
+
 
     def rand(self, n=1, distinct=True, autopop=True):
         """
@@ -365,7 +396,7 @@ class RefLoci(Freezable):
         """
         import random
         loci = set()
-        LIDS = self._primary_LIDS
+        LIDS = self._primary_LIDS()
         if n > len(LIDS):
             raise ValueError('More than the maximum loci in the database was requested')
         while len(loci) < n:
@@ -1156,16 +1187,3 @@ class RefLoci(Freezable):
             );
         '''
         )
-        # Create a view that inlcudes only top-level primary loci
-        # In this table, the LIDS are loci that do not have any parents
-        # and are thus top-level or "primary" features such
-        #cur.execute(
-        #'''
-        #    CREATE VIEW IF NOT EXISTS primary_loci AS 
-        #        SELECT LID FROM loci l 
-        #        LEFT JOIN relationships r 
-        #        ON l.LID = r.child 
-        #        WHERE child IS NULL -- if the child listing is NULL, there is no parent locus
-        #'''
-        #)
-
