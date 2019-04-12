@@ -12,7 +12,7 @@ from locuspocus import Locus
 #    assert set(random_loci) == set(get_loci_from_ids)
 
 def test_get_item(testRefGen):
-    random_locus = testRefGen.random_locus()
+    random_locus = testRefGen.rand()[0]
     assert random_locus == testRefGen[random_locus.id]
 
 #def test_get_items_from_list(testRefGen):
@@ -21,11 +21,11 @@ def test_get_item(testRefGen):
 #    assert set(random_loci) == set(loci)
 
 def test_lowercase_get_item(testRefGen):
-    random_locus = testRefGen.random_locus()
-    random_id = random_locus.id
+    random_locus = testRefGen.rand()[0]
+    name = random_locus.name
     # Stupid mutability
-    random_id.lower()
-    assert random_locus == testRefGen[random_id]
+    name.lower()
+    assert random_locus == testRefGen[name]
 
 def test_loci_within(testRefGen):
     random_locus = testRefGen.random_locus()
@@ -41,7 +41,7 @@ def test_locus_not_in_upstream_downstream(testRefGen):
     '''
         Upstream and downstream should not include the gene of interest.
     '''
-    random_locus = testRefGen.random_locus()
+    random_locus = testRefGen.rand()
     upstream = testRefGen.upstream_loci(
         random_locus,window_size=50e5,locus_limit=5
     )
