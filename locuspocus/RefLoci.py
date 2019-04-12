@@ -9,7 +9,7 @@ import numpy as np
 
 from minus80 import Freezable
 from collections.abc import Iterable
-from functools import lru_cache
+from functools import lru_cache,wraps
 
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
@@ -17,11 +17,19 @@ from .Exceptions import ZeroWindowError
 __all__ = ['RefLoci']
 
 def invalidates_primary_loci_cache(fn):
-    from functools import wraps
     @wraps(fn)
     def wrapped(self,*args,**kwargs):
         fn(self,*args,**kwargs) 
         self._primary_LIDS.cache_clear()
+    return wrapped
+
+def accepts_loci(fn):
+    @wraps(fn)
+    def wrapped(self,loci,**kwargs):
+        if not isinstance(loci,Locus):
+            return [fn(self,l,**kwargs) for l in loci]
+        else:
+            return fn(self,loci,**kwargs)
     return wrapped
 
 
@@ -85,7 +93,8 @@ class RefLoci(Freezable):
                 frame=frame,
                 subloci=children,
                 name=name,
-                refloci=self
+                refloci=self,
+                _LID=LID
             )
             return locus
         except TypeError as e:
@@ -348,6 +357,7 @@ class RefLoci(Freezable):
     def __iter__(self):
         return (self._get_locus_by_LID(l) for l in self._primary_LIDS())
 
+
     @invalidates_primary_loci_cache
     def set_primary_feature_type(self,feature_type,clear_previous=True):
         '''
@@ -455,6 +465,7 @@ class RefLoci(Freezable):
             print(RenderTree(root))
         return root
 
+    @accepts_loci
     def within(self, locus, partial=False):
         '''
         Returns the Loci that are within the input locus.
