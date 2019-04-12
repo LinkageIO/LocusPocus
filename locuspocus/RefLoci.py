@@ -138,7 +138,7 @@ class RefLoci(Freezable):
                     raise ValueError(f"NO LID for locus {locus}")
         return LID
 
-    def add_locus(self, locus, cur=None):
+    def add_locus(self, locus, cur=None, primary_type='gene'):
         """
             Add locus to the database. 
 
@@ -180,6 +180,11 @@ class RefLoci(Freezable):
                 ''', 
                 (LID,key,val)
             )
+        # Check to see if the locus is a primary feature
+        if locus.feature_type == primary_type:
+            cur.execute('''
+                INSERT INTO primary_loci (LID) VALUES (?)
+            ''',(LID,))
         # get childrem LIDS using recursion
         children_LIDs = [self.add_locus(c,cur=cur) for c in locus.subloci]
         # Add relationships  
@@ -296,7 +301,7 @@ class RefLoci(Freezable):
                 loci.append(l)
             else:
                 name_index[parent].add_sublocus(l)
-        self.log.info(f'Found {len(loci)} primary loci and {total_loci} total_loci, adding them to database')
+        self.log.info(f'Found {len(loci)} top level loci and {total_loci} total loci, adding them to database')
         IN.close()
         with self._bulk_transaction() as cur:
             for l in loci:
@@ -335,7 +340,7 @@ class RefLoci(Freezable):
     def __iter__(self):
         return (self._get_locus_by_LID(l) for l in self._primary_LIDS)
 
-    def rand(self, n=1, distinct=True):
+    def rand(self, n=1, distinct=True, autopop=True):
         """
             Fetch random Loci
 
@@ -348,6 +353,9 @@ class RefLoci(Freezable):
             primary_only : bool (default: True)
                 If True, the return set will not include sub-features
                 such as exons. Typically, primary features include genes.
+            autopop : bool (default: True)
+                If true and only 1 locus is requested, a Locus object
+                will be returned instead of a list (with a single element)
 
 
             Returns
@@ -367,9 +375,26 @@ class RefLoci(Freezable):
             except ValueError as e:
                 self.log.info(f'hit a tombstone! LID {rand_LID}')
                 continue
-        return list(loci)
+        loci = list(loci)
+        if autopop and len(loci) == 1:
+            loci = loci[0]
+        return loci
 
-    def feature_types(self,print_tree=True):
+    def feature_types(self, print_tree=True):
+        '''
+        Returns a summary of the feature types represented in 
+        the RefLoci database
+        
+        Parameters
+        ----------
+        print_tree : bool (default: True)
+            If True, prints the result before returning. 
+
+        Returns
+        -------
+        An anytree Node object containing the root node.
+
+        '''
         from anytree import Node, RenderTree
         cur = self._db.cursor()
         primary_ftypes = [x[0] for x in cur.execute('''
@@ -397,32 +422,58 @@ class RefLoci(Freezable):
                 ndict[c].parent = root
         if print_tree is True:
             print(RenderTree(root))
+        return root
+
+    def within(self, locus, partial=False):
+        '''
+        Returns the Loci that are within the input locus.
+        By default, the entire locus needs to be within the
+        coordinates of the input locus, however, this can be
+        toggled with the `partial` argument.
+
+        default:
+              start           end
+        -------[***************]-------------
+            nnnnn yyyy yyy   nnnnnnnnnnn    
+
+        partial=True:
+              start           end
+        -------[***************]-------------
+            yyyyy yyyy yyy   yyyyyyyyyyy    
+
+        Parameters
+        ----------
+        locus : Locus
+            A locus defining the genomic interval to 
+            extract loci within.
+        partial : bool
+            When True, include loci that partially overlap.
+            See example above.
+
+        '''
+        cur = self._db.cursor()
+        if partial == False:
+            LIDS = cur.execute('''
+                SELECT l.LID FROM positions p, primary_loci l 
+                WHERE p.chromosome = ? 
+                AND p.start > ? 
+                AND p.end < ?
+                AND p.LID = l.LID;
+            ''',(locus.chromosome,locus.start,locus.end)).fetchall()
         else:
-            return root
+            LIDS = cur.execute('''
+                SELECT l.LID FROM positions p, primary_loci l 
+                WHERE p.chromosome = ?
+                AND p.start < ? 
+                AND p.end > ?
+                AND p.LID = l.LID;
+            ''',(locus.chromosome,locus.end,locus.start)).fetchall()
+        if LIDS is None:
+            loci = []
+        else:
+            loci = [self._get_locus_by_LID(x) for (x,) in LIDS]
+        return loci
         
-
-
-#   # ----------- Internal Methods  -----------#
-
-
-#   def summarize_feature_types(self):
-#       # TODO 
-#       """
-#           Helper to summarize the Loci by feature type
-#       """
-#       return (
-#           self._db.cursor()
-#           .execute(
-#               """ 
-#          SELECT feature_type, COUNT(feature_type) 
-#          FROM loci 
-#          GROUP BY feature_type 
-#          ORDER BY COUNT(feature_type) DESC
-#          """
-#           )
-#           .fetchall()
-#       )
-
 
 #   def upstream_loci(
 #       # TODO 
@@ -628,7 +679,7 @@ class RefLoci(Freezable):
 #       # TODO 
 #       """
 #           Returns the Loci captured by the locus. This method returns
-#           loci that are *compeltely* within the specified loci.
+#           loci that are *completely* within the specified loci.
 #           It will NOT return loci that are partially overlapping that
 #           are return using the within method.
 
@@ -1004,66 +1055,6 @@ class RefLoci(Freezable):
 #           return bootstraps
 
 
-#   def summary(self):
-#       # TODO 
-#       print("\n".join(["Loci: {} ", "{} sites"]).format(self.name, self.num_loci()))
-
-
-#   def add_alias(self, locus_id, alias):
-#       # TODO 
-#       """
-#           Add an alias name for a locus
-
-#           Parameters
-#           ----------
-#           locus_id: str
-#               The id of the locus that has an alias
-#           alias: str
-#               The alias of the locus
-#       """
-#       if locus_id not in self:
-#           raise ValueError(f"{locus_id} not in the database")
-#       cur = self._db.cursor()
-#       cur.execute("INSERT INTO aliases (id,alias) VALUES (?,?)", (locus_id, alias))
-#       return True
-
-#   def num_aliases(self):
-#       # TODO 
-#       """
-#           Returns the number of aliases currently in the database
-
-#           Parameters
-#           ----------
-#           None
-
-#           Returns
-#           -------
-#           int : the number of aliases in the database
-
-#       """
-#       num = self._db.cursor().execute("SELECT COUNT(*) FROM aliases").fetchone()
-#       if num == None:
-#           return 0
-#       else:
-#           return num[0]
-
-#   def get_feature_list(self, feature="%"):
-#       # TODO 
-#       '''
-#       Get a list of all of the loci in the database of the specified feature type
-#       '''
-#       cur = self._db.cursor()
-#       cur.execute(
-#           """
-#           SELECT id FROM loci
-#           WHERE feature_type LIKE ?
-#           ORDER BY chromosome, start
-#           """,
-#           (feature,),
-#       )
-#       p = cur.fetchall()
-#       feature_list = list(itertools.chain.from_iterable(p))
-#       return feature_list
 
     # -----------------------------------------
     #
@@ -1081,6 +1072,7 @@ class RefLoci(Freezable):
             DROP VIEW IF EXISTS named_loci;
             DROP TABLE IF EXISTS relationships;
             DROP TABLE IF EXISTS positions;
+            DROP TABLE IF EXISTS primary_loci;
             '''
         )
         self._initialize_tables()
@@ -1156,16 +1148,24 @@ class RefLoci(Freezable):
             );
         '''
         )
+        cur.execute(
+        '''
+            CREATE TABLE IF NOT EXISTS primary_loci (
+                LID INT PRIMARY KEY,
+                FOREIGN KEY (LID) REFERENCES loci(LID)
+            );
+        '''
+        )
         # Create a view that inlcudes only top-level primary loci
         # In this table, the LIDS are loci that do not have any parents
         # and are thus top-level or "primary" features such
-        cur.execute(
-        '''
-            CREATE VIEW IF NOT EXISTS primary_loci AS 
-                SELECT LID FROM loci l 
-                LEFT JOIN relationships r 
-                ON l.LID = r.child 
-                WHERE child IS NULL -- if the child listing is NULL, there is no parent locus
-        '''
-        )
+        #cur.execute(
+        #'''
+        #    CREATE VIEW IF NOT EXISTS primary_loci AS 
+        #        SELECT LID FROM loci l 
+        #        LEFT JOIN relationships r 
+        #        ON l.LID = r.child 
+        #        WHERE child IS NULL -- if the child listing is NULL, there is no parent locus
+        #'''
+        #)
 
