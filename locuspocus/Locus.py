@@ -46,6 +46,13 @@ class SubLoci(object):
     def __len__(self):
         return len(self._subloci)
 
+    def append(self,x):
+        if self.db_backed:
+            raise ValueError("cannot change subloci of a db backed Locus")
+        else:
+            assert isinstance(x,Locus)
+            self._subloci.append(x)
+
 class LociAttrs(object):
     '''
         This class can either be a normal dictionary with attributes OR
