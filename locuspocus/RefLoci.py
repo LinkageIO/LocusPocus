@@ -591,77 +591,35 @@ class RefLoci(Freezable):
             self.downstream_loci(locus,max_distance=max_distance,partial=partial)
         )
 
-#   def encompassing_loci(self, loci, chain=True):
-#       # TODO 
-#       """
-#           Returns the Loci encompassing the locus. In other words
-#           if a locus (e.g. a SNP) is inside of another locus, i.e. the
-#           start of the locus is upstream and the end of the locus
-#           is downstream of the locus boundaries, this method will
-#           return it. Not to be confused with candidate locus, which
-#           will return locus upstream and downstream surrounding a locus.
+    def encompassing_loci(self, locus):
+        """
+            Returns the Loci encompassing the locus. In other words
+            if a locus (e.g. a SNP) is inside of another locus, i.e. the
+            start of the locus is upstream and the end of the locus
+            is downstream of the locus boundaries, this method will
+            return it. Not to be confused with candidate locus, which
+            will return locus upstream and downstream surrounding a locus.
 
-#           Parameters
-#           ----------
-#           loci : an iterable of loci
-#               The method will return encompassing loci for each
-#               locus in ther iterable. If a single locus is passed,
-#               a single result will be returned.
-#           chain : bool (defualt: True)
-#               Specifies whether or not to chain results. If true
-#               a single list will be returned, if False, a result for
-#               each locus passed in will be returned.
-#       """
-#       if isinstance(loci, Locus):
-#           return [
-#               self.get_locus_from_id(x)
-#               for (x,) in self._db.cursor().execute(
-#                   """
-#                   SELECT id FROM loci
-#                   WHERE chromosome = ?
-#                   AND start <= ? AND end >= ?
-#                   """,
-#                   (loci.chrom, loci.start, loci.end),
-#               )
-#           ]
-#       else:
-#           iterator = iter(loci)
-#           loci = [self.encompassing_loci(locus, chain=chain) for locus in iterator]
-#           if chain:
-#               loci = list(itertools.chain(*loci))
-#           return loci
+            Parameters
+            ----------
+            locus : Locus object
 
-#   def loci_within(self, loci, chain=True, feature="%"):
-#       # TODO 
-#       """
-#           Returns the loci that START or END within a locus
-#           start/end boundary.
+            Return 
+        """
+        cur = self._db.cursor()
+        LIDS = cur.execute('''
+            SELECT l.LId FROM positions p, primary_loci l
+            WHERE p.chromosome = ?
+            AND p.start < ?
+            AND p.end > ?
+            AND p.LID = l.LID
+        ''',(locus.chromosome,locus.start,locus.end))
+        if LIDS is None:
+            loci = []
+        else:
+            loci = [self._get_locus_by_LID(x) for (x,) in LIDS]
+        return loci
 
-#           Looks like: (y=yes,returned; n=no,not returned)
-
-#           nnn  nnnnnnn  yyyyyy   yyyyy  yyyyyy yyyyyyy
-#                   start                        end
-#               -----x****************************x-------------
-
-#       """
-#       if isinstance(loci, Locus):
-#           return [
-#               self.get_locus_from_id(x)
-#               for (x,) in self._db.cursor().execute(
-#                   """
-#                   SELECT id FROM loci
-#                   WHERE chromosome = ?
-#                   AND start >= ? AND start <= ?
-#                   """,
-#                   (loci.chrom, loci.start, loci.end),
-#               )
-#           ]
-#       else:
-#           iterator = iter(loci)
-#           loci = [self.loci_within(locus, chain=chain) for locus in iterator]
-#           if chain:
-#               loci = list(itertools.chain(*loci))
-#           return loci
 
 #   def candidate_loci(
 #       # TODO 
