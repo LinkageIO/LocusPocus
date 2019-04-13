@@ -25,11 +25,11 @@ def invalidates_primary_loci_cache(fn):
 
 def accepts_loci(fn):
     @wraps(fn)
-    def wrapped(self,loci,**kwargs):
+    def wrapped(self,loci,*args,**kwargs):
         if not isinstance(loci,Locus):
-            return [fn(self,l,**kwargs) for l in loci]
+            return [fn(self,l,*args,**kwargs) for l in loci]
         else:
-            return fn(self,loci,**kwargs)
+            return fn(self,loci,*args,**kwargs)
     return wrapped
 
 
