@@ -538,117 +538,20 @@ class RefLoci(Freezable):
                 -----------------------------x****************x--
                              ^_______________| Window (upstream)
 
-#           nnn  nnnnnnn   nnnnnn nnnn  yyyy  yyyyyy yyyy yyyyyy  nnnnn
-#              start             end
-#             ---x****************x--------------------------------
-#                                 |_______________________^ Window (downstream)
-#       """
-#       if locus.window == 0 and window_size is None:
-#           raise ValueError(
-#               "Asking for upstream loci for {} with no window size", locus.id
-#           )
-#       if window_size is not None:
-#           downstream = locus.end + window_size
-#       else:
-#           downstream = locus.downstream
-#       if within:
-#           return [
-#               self.get_locus_from_id(x)
-#               for (x,) in self._db.cursor().execute(
-#                   """
-#                   SELECT id FROM loci
-#                   INDEXED BY loci_start_end
-#                   WHERE chromosome = ?
-#                   AND start >= ?
-#                   AND end <= ?
-#                   AND feature_type LIKE ?
-#                   ORDER BY start ASC
-#                   LIMIT ?
-#                   """,
-#                   (locus.chrom, locus.end, downstream, feature_type, locus_limit),
-#               )
-#           ]
-#       else:
-#           return [
-#               self.get_locus_from_id(x)
-#               for (x,) in self._db.cursor().execute(
-#                   """
-#                   SELECT id FROM loci
-#                   INDEXED BY loci_start_end
-#                   WHERE chromosome = ?
-#                   AND start > ?
-#                   AND start <= ?
-#                   AND end > ?
-#                   AND feature_type LIKE ?
-#                   ORDER BY start ASC
-#                   LIMIT ?
-#                   """,
-#                   (
-#                       locus.chrom,
-#                       locus.start,
-#                       downstream,
-#                       locus.end,
-#                       feature_type,
-#                       locus_limit,
-#                   ),
-#               )
-#           ]
 
-#   def flanking_loci(
-#       # TODO 
-#       self,
-#       loci,
-#       flank_limit=1,
-#       chain=True,
-#       window_size=None,
-#       within=False,
-#       feature_type="%",
-#   ):
-#       """
-#           Returns loci upstream and downstream from a locus
-#           ** done NOT include loci within locus **
-#       """
-#       if isinstance(loci, Locus):
-#           # If we cant iterate, we have a single locus
-#           locus = loci
-#           if locus.window == 0 and window_size is None:
-#               raise ValueError(
-#                   "Asking for upstream loci for {} and no window size.", locus.id
-#               )
-#           upstream_locus_limit = int(flank_limit)
-#           downstream_locus_limit = int(flank_limit)
-#           up_loci = self.upstream_loci(
-#               locus,
-#               locus_limit=upstream_locus_limit,
-#               window_size=window_size,
-#               within=within,
-#               feature_type=feature_type,
-#           )
-#           down_loci = self.downstream_loci(
-#               locus,
-#               locus_limit=downstream_locus_limit,
-#               window_size=window_size,
-#               within=within,
-#               feature_type=feature_type,
-#           )
-#           if chain:
-#               return list(itertools.chain(up_loci, down_loci))
-#           return (up_loci, down_loci)
-#       else:
-#           iterator = iter(loci)
-#           loci = [
-#               self.flanking_loci(
-#                   locus,
-#                   flank_limit=flank_limit,
-#                   window_size=window_size,
-#                   within=within,
-#                   feature_type=feature_type,
-#               )
-#               for locus in iterator
-#           ]
-#           if chain:
-#               loci = list(itertools.chain(*loci))
-#           return loci
+            Parameters
+            ----------
+                locus : Locus object
+                    The locus object for which to fetch the upstream
+                    loci
+        """
+        # If a discrete distance, fetch by locus
+        if max_distance is not None:
+            start,middle,end = sorted(list(locus.coor) + [locus.upstream(max_distance)])
+            upstream_region = Locus(locus.chromosome,start,end)
+            return (x for x in self.within(upstream_region, partial=partial))
+        else:
+            pass
 
 #   def captured(self, loci, chain=True, feature_type="%"):
 #       # TODO 
