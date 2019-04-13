@@ -553,49 +553,43 @@ class RefLoci(Freezable):
         else:
             pass
 
-#   def captured(self, loci, chain=True, feature_type="%"):
-#       # TODO 
-#       """
-#           Returns the Loci captured by the locus. This method returns
-#           loci that are *completely* within the specified loci.
-#           It will NOT return loci that are partially overlapping that
-#           are return using the within method.
+    @accepts_loci
+    def downstream_loci(
+        self, locus, max_distance=None, partial=False
+    ):
+        """
+            Returns loci downstream of a locus. 
+            
+            Loci are ordered so that the nearest loci are 
+            at the beginning of the list.
 
-#           Parameters
-#           ----------
-#           loci : an iterable of loci
-#               The method will return encompassing loci for each
-#               locus in ther iterable. If a single locus is passed,
-#               a single result will be returned.
-#           chain : bool (default: True)
-#               Specifies whether or not to chain results. If true
-#               a single list will be returned, if False, a result for
-#               each locus passed in will be returned.
-#           feature : str (default: %)
-#               Specifies whether any locus in the database meeting the
-#               requirements will be returned or only loci of a certain
-#               type (gene, transposable_element, snp, etc.)
-#       """
-#       if isinstance(loci, Locus):
-#           return [
-#               self.get_locus_from_id(x)
-#               for (x,) in self._db.cursor().execute(
-#                   """
-#                   SELECT id FROM loci
-#                   WHERE chromosome = ?
-#                   AND start >= ?
-#                   AND end <= ?
-#                   AND feature_type LIKE ?
-#                   """,
-#                   (loci.chrom, loci.start, loci.end, feature),
-#               )
-#           ]
-#       else:
-#           iterator = iter(loci)
-#           loci = [self.loci_within(locus, chain=chain) for locus in iterator]
-#           if chain:
-#               loci = list(itertools.chain(*loci))
-#           return loci
+            NOTE: this respects the strand of the locus
+            
+            partial=False
+            nnn  nnnnnnn   nnn   nnnnn  yyyy  yyyyyy yyyy nnnnnn  nnnnn
+            partial=True
+            nnn  nnnnnnn   nnn   yyyyy  yyyy  yyyyyy yyyy yyyyyy  nnnnn
+               start             end
+              ---x****************x--------------------------------
+                                  |________________________^ Window (downstream)
+        """
+        if max_distance is not None:
+            start,middle,end = sorted(list(locus.coor) + [locus.downstream(max_distance)])
+            downstream_region = Locus(locus.chromosome,start,end)
+            return (x for x in self.within(downstream_region, partial=partial))
+        else:
+            pass
+
+    def flanking_loci(
+        self,
+        locus,
+        max_distance=None,
+        partial=False
+    ):
+        return (
+            self.upstream_loci(locus,max_distance=max_distance,partial=partial),
+            self.downstream_loci(locus,max_distance=max_distance,partial=partial)
+        )
 
 #   def encompassing_loci(self, loci, chain=True):
 #       # TODO 
