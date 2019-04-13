@@ -516,94 +516,27 @@ class RefLoci(Freezable):
             loci = [self._get_locus_by_LID(x) for (x,) in LIDS]
         return loci
         
+    @accepts_loci
+    def upstream_loci(
+        self, locus, max_distance=None, partial=False
+    ):
+        """
+            Find loci upstream of a locus.
 
-#   def upstream_loci(
-#       # TODO 
-#       self, locus, locus_limit=1000, window_size=None, within=False, feature_type="%"
-#   ):
-#       """
-#           Find loci that START upstream of a locus.
-#           Loci are ordered so that the nearest loci are
-#           at the beginning of the list.
+            Loci are ordered so that the nearest loci are
+            at the beginning of the list.
 
-#           Return Loci that overlap with the upstream window,
-#           This includes partially overlapping loci, but NOT
-#           loci that are returned by the loci_within method.
+            NOTE: This respects the strand of the locus
+            NOTE: If a 
 
-#           Looks like: (y=yes,returned; n=no,not returned)
-
-#           nnn  yyyyyyy   yyyyyy   yyyyy  yyyyyy nnnn nnnn nnnnnnnn
-#                                            nnnn
-#                                          start             end
-#               -----------------------------x****************x--
-#                  ^_________________________| Window (upstream)
-#       """
-#       if locus.window == 0 and window_size is None:
-#           raise ValueError(
-#               "Asking for upstream loci for {} which has a window size of 0".format(
-#                   locus
-#               )
-#           )
-#       if window_size is not None:
-#           upstream = locus.start - window_size
-#       else:
-#           upstream = locus.upstream
-#       if within:
-#           return [
-#               self.get_locus_from_id(x)
-#               for (x,) in self._db.cursor().execute(
-#                   """
-#                   SELECT id FROM loci
-#                   INDEXED BY loci_start_end
-#                   WHERE chromosome = ?
-#                   AND start >= ?  -- Gene must end AFTER locus window (upstream)
-#                   AND end < ? -- Gene must end BEFORE locus starts
-#                   AND feature_type LIKE ?
-#                   ORDER BY start DESC
-#                   LIMIT ?
-#                   """,
-#                   (locus.chrom, upstream, locus.start, feature_type, locus_limit),
-#               )
-#           ]
-#       else:
-#           return [
-#               self.get_locus_from_id(x)
-#               for (x,) in self._db.cursor().execute(
-#                   """
-#                   SELECT id FROM loci
-#                   INDEXED BY loci_start_end
-#                   WHERE chromosome = ?
-#                   AND end >= ?  -- Gene must end AFTER locus window (upstream)
-#                   AND end < ? -- Gene must end BEFORE locus ends
-#                   AND start < ? -- Gene must start before locus starts
-#                   AND feature_type LIKE ?
-#                   ORDER BY start DESC
-#                   LIMIT ?
-#                   """,
-#                   (
-#                       locus.chrom,
-#                       upstream,
-#                       locus.end,
-#                       locus.start,
-#                       feature_type,
-#                       locus_limit,
-#                   ),
-#               )
-#           ]
-
-#   def downstream_loci(
-#       # TODO 
-#       self, locus, locus_limit=1000, window_size=None, within=False, feature_type="%"
-#   ):
-#       """
-#           Returns loci downstream of a locus. Loci are ordered
-#           so that the nearest loci are at the beginning of the list.
-
-#           Return Loci that overlap with the downstream window,
-#           This includes partially overlapping loci, but NOT
-#           loci that are returned by the loci_within method.
-
-#           Looks like: (y=yes,returned; n=no,not returned)
+            partial=False
+            nnn  nnnnnnn   nnnnnn   yyyyy  nnnnnn nnnn nnnn nnnnnnnn
+            partial=True
+            nnn  nnnnnnn   yyyyyy   yyyyy  yyyyyy nnnn nnnn nnnnnnnn
+                                            
+                                           start             end
+                -----------------------------x****************x--
+                             ^_______________| Window (upstream)
 
 #           nnn  nnnnnnn   nnnnnn nnnn  yyyy  yyyyyy yyyy yyyyyy  nnnnn
 #              start             end
