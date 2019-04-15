@@ -597,14 +597,15 @@ class RefLoci(Freezable):
             if a locus (e.g. a SNP) is inside of another locus, i.e. the
             start of the locus is upstream and the end of the locus
             is downstream of the locus boundaries, this method will
-            return it. Not to be confused with candidate locus, which
-            will return locus upstream and downstream surrounding a locus.
+            return it. 
 
             Parameters
             ----------
             locus : Locus object
 
-            Return 
+            Returns
+            -------
+            Loci that encompass the input loci
         """
         cur = self._db.cursor()
         LIDS = cur.execute('''
