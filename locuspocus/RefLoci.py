@@ -16,7 +16,18 @@ from .Exceptions import ZeroWindowError
 
 __all__ = ['RefLoci']
 
+
+# --------------------------------------------------
+#
+#       Decorators
+#
+# --------------------------------------------------
+
 def invalidates_primary_loci_cache(fn):
+    '''
+    Decorate any methods that invalidate the list
+    of primary loci. (e.g. the _primary_LIDS method)
+    '''
     @wraps(fn)
     def wrapped(self,*args,**kwargs):
         fn(self,*args,**kwargs) 
@@ -24,6 +35,12 @@ def invalidates_primary_loci_cache(fn):
     return wrapped
 
 def accepts_loci(fn):
+    '''
+    This decorator augments methods that take as their first
+    argument a Locus object. It allows the method to also accept
+    an iterable of Locus objects and maps the method to the
+    Locus objects in the iterable.
+    '''
     @wraps(fn)
     def wrapped(self,loci,*args,**kwargs):
         if not isinstance(loci,Locus):
@@ -31,6 +48,7 @@ def accepts_loci(fn):
         else:
             return fn(self,loci,*args,**kwargs)
     return wrapped
+
 
 
 class RefLoci(Freezable):
@@ -47,7 +65,7 @@ class RefLoci(Freezable):
         super().__init__(name, basedir=basedir)
         self.name = name
         self._initialize_tables()
-
+        # Set up a logger
         self.log = logging.getLogger(__name__)
         handler = logging.StreamHandler()
         formatter = logging.Formatter("%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
@@ -57,20 +75,41 @@ class RefLoci(Freezable):
 
     @lru_cache(maxsize=1)
     def _primary_LIDS(self):
+        '''
+        A cached list of primary Locus IDs (LIDS) available in the RefLoci database.
+        This list can change if the primary locus changes, for example through
+        the `RefLoci.set_primary_feature_type()` method. 
+        
+        Note: this method takes no arguments.
+        '''
         self.log.info("Caching LIDS from database")
         LIDS = [x[0] for x in self._db.cursor().execute('SELECT LID FROM primary_loci')]
         return LIDS
 
 
     def __len__(self):
-        """
-            Returns the number of primary loci in the dataset
-        """
+        '''
+        Returns the number of primary loci in the dataset
+        '''
         return len(self._primary_LIDS())
 
-    def _get_locus_by_LID(self,LID):
+    def _get_locus_by_LID(self,LID: int) -> Locus:
         '''
-            Get a locus by its LID
+        Get a locus by its LID
+        
+        Parameters
+        ----------
+        LID : int
+            A Locus ID. These are assigned to Locus objects when
+            they are added to the RefLoci database.
+
+        Returns
+        -------
+        The Locus object corresponding to the LID.
+
+        Raises
+        ------
+        `TypeError` if there is no Locus in the database with that LID.
         '''
         try:
             cur = self._db.cursor()
@@ -152,6 +191,7 @@ class RefLoci(Freezable):
                     raise ValueError(f"NO LID for locus {locus}")
         return LID
 
+    @invalidates_primary_loci_cache
     def add_locus(self, locus, cur=None, primary_type='gene'):
         """
             Add locus to the database. 
@@ -987,3 +1027,6 @@ class RefLoci(Freezable):
             );
         '''
         )
+
+
+
