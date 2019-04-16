@@ -52,16 +52,14 @@ def accepts_loci(fn):
 
 
 class RefLoci(Freezable):
-    """
+    '''
         RefLoci are more than the sum of their parts. They have a name and
         represent something bigger than theirselves. They are important. They
         live on the disk in a database.
-    """
+    '''
 
-    # Create a class-wide logger
-
-    # Methods
     def __init__(self, name, basedir=None):
+        # set up the freezable API
         super().__init__(name, basedir=basedir)
         self.name = name
         self._initialize_tables()
@@ -89,7 +87,11 @@ class RefLoci(Freezable):
 
     def __len__(self):
         '''
-        Returns the number of primary loci in the dataset
+        Returns the number of primary loci in the dataset. Gets called by the len()
+        built-in function
+
+        >>> len(ref)
+        42
         '''
         return len(self._primary_LIDS())
 
@@ -139,7 +141,7 @@ class RefLoci(Freezable):
         except TypeError as e:
             raise ValueError(f'There is no locus in the database with LID of {LID}')
 
-    def _get_LID(self,locus,cur=None):
+    def _get_LID(self,locus: Locus) -> int:
         '''
             Return the Locus Identifier used internally by RefLoci
 
@@ -148,14 +150,13 @@ class RefLoci(Freezable):
             locus : one of (str,Locus)
                 The locus for which to find the LID of, this can
                 be either a Locus object OR a name/alias
-            cur : apsw Cursor object
-                If you are looking up LIDS within a transaction
-                you need to pass in the cursor you are using or
-                as the LIDS are not visible to new cursors until
-                the transaction has completed.
+            
+            Returns
+            -------
+            An integer Locus ID (LID)
+
         '''
-        if cur is None:
-            cur = self._db.cursor()
+        cur = self._db.cursor()
         if isinstance(locus,str):
             # Handle the easy case where we have a name
             result = cur.execute(
@@ -192,34 +193,34 @@ class RefLoci(Freezable):
         return LID
 
     @invalidates_primary_loci_cache
-    def add_locus(self, locus, cur=None, primary_type='gene'):
-        """
+    def add_locus(self, locus: Locus, cur=None, primary_type='gene') -> int:
+        '''
             Add locus to the database. 
 
             Parameters
             ----------
             locus : a Locus object
                 This locus will be added to the db
-            cur : a db curson
+            cur : a db cursor
                 An optional cursor object to use. If none, a 
                 cursor will be created. If importing many 
                 loci in a loop, use a bulk transaction.
 
             Returns
             -------
-            The locus ID of the feshly added locus
-        """
+            The locus ID (LID) of the feshly added locus
+        '''
         if cur is None:
             cur = self._db.cursor()
 
         # insert the core feature data
         core,attrs = locus.as_record()
         cur.execute(
-            """
+            '''
             INSERT OR IGNORE INTO loci 
                 (chromosome,start,end,source,feature_type,strand,frame,name,hash)
                 VALUES (?,?,?,?,?,?,?,?,?)
-            """,
+            ''',
             core,
         )
         # get the fresh LID
@@ -261,13 +262,13 @@ class RefLoci(Freezable):
 
     def import_gff(
         self, 
-        filename, 
+        filename: str, 
         feature_type="*", 
         ID_attr="ID", 
         parent_attr='Parent',
         attr_split="="
-    ):
-        """
+    ) -> None:
+        '''
             Imports RefLoci from a gff (General Feature Format) file.
             See more about the format here:
             http://www.ensembl.org/info/website/upload/gff.html
@@ -285,7 +286,7 @@ class RefLoci(Freezable):
                 the Locus
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
-        """
+        '''
         self.log.info(f"Importing Loci from {filename}")
         if filename.endswith(".gz"):
             IN = gzip.open(filename, "rt")
@@ -364,9 +365,10 @@ class RefLoci(Freezable):
             for l in loci:
                 self.add_locus(l,cur=cur)
         self.log.info('Done!')
+        return None
 
-    def __contains__(self, locus):
-        """
+    def __contains__(self, locus: Locus) -> bool:
+        '''
             Returns True or False based on whether or not the Locus is
             in the database. 
 
@@ -379,7 +381,7 @@ class RefLoci(Freezable):
             Returns
             -------
             True or False
-        """
+        '''
         try:
             # If we can get an LID, it exists
             LID = self._get_LID(locus)
@@ -388,13 +390,14 @@ class RefLoci(Freezable):
             return False
 
     def __getitem__(self, item):
-        """
+        '''
             A convenience method to extract loci from the reference genome.
-        """
+        '''
         LID = self._get_LID(item)
         return self._get_locus_by_LID(LID)
 
     def __iter__(self):
+
         return (self._get_locus_by_LID(l) for l in self._primary_LIDS())
 
 
@@ -422,7 +425,7 @@ class RefLoci(Freezable):
 
 
     def rand(self, n=1, distinct=True, autopop=True):
-        """
+        '''
             Fetch random Loci
 
             Parameters
@@ -443,7 +446,7 @@ class RefLoci(Freezable):
             -------
             A list of n Locus objects
 
-        """
+        '''
         import random
         loci = set()
         LIDS = self._primary_LIDS()
@@ -560,7 +563,7 @@ class RefLoci(Freezable):
     def upstream_loci(
         self, locus, max_distance=None, partial=False
     ):
-        """
+        '''
             Find loci upstream of a locus.
 
             Loci are ordered so that the nearest loci are
@@ -584,7 +587,7 @@ class RefLoci(Freezable):
                 locus : Locus object
                     The locus object for which to fetch the upstream
                     loci
-        """
+        '''
         # If a discrete distance, fetch by locus
         if max_distance is not None:
             start,middle,end = sorted(list(locus.coor) + [locus.upstream(max_distance)])
@@ -597,7 +600,7 @@ class RefLoci(Freezable):
     def downstream_loci(
         self, locus, max_distance=None, partial=False
     ):
-        """
+        '''
             Returns loci downstream of a locus. 
             
             Loci are ordered so that the nearest loci are 
@@ -612,7 +615,7 @@ class RefLoci(Freezable):
                start             end
               ---x****************x--------------------------------
                                   |________________________^ Window (downstream)
-        """
+        '''
         if max_distance is not None:
             start,middle,end = sorted(list(locus.coor) + [locus.downstream(max_distance)])
             downstream_region = Locus(locus.chromosome,start,end)
@@ -632,7 +635,7 @@ class RefLoci(Freezable):
         )
 
     def encompassing_loci(self, locus):
-        """
+        '''
             Returns the Loci encompassing the locus. In other words
             if a locus (e.g. a SNP) is inside of another locus, i.e. the
             start of the locus is upstream and the end of the locus
@@ -646,7 +649,7 @@ class RefLoci(Freezable):
             Returns
             -------
             Loci that encompass the input loci
-        """
+        '''
         cur = self._db.cursor()
         LIDS = cur.execute('''
             SELECT l.LId FROM positions p, primary_loci l
@@ -661,6 +664,22 @@ class RefLoci(Freezable):
             loci = [self._get_locus_by_LID(x) for (x,) in LIDS]
         return loci
 
+    def candidate_loci(
+        self,
+        locus,
+        window_size,
+        flank_limit,
+        chain=True,
+        include_parent_locus=False,
+        include_parent_attrs=False,
+        include_num_intervening=False,
+        include_rank_intervening=False,
+        include_num_siblings=False,
+        include_SNP_distance=False,
+        attrs=None,
+        return_table=False,
+    ):
+        pass
 
 #   def candidate_loci(
 #       # TODO 
@@ -678,10 +697,10 @@ class RefLoci(Freezable):
 #       attrs=None,
 #       return_table=False,
 #   ):
-#       """
+#       '''
 #           Locus to locus mapping.
 #           Return loci between locus start and stop, plus additional
-#           flanking loci (up to flank_limit)
+#           flanking loci within window (up to flank_limit).
 
 #           Parameters
 #           ----------
@@ -735,7 +754,7 @@ class RefLoci(Freezable):
 #           -------
 #           a list of candidate loci (or list of lists if chain is False)
 
-#       """
+#       '''
 #       if isinstance(loci, Locus):
 #           # If not an iterator, its a single locus
 #           locus = loci
@@ -835,7 +854,7 @@ class RefLoci(Freezable):
 #       window_size=None,
 #       include_parent_locus=False,
 #   ):
-#       """
+#       '''
 #           Returns candidate loci which are random, but conserves
 #           total number of overall loci.
 
@@ -857,7 +876,7 @@ class RefLoci(Freezable):
 #           -------
 #           a list of candidate loci (or list of lists if chain is False)
 
-#       """
+#       '''
 #       if isinstance(loci, Locus):
 #           # We now have a single locus
 #           locus = loci
@@ -927,12 +946,6 @@ class RefLoci(Freezable):
 
 
 
-    # -----------------------------------------
-    #
-    #           Class Methods
-    #
-    # -----------------------------------------
-    
     def _nuke_tables(self):
         cur = self._db.cursor()
         cur.execute(
@@ -949,10 +962,10 @@ class RefLoci(Freezable):
         self._initialize_tables()
 
     def _initialize_tables(self):
-        """
-            Initializes the Tables holding all the information
-            about the Loci.
-        """
+        '''
+        Initializes the Tables holding all the information
+        about the Loci.
+        '''
         cur = self._db.cursor()
         cur.execute(
             '''
