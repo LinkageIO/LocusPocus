@@ -30,8 +30,9 @@ def invalidates_primary_loci_cache(fn):
     '''
     @wraps(fn)
     def wrapped(self,*args,**kwargs):
-        fn(self,*args,**kwargs) 
+        retval = fn(self,*args,**kwargs) 
         self._primary_LIDS.cache_clear()
+        return retval
     return wrapped
 
 def accepts_loci(fn):
@@ -208,7 +209,7 @@ class RefLoci(Freezable):
 
             Returns
             -------
-            The locus ID (LID) of the feshly added locus
+            The locus ID (LID) of the freshly added locus
         '''
         if cur is None:
             cur = self._db.cursor()
@@ -217,7 +218,7 @@ class RefLoci(Freezable):
         core,attrs = locus.as_record()
         cur.execute(
             '''
-            INSERT OR IGNORE INTO loci 
+            INSERT INTO loci 
                 (chromosome,start,end,source,feature_type,strand,frame,name,hash)
                 VALUES (?,?,?,?,?,?,?,?,?)
             ''',
@@ -225,6 +226,8 @@ class RefLoci(Freezable):
         )
         # get the fresh LID
         (LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
+        if LID is None:
+            raise ValueError(f"{locus} was not assigned a valid LID!")
         # Add the key val pairs
         for key,val in attrs.items():
             cur.execute(
@@ -330,13 +333,13 @@ class RefLoci(Freezable):
             # Parse out the Identifier
             if ID_attr in attributes:
                 name = attributes[ID_attr]
-                del attributes[ID_attr]
+                #del attributes[ID_attr]
             else:
                 name = None
             # Parse out the parent info
             if parent_attr in attributes:
                 parent = attributes[parent_attr]
-                del attributes[parent_attr]
+                #del attributes[parent_attr]
             else:
                 parent = None
             l =  Locus(
@@ -479,6 +482,7 @@ class RefLoci(Freezable):
         An anytree Node object containing the root node.
 
         '''
+        raise NotImplementedError('This method is BUGGY')
         from anytree import Node, RenderTree
         cur = self._db.cursor()
         primary_ftypes = [x[0] for x in cur.execute('''
