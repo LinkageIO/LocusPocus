@@ -323,7 +323,7 @@ class Locus:
 
     def center_distance(self, locus):
         '''
-        Return the absolute distance between tnhe center of two loci. 
+        Return the absolute distance between the center of two loci. 
         If the loci are on different chromosomes, return np.inf.
 
         Parameters
@@ -341,12 +341,16 @@ class Locus:
             distance = abs(self.center - locus.center)
         return distance
 
-    def __contains__(self, l):
-        if self.chromosome == l.chromosome:
-            pass 
-        else:
-            return False
-       
+    def as_tree(self,parent=None):
+        from anytree import Node, RenderTree
+        root = Node(f'{self.feature_type}:{self.name}',parent=parent)
+        for c in self.subloci:
+            node = c.as_tree(parent=root)
+        if parent is None:
+            for pre, _, node in RenderTree(root):
+                print("%s%s" % (pre, node.name))
+        return root
+
     def __str__(self):
         return ""
 
