@@ -49,9 +49,6 @@ def test_setitem(simple_Locus):
 def test_getitem(simple_Locus):
     assert simple_Locus['foo'] == 'bar'
 
-#def test_update(simple_Locus):
-#    assert False
-
 def test_default_getitem(simple_Locus):
     assert simple_Locus.default_getitem('name', 'default') == 'default'
 
@@ -78,49 +75,54 @@ def test_eq(simple_Locus):
     assert simple_Locus == simple_Locus
     assert simple_Locus != another_Locus
 
-#def test_contains(simple_Locus):
-#    overlap_Locus = Locus(1, 110, 220)
-#    disjoint_Locus = Locus(1, 210, 300)
-#    assert simple_Locus in overlap_Locus
-#    assert simple_Locus not in disjoint_Locus
+def test_loci_eq(testRefGen):
+    '''
+        Test the equals operator
+    '''
+    x = testRefGen['GRMZM2G018447']
+    y = testRefGen['GRMZM2G018447']
+    assert x == y
+
+def test_loci_lt_by_chrom(testRefGen):
+    x = Locus('1',1,1)
+    y = Locus('2',1,1)
+    assert x < y
+
+def test_loci_gt_by_chrom(testRefGen):
+    x = Locus('1',1,1)
+    y = Locus('2',1,1)
+    assert y > x
+
+def test_loci_lt_by_pos(testRefGen):
+    x = Locus('1',1,100)
+    y = Locus('1',2,100)
+    assert x < y
+
+def test_loci_gt_by_pos(testRefGen):
+    x = Locus('1',1,100)
+    y = Locus('1',2,200)
+    assert y > x
 
 def test_len(simple_Locus):
     assert len(simple_Locus) == 101
     assert len(Locus(1, 100, 100)) == 1
 
-#def test_cmp(simple_Locus):
-#    assert False
+def test_lt(simple_Locus):
+    same_chrom_Locus = Locus(1, 110, 220)
+    diff_chrom_Locus = Locus(2, 90, 150)
+    assert simple_Locus < same_chrom_Locus
+    assert simple_Locus < diff_chrom_Locus
 
-#def test_lt(simple_Locus):
-#    same_chrom_Locus = Locus(1, 110, 220)
-#    diff_chrom_Locus = Locus(2, 90, 150)
-#    assert simple_Locus < same_chrom_Locus
-#    assert simple_Locus < diff_chrom_Locus
+def test_gt(simple_Locus):
+    same_chrom_Locus = Locus(1, 90, 150)
+    diff_chrom_Locus = Locus(2, 90, 150)
+    assert simple_Locus > same_chrom_Locus
+    assert diff_chrom_Locus > simple_Locus
 
-#def test_gt(simple_Locus):
-#    same_chrom_Locus = Locus(1, 90, 150)
-#    diff_chrom_Locus = Locus(2, 90, 150)
-#    assert simple_Locus > same_chrom_Locus
-#    assert diff_chrom_Locus > simple_Locus
-
-#def test_sub_same_chrom(simple_Locus):
-#    another_Locus = Locus(1, 110, 220)
-#    assert simple_Locus - another_Locus == -90
-
-#def test_sub_diff_chrom(simple_Locus):
-#    another_Locus = Locus(2, 110, 220)
-#    assert simple_Locus - another_Locus == float('inf')
-
-#def test_str(simple_Locus):
-#    assert str(simple_Locus) == '<None>1:100-200+0(0)'
 
 def test_repr(simple_Locus):
     assert repr(simple_Locus) == "Locus(chromosome=1, start=100, end=200, source='locuspocus', feature_type=None, strand='+', frame=None, name=None)"
 
 def test_hash(simple_Locus):
     assert hash(simple_Locus) == 1470741785701407904
-
-#def test_summary(simple_Locus):
-#    assert simple_Locus.summary()
-
 
