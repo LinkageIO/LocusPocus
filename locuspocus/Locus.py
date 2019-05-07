@@ -172,6 +172,30 @@ class Locus:
     def __len__(self):
         return abs(self.end - self.start) + 1
 
+    def __lt__(self,locus):
+        if self.chromosome == locus.chromosome:
+            return self.start < locus.start
+        else:
+            return self.chromosome < locus.chromosome
+
+    def __le__(self,locus):
+        if self == locus:
+            return True
+        else:
+            return self < locus
+
+    def __ge__(self,locus):
+        if self == locus:
+            return True
+        else:
+            return self > locus
+
+    def __gt__(self,locus):
+        if self.chromosome == locus.chromosome:
+            return self.start > locus.start
+        else:
+            return self.chromosome > locus.chromosome
+
     def __hash__(self):
         """
             Convert the locus to a hash, uses md5.
