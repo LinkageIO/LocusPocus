@@ -6,22 +6,17 @@ from locuspocus import Locus
     Unit tests
 '''
 
-#def test_get_loci_from_ids(testRefGen):
-#    random_loci = sorted(testRefGen.random_loci(n=10))
-#    get_loci_from_ids = sorted(testRefGen.from_ids([x.id for x in random_loci]))
-#    assert set(random_loci) == set(get_loci_from_ids)
-
 def test_get_item(testRefGen):
-    random_locus = testRefGen.rand()[0]
+    random_locus = testRefGen.rand()
     assert random_locus == testRefGen[random_locus.id]
 
-#def test_get_items_from_list(testRefGen):
-#    random_loci = sorted(testRefGen.random_loci(n=10))
-#    loci = sorted(testRefGen[[x.id for x in random_loci]])
-#    assert set(random_loci) == set(loci)
+def test_get_items_from_list(testRefGen):
+    random_loci = sorted(testRefGen.random_loci(n=10))
+    loci = sorted(testRefGen[[x.id for x in random_loci]])
+    assert set(random_loci) == set(loci)
 
 def test_lowercase_get_item(testRefGen):
-    random_locus = testRefGen.rand()[0]
+    random_locus = testRefGen.rand()
     name = random_locus.name
     # Stupid mutability
     name.lower()
