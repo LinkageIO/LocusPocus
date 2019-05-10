@@ -51,7 +51,6 @@ def accepts_loci(fn):
     return wrapped
 
 
-
 class RefLoci(Freezable):
     '''
         RefLoci are more than the sum of their parts. They have a name and
@@ -400,7 +399,6 @@ class RefLoci(Freezable):
         return self._get_locus_by_LID(LID)
 
     def __iter__(self):
-
         return (self._get_locus_by_LID(l) for l in self._primary_LIDS())
 
 
@@ -512,15 +510,15 @@ class RefLoci(Freezable):
             print(RenderTree(root))
         return root
 
-    @accepts_loci
-    def within(self, locus, partial=False):
+    @accepts_loci 
+    def within(self, locus, partial=False,rtree=False):
         '''
         Returns the Loci that are within the input locus.
         By default, the entire locus needs to be within the
         coordinates of the input locus, however, this can be
         toggled with the `partial` argument.
 
-        default:
+        partial=False (default):
               start           end
         -------[***************]-------------
             nnnnn yyyy yyy   nnnnnnnnnnn    
@@ -540,32 +538,45 @@ class RefLoci(Freezable):
             See example above.
 
         '''
+        # set up variables to use based on 'partial' flag
         cur = self._db.cursor()
         if partial == False:
-            LIDS = cur.execute('''
-                SELECT l.LID FROM positions p, primary_loci l 
-                WHERE p.chromosome = ? 
-                AND p.start > ? 
-                AND p.end < ?
-                AND p.LID = l.LID;
-            ''',(locus.chromosome,locus.start,locus.end)).fetchall()
-        else:
-            LIDS = cur.execute('''
-                SELECT l.LID FROM positions p, primary_loci l 
-                WHERE p.chromosome = ?
-                AND p.start < ? 
-                AND p.end > ?
-                AND p.LID = l.LID;
-            ''',(locus.chromosome,locus.end,locus.start)).fetchall()
+            anchor = 'l.start > ?'
+            index = 'locus_start'
+            order = 'l.start'
+            def end(l):
+                return True if l.end < locus.end else False
+        elif partial == True:
+            anchor = 'l.end > ?'
+            index = 'locus_end'
+            order = 'l.end'
+            def end(l):
+                return True if l.start < locus.end else False
+        # Run the query 
+        LIDS = cur.execute(f'''
+            SELECT l.LID FROM primary_loci p, loci l
+            INDEXED BY {index}
+            WHERE l.chromosome = ?
+            AND {anchor}
+            AND l.LID = p.LID
+            ORDER BY {order}
+        ''',(locus.chromosome,locus.start))
+        # if the query is empty, yield nothing  
         if LIDS is None:
-            loci = []
+            yield
         else:
-            loci = [self._get_locus_by_LID(x) for (x,) in LIDS]
-        return loci
-        
+            # 
+            for x, in LIDS:
+                x = self._get_locus_by_LID(x) 
+                if end(x):
+                    yield x 
+                else:
+                    break
+
+       
     @accepts_loci
     def upstream_loci(
-        self, locus, max_distance=None, partial=False
+        self, locus, max_distance=np.inf, partial=False
     ):
         '''
             Find loci upstream of a locus.
@@ -591,18 +602,19 @@ class RefLoci(Freezable):
                 locus : Locus object
                     The locus object for which to fetch the upstream
                     loci
+                max_distance : float (default=np.inf)
+                    The maximum distance 
         '''
-        # If a discrete distance, fetch by locus
-        if max_distance is not None:
-            start,middle,end = sorted(list(locus.coor) + [locus.upstream(max_distance)])
-            upstream_region = Locus(locus.chromosome,start,end)
-            return (x for x in self.within(upstream_region, partial=partial))
-        else:
-            pass
+        # calculate the start and stop anchors 
+        start,end = sorted([locus.start, locus.upstream(max_distance)])
+        # create a dummy locus
+        upstream_region = Locus(locus.chromosome,start,end)
+        # return loci within dummy locus coordinates
+        return self.within(upstream_region, partial=partial)
 
     @accepts_loci
     def downstream_loci(
-        self, locus, max_distance=None, partial=False
+        self, locus, n=np.inf, max_distance=np.inf, partial=False
     ):
         '''
             Returns loci downstream of a locus. 
@@ -612,7 +624,7 @@ class RefLoci(Freezable):
 
             NOTE: this respects the strand of the locus
             
-            partial=False
+            partial=False (default)
             nnn  nnnnnnn   nnn   nnnnn  yyyy  yyyyyy yyyy nnnnnn  nnnnn
             partial=True
             nnn  nnnnnnn   nnn   yyyyy  yyyy  yyyyyy yyyy yyyyyy  nnnnn
@@ -620,12 +632,13 @@ class RefLoci(Freezable):
               ---x****************x--------------------------------
                                   |________________________^ Window (downstream)
         '''
-        if max_distance is not None:
-            start,middle,end = sorted(list(locus.coor) + [locus.downstream(max_distance)])
-            downstream_region = Locus(locus.chromosome,start,end)
-            return (x for x in self.within(downstream_region, partial=partial))
-        else:
-            pass
+        # calculate the start and stop anchors 
+        start,end = sorted([locus.end, locus.downstream(max_distance)])
+        # create a dummy locus
+        upstream_region = Locus(locus.chromosome,start,end)
+        # return loci within dummy locus coordinates
+        loci = self.within(upstream_region, partial=partial)
+        return (x for i,x in enumerate(loci) if i < n)
 
     def flanking_loci(
         self,
@@ -667,23 +680,6 @@ class RefLoci(Freezable):
         else:
             loci = [self._get_locus_by_LID(x) for (x,) in LIDS]
         return loci
-
-    def candidate_loci(
-        self,
-        locus,
-        window_size,
-        flank_limit,
-        chain=True,
-        include_parent_locus=False,
-        include_parent_attrs=False,
-        include_num_intervening=False,
-        include_rank_intervening=False,
-        include_num_siblings=False,
-        include_SNP_distance=False,
-        attrs=None,
-        return_table=False,
-    ):
-        pass
 
 #   def candidate_loci(
 #       # TODO 
@@ -949,6 +945,34 @@ class RefLoci(Freezable):
 #           return bootstraps
 
 
+    def _rtree_within(self, locus, partial=False):
+        '''
+            Implements the wihtin function using the R*Tree index
+            This method has the same functionality as RefLoci.within()
+            but just used a different SQLite approach. The within()
+            method appears to be faster, but I want to keep this
+            around in the commit history for a bit
+        '''
+        if partial == False:
+            LIDS = cur.execute('''
+                SELECT l.LID FROM positions p, primary_loci l 
+                WHERE p.chromosome = ? 
+                AND p.start > ? 
+                AND p.end < ?
+                AND p.LID = l.LID
+                ORDER BY p.start;
+            ''',(locus.chromosome,locus.start,locus.end))
+        else:
+            LIDS = cur.execute('''
+                SELECT l.LID FROM positions p, primary_loci l 
+                WHERE p.chromosome = ?
+                AND p.start < ? 
+                AND p.end > ?
+                AND p.LID = l.LID
+                ORDER BY p.start;
+            ''',(locus.chromosome,locus.end,locus.start))
+        yield from (self._get_locus_by_LID(x) for (x,) in LIDS)
+ 
 
     def _nuke_tables(self):
         cur = self._db.cursor()
@@ -997,6 +1021,8 @@ class RefLoci(Freezable):
         cur.execute('''
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
             CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
+            CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
+            CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
             CREATE INDEX IF NOT EXISTS locus_hash ON LOCI (hash);
             '''
         )
