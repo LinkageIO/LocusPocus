@@ -11,8 +11,8 @@ def test_get_item(testRefGen):
     assert random_locus == testRefGen[random_locus.id]
 
 def test_get_items_from_list(testRefGen):
-    random_loci = sorted(testRefGen.random_loci(n=10))
-    loci = sorted(testRefGen[[x.id for x in random_loci]])
+    random_loci = sorted(testRefGen.rand(n=10))
+    loci = sorted([testRefGen[x.name] for x in random_loci])
     assert set(random_loci) == set(loci)
 
 def test_lowercase_get_item(testRefGen):
