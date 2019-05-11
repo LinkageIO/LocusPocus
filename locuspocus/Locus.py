@@ -234,6 +234,25 @@ class Locus:
     def LID(self):
         return self._LID
 
+    @property
+    def stranded_start(self):
+        if self.strand == '+':
+            return min(self.coor)
+        elif self.strand == '-':
+            return max(self.coor)
+        else:
+            raise ValueError(f'Invalid Locus Strand: "{self.strand}"')
+
+    @property
+    def stranded_end(self):
+        if self.strand == '+':
+            return max(self.coor)
+        elif self.strand == '-':
+            return min(self.coor)
+        else:
+            raise ValueError(f'Invalid Locus Strand: "{self.strand}"')
+
+
     def __getitem__(self,item):
         if self.attrs is not None: 
             return self.attrs[item]
