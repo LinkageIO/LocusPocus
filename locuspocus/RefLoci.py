@@ -10,6 +10,7 @@ import numpy as np
 from minus80 import Freezable
 from collections.abc import Iterable
 from functools import lru_cache,wraps
+from contextlib import contextmanager
 
 from .Locus import Locus
 from .Exceptions import ZeroWindowError
@@ -401,6 +402,32 @@ class RefLoci(Freezable):
     def __iter__(self):
         return (self._get_locus_by_LID(l) for l in self._primary_LIDS())
 
+    @contextmanager
+    def filter_feature_type(self,feature_type):
+        '''
+        Switch primary feature types within a context block.
+        Useful for temporary switching in a with block.
+        
+        >>> ref = locuspocus.RefLoci('test')
+        >>> with ref.filter_feature_type('exon'):
+                ...
+                ... 'Do something with exons here'
+                ...
+        >>> 'primary type is now back to whatever it was before' 
+        '''
+        cur_lids = self._primary_LIDS()
+        self.set_primary_feature_type(feature_type,clear_previous=True)
+        yield
+        with self._bulk_transaction() as cur:
+            cur.execute('DELETE FROM primary_loci')
+            cur.executemany('''
+                INSERT INTO primary_loci (LID) 
+                VALUES (?)
+                ''', ((x,) for x in cur_lids)
+            )
+        # reset the LID cache here
+        self._primary_LIDS.cache_clear()
+
 
     @invalidates_primary_loci_cache
     def set_primary_feature_type(self,feature_type,clear_previous=True):
@@ -511,39 +538,82 @@ class RefLoci(Freezable):
         return root
 
     #@accepts_loci 
-    def within(self, locus, partial=False):
+    def within(
+        self, 
+        locus, 
+        partial=False, 
+        ignore_strand=False,
+        same_strand=False
+    ):
         '''
-        Returns the Loci that are within the input locus.
+        Returns the Loci that are within the start/stop boundaries
+        of an input locus.
+
         By default, the entire locus needs to be within the
         coordinates of the input locus, however, this can be
         toggled with the `partial` argument.
         
         NOTE: this loci are returned in order of 3' to 5'
-              based on the strand of the input locus
+              based on the strand of the input locus. This
+              bahavior can be changed by using the `ignore_strand` 
+              option.
+
+        __________________Ascii Example___________________________
+        These features get returned (y: yes, n:no)
 
         partial=False (default):
-              start           end
-        -------[***************]-------------
             nnnnn yyyy yyy   nnnnnnnnnnn    
-
         partial=True:
-              start           end
-        -------[***************]-------------
             yyyyy yyyy yyy   yyyyyyyyyyy    
+        __________________________________________________________
+
+              start           end
+        -------[===============]-------------
+
+        The loci will be returned based on the strand of the input
+        locus. The following numbers represent the indices in the 
+        generator returned by the method.
+
+        (+) stranded Locus (assume partial=True):
+              0    1    2       3
+            yyyyy yyyy yyy   yyyyyyyyyyy    
+
+        (-) stranded Locus (assume partial=True):
+              3    2    1       0
+            yyyyy yyyy yyy   yyyyyyyyyyy    
+        __________________________________________________________
 
         Parameters
         ----------
         locus : Locus
             A locus defining the genomic interval to 
             extract loci within.
-        partial : bool
+        partial : bool (default=False)
             When True, include loci that partially overlap.
-            See example above.
+            See example ASCII above.
+        ignore_strand : bool (default=False)
+            If ignore_strand is True, the method will
+            assume a (+) strand, otherwise it will 
+            respect the strand of the input locus
+            in relation to the order the resulting
+            Loci are returned. See Ascii example.
+            Note: this cannot be True if same_strand
+            is also set to True, an exception will be 
+            raised.
+        same_strand : bool (default: False)
+            If True, only Loci on the same strand
+            as the input locus will be returned,
+            otherwise, the method will return loci
+            on either strand. Note: this cannot be 
+            set if `ignore_strand` is also true. An
+            exception will be raised.
         '''
+        if ignore_strand and same_strand:
+            raise ValueError('`ignore_strand` and `same_strand` cannot both be True')
         # set up variables to use based on 'partial' flag
         cur = self._db.cursor()
         # Calculate the correct strand orientation
-        if locus.strand == '+':
+        if locus.strand == '+' or ignore_strand == True:
             if partial == False:
                 anchor = f'l.start > {locus.start} AND l.end < {locus.end}'
                 order = 'l.start ASC'
@@ -577,12 +647,20 @@ class RefLoci(Freezable):
             yield
         else:
             for x, in LIDS:
-                yield self._get_locus_by_LID(x) 
+                l = self._get_locus_by_LID(x) 
+                if same_strand == True and l.strand != locus.strand:
+                    continue
+                yield l
 
-       
-    @accepts_loci
+    #@accepts_loci
     def upstream_loci(
-        self, locus, n=np.inf, max_distance=np.inf, partial=False
+        self, 
+        locus, 
+        n=np.inf, 
+        max_distance=10e100, 
+        partial=False,
+        ignore_strand=False,
+        same_strand=False
     ):
         '''
             Find loci upstream of a locus.
@@ -590,41 +668,87 @@ class RefLoci(Freezable):
             Loci are ordered so that the nearest loci are
             at the beginning of the list.
 
-            NOTE: This respects the strand of the locus
+            NOTE: this respects the strand of the locus unless
+                  `ignore_strand` is set to True
+
+            __________________Ascii Example___________________________
+            These features get returned (y: yes, n:no)
 
             partial=False
             nnn  nnnnnnn   nnnnnn   yyyyy  nnnnnn nnnn nnnn nnnnnnnn
+
             partial=True
             nnn  nnnnnnn   yyyyyy   yyyyy  yyyyyy nnnn nnnn nnnnnnnn
+            __________________________________________________________
                                             
-                                           start             end
-                -----------------------------x++++++++++++++++x--
-                             <_______________| Window (upstream)
+            (+) stranded Locus:            start             end
+                -----------------------------[================]--
+                             <_______________| upstream
 
+            (-) stranded Locus:         
+            start          end
+             [===============]----------------------------------
+                   upstream  |_______________> 
+
+            __________________________________________________________
 
             Parameters
             ----------
                 locus : Locus object
                     The locus object for which to fetch the upstream
-                    loci
-                max_distance : float (default=np.inf)
+                    loci.
+                n : int (default: infinite)
+                    This maximum number of Loci to return. Note that
+                    there are cases where fewer loci will be available,
+                    e.g.: at the boundaries of chromosomes, in which
+                    case fewer loci will be returned.
+                max_distance : float (deflocus.stranded_startp.inf)
                     The maximum distance 
+                partial : bool (default: False)
+                    A flag indicating whether or not to return
+                    loci that are partially within the boundaries
+                    of the input Locus. See Ascii example above.
+                ignore_strand : bool (default: False)
+                    If True, the strand of the input locus
+                    will be ignored, and loci upstream on the 
+                    plus (+) strand will be returned.
+                same_strand : bool (default: False)
+                    If True, only Loci on the same strand
+                    as the input locus will be returned,
+                    otherwise, the method will return loci
+                    on either strand.
+
         '''
         # calculate the start and stop anchors 
-        start,end = sorted([locus.start, locus.upstream(max_distance)])
+        if ignore_strand:
+            start,end = max(0,(locus.start - max_distance)),locus.start
+        else:
+            start,end = sorted([locus.stranded_start, locus.upstream(max_distance)])
         # create a dummy locus
-        upstream_region = Locus(locus.chromosome,start,end)
+        upstream_strand = '+' if locus.strand == '-' else '-'
+        upstream_region = Locus(locus.chromosome,start,end,strand=upstream_strand)
         # return loci within dummy locus coordinates
-        loci = self.within(upstream_region, partial=partial)
+        loci = self.within(
+            upstream_region, 
+            partial=partial,
+            ignore_strand=False
+        )
         for i,x in enumerate(loci,start=1):
             if i > n:
                 break
+            if same_strand and x.strand != locus.strand:
+                continue
             yield x
-        #return (x for i,x in enumerate(loci) if i < n)
 
-    @accepts_loci
+    #@accepts_loci
     def downstream_loci(
-        self, locus, n=np.inf, max_distance=np.inf, partial=False
+        self, 
+        locus, 
+        n=np.inf, 
+        max_distance=10e100, 
+        partial=False,
+        ignore_strand=False,
+        same_strand=False
     ):
         '''
             Returns loci downstream of a locus. 
@@ -632,22 +756,72 @@ class RefLoci(Freezable):
             Loci are ordered so that the nearest loci are 
             at the beginning of the list.
 
-            NOTE: this respects the strand of the locus
+            NOTE: this respects the strand of the locus unless
+                  `ignore_strand` is set to True
             
-            partial=False (default)
-            nnn  nnnnnnn   nnn   nnnnn  yyyy  yyyyyy yyyy nnnnnn  nnnnn
+            __________________Ascii Example___________________________
+            These features get returned (y: yes, n:no)
+
+            partial=False
+            nnn  nnnnnnn   nnnnnn   yyyyy  nnnnnn nnnn nnnn nnnnnnnn
+
             partial=True
-            nnn  nnnnnnn   nnn   yyyyy  yyyy  yyyyyy yyyy yyyyyy  nnnnn
-               start             end
-              ---x****************x--------------------------------
-                                  |________________________^ Window (downstream)
+            nnn  nnnnnnn   yyyyyy   yyyyy  yyyyyy nnnn nnnn nnnnnnnn
+            __________________________________________________________
+                                            
+            (+) stranded Locus:         
+            start          end
+             [===============]----------------------------------
+                 downstream  |_______________> 
+
+            (-) stranded Locus:            start             end
+                -----------------------------[================]--
+                             <_______________| downstream
+
+            __________________________________________________________
+
+
+
+            Parameters
+            ----------
+                locus : Locus object
+                    The locus object for which to fetch the upstream
+                    loci.
+                n : int (default: infinite)
+                    This maximum number of Loci to return. Note that
+                    there are cases where fewer loci will be available,
+                    e.g.: at the boundaries of chromosomes, in which
+                    case fewer loci will be returned.
+                max_distance : float (deflocus.stranded_startp.inf)
+                    The maximum distance 
+                partial : bool (default: False)
+                    A flag indicating whether or not to return
+                    loci that are partially within the boundaries
+                    of the input Locus. See Ascii example above.
+                ignore_strand : bool (default: False)
+                    If True, the strand of the input locus
+                    will be ignored, and loci upstream on the 
+                    plus (+) strand will be returned.
+                same_strand : bool (default: False)
+                    If True, only Loci on the same strand
+                    as the input locus will be returned,
+                    otherwise, the method will return loci
+                    on either strand.
         '''
         # calculate the start and stop anchors 
-        start,end = sorted([locus.end, locus.downstream(max_distance)])
+        if ignore_strand:
+            start,end = locus.end, locus.end+max_distance
+        else:
+            start,end = sorted([locus.stranded_end, locus.downstream(max_distance)])
         # create a dummy locus
-        upstream_region = Locus(locus.chromosome,start,end)
+        downstream_region = Locus(locus.chromosome,start,end,strand=locus.strand)
         # return loci within dummy locus coordinates
-        loci = self.within(upstream_region, partial=partial)
+        loci = self.within(
+            downstream_region, 
+            partial=partial,
+            ignore_strand=True,
+            same_strand=same_strand
+        )
         for i,x in enumerate(loci,start=1):
             if i > n:
                 break
@@ -657,8 +831,10 @@ class RefLoci(Freezable):
         self,
         locus,
         n=np.inf,
-        max_distance=np.inf,
-        partial=False
+        max_distance=10e100,
+        partial=False,
+        ignore_strand=False,
+        same_strand=False
     ):
         '''
             This is a convenience method to return loci both upstream 
@@ -672,9 +848,22 @@ class RefLoci(Freezable):
             n : int (default=infinite)
                 
         '''
+        kwargs = {
+            'n':n,
+            'max_distance':max_distance,
+            'partial':partial,
+            'ignore_strand':ignore_strand,
+            'same_strand':same_strand
+        }
         return (
-            self.upstream_loci(locus,n=n,max_distance=max_distance,partial=partial),
-            self.downstream_loci(locus,n=n,max_distance=max_distance,partial=partial)
+            self.upstream_loci(
+                locus,
+                **kwargs
+            ),
+            self.downstream_loci(
+                locus,
+                **kwargs
+            )
         )
 
     def encompassing_loci(self, locus):
@@ -711,7 +900,7 @@ class RefLoci(Freezable):
         self,
         locus,
         nflank=2,
-        max_distance=np.inf,
+        max_distance=10e100,
         chain=True,
         # Advanced options
         include_parent_locus=False,
@@ -724,26 +913,39 @@ class RefLoci(Freezable):
         return_table=False
     ):
         '''
-            Locus to locus mapping. This method accepts an iterable of locus 
-            objects (loci) and 
-
+            Map surrounding loci to an input Locus. 
+            
             Return loci between locus start and stop, plus additional
-            flanking loci within window (up to flank_limit).
+            flanking loci within a maximum distance (up to flank_limit).
+            
+
+            __________________Ascii Example___________________________
+
+
+
+            __________________________________________________________
+            
 
             Parameters
             ----------
             loci : locuspocus.Locus (also handles an iterable containing Loci)
-                a locus or iterable of loci
-            flank_limit : int (default : 2)
-                The total number of flanking loci **on each side**
-                considered a candidate surrounding a locus
+                an input locus or iterable of locus objects
+            nflank : int (default : 2)
+                The max number of flanking loci **on each side**
+                returned surrounding a locus. I.e.,
+                if nflank is 2, up to two up and 2 down are returned.
+                Its possible fewer than the n specified are returned
+                if they are further than max distance.
+            max_distance : int (default: 10e100)
+                The maximum distance away from the start/stop
+                boundaries of the input locus.
             chain : bool (default : true)
-                Calls itertools chain on results before returning
-            window_size : int (default: None)
-                Optional parameter used to extend or shorten a locus
-                window from which to choose candidates from. If None,
-                the function will resort to what is available in the
-                window attribute of the Locus.
+                Calls itertools chain on results before returning,
+                Otherwise, returns a 3-tuple containng:
+                (upstream, within, downstream).
+
+            Advanced Options
+            ----------------
             include_parent_locus : bool (default: False)
                 Optional parameter which will update candidate loci
                 'attr' attribute with the id of the parent locus
@@ -783,69 +985,68 @@ class RefLoci(Freezable):
             a list of candidate loci (or list of lists if chain is False)
 
         '''
-        pass
-       ## make sure to convert generators to lists
-       #within = list(self.loci_within(locus,partial=False))
-       #up, down = map(list,self.flanking_loci(
-       #    locus, n=flank_limit, partial=True
-       #))
+        # make sure to convert generators to lists
+        within = list(self.loci_within(locus,partial=False))
+        up, down = map(list,self.flanking_loci(
+            locus, n=flank_limit, partial=True
+        ))
 
-       ## This always returns candidates together, if
-       ## you want specific up,within and down loci
-       ## use the specific methods
-       #candidates = sorted(up_loci+loci_within+down_loci))
-       #return candidates
-       ## include the number of effective loci
-       #if include_rank_intervening == True:
-       #    ranks = sp.stats.rankdata(
-       #        [abs(x.center_distance(locus)) for x in candidates]
-       #    )
-       ## Iterate through candidate loci and propagate the
-       ## parental info
-       #for i, cand in enumerate(candidates):
-       #    # include parent locus id if thats specified
-       #    if include_parent_locus == True:
-       #        cand.update({"parent_locus": locus.id})
-       #    if include_rank_intervening == True:
-       #        cand.update({"intervening_rank": ranks[i]})
-       #    # update all the parent_attrs
-       #    if include_parent_attrs and len(include_parent_attrs) > 0:
-       #        if "all" in include_parent_attrs:
-       #            include_parent_attrs = locus.attr.keys()
-       #        for attr in include_parent_attrs:
-       #            attr_name = "parent_{}".format(attr)
-       #            cand.update({attr_name: locus[attr]})
-       #if include_num_intervening == True:
-       #    num_down = 0
-       #    num_up = 0
-       #    # Sort the loci by their distance from the locus
-       #    cands_with_distances = [
-       #        (cand, abs(cand.center_distance(locus))) for cand in candidates
-       #    ]
-       #    cands_with_distances = sorted(cands_with_distances, key=lambda x: x[1])
-       #    for cand, distance in cands_with_distances:
-       #        if locus.within(cand):
-       #            cand.update({"num_intervening": -1})
-       #        elif cand.center >= locus.center:
-       #            cand.update({"num_intervening": num_down})
-       #            num_down += 1
-       #        elif cand.center <= locus.center:
-       #            cand.update({"num_intervening": num_up})
-       #            num_up += 1
-       #if include_num_siblings == True:
-       #    for cand in candidates:
-       #        cand.update({"num_siblings": len(candidates)})
-       #if include_SNP_distance == True:
-       #    for cand in candidates:
-       #        distance = abs(cand.center_distance(locus))
-       #        cand.update({"SNP_distance": distance})
-       #if attrs is not None:
-       #    for cand in candidates:
-       #        cand.update(attrs)
-       #if return_table == True:
-       #    candidates = pd.DataFrame([x.as_dict() for x in candidates])
-       #return candidates
-
+        # This always returns candidates together, if
+        # you want specific up,within and down loci
+        # use the specific methods
+        candidates = sorted(up_loci+loci_within+down_loci)
+        return candidates
+        # include the number of effective loci
+        if include_rank_intervening == True:
+            ranks = sp.stats.rankdata(
+                [abs(x.center_distance(locus)) for x in candidates]
+            )
+        # Iterate through candidate loci and propagate the
+        # parental info
+        for i, cand in enumerate(candidates):
+            # include parent locus id if thats specified
+            if include_parent_locus == True:
+                cand.update({"parent_locus": locus.id})
+            if include_rank_intervening == True:
+                cand.update({"intervening_rank": ranks[i]})
+            # update all the parent_attrs
+            if include_parent_attrs and len(include_parent_attrs) > 0:
+                if "all" in include_parent_attrs:
+                    include_parent_attrs = locus.attr.keys()
+                for attr in include_parent_attrs:
+                    attr_name = "parent_{}".format(attr)
+                    cand.update({attr_name: locus[attr]})
+        if include_num_intervening == True:
+            num_down = 0
+            num_up = 0
+            # Sort the loci by their distance from the locus
+            cands_with_distances = [
+                (cand, abs(cand.center_distance(locus))) for cand in candidates
+            ]
+            cands_with_distances = sorted(cands_with_distances, key=lambda x: x[1])
+            for cand, distance in cands_with_distances:
+                if locus.within(cand):
+                    cand.update({"num_intervening": -1})
+                elif cand.center >= locus.center:
+                    cand.update({"num_intervening": num_down})
+                    num_down += 1
+                elif cand.center <= locus.center:
+                    cand.update({"num_intervening": num_up})
+                    num_up += 1
+        if include_num_siblings == True:
+            for cand in candidates:
+                cand.update({"num_siblings": len(candidates)})
+        if include_SNP_distance == True:
+            for cand in candidates:
+                distance = abs(cand.center_distance(locus))
+                cand.update({"SNP_distance": distance})
+        if attrs is not None:
+            for cand in candidates:
+                 cand.update(attrs)
+        if return_table == True:
+            candidates = pd.DataFrame([x.as_dict() for x in candidates])
+        return candidates
+    
     def _rtree_within(self, locus, partial=False):
         '''
             Implements the wihtin function using the R*Tree index
@@ -924,6 +1125,7 @@ class RefLoci(Freezable):
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
             CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
             CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
+            CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
             CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
             CREATE INDEX IF NOT EXISTS locus_hash ON LOCI (hash);
             '''
