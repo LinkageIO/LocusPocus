@@ -1,294 +1,160 @@
 import pytest
 
-from locuspocus import Locus
+from locuspocus import Locus,RefLoci
+import minus80 as m80
 
 '''
     Unit tests
 '''
 
+
+def test_init(testRefGen):
+    assert testRefGen
+
+def test_primary_LIDS(testRefGen):
+    'make sure the internal _primary_LIDS method works'
+    with testRefGen.filter_feature_type('gene'):
+        assert len(testRefGen._primary_LIDS()) == 39656
+
+def test_len(testRefGen):
+    'quick check to make sure that the refgen reports the correct number of features'
+    with testRefGen.filter_feature_type('gene'):
+        assert len(testRefGen) == 39656
+
+def test_get_locus_by_LID(testRefGen):
+    'make sure that fetching a locus by its LID yields the same locus'
+    rand_locus = testRefGen.rand()
+    assert rand_locus == testRefGen._get_locus_by_LID(rand_locus._LID)
+
+def test_get_LID(testRefGen):
+    'Make sure that fetching a locus by LID returns the same locus'
+    x = testRefGen.rand()
+    assert testRefGen._get_LID(x) == x._LID
+
+def test_add_locus():
+    'add a locus to an empty refloci db and then retrieve it'
+    if m80.Tools.available('RefLoci','empty'):
+        m80.Tools.delete('RefLoci','empty',force=True)
+    empty = RefLoci('empty')
+    assert len(empty) == 0
+    empty.add_locus(Locus('1',1,1,feature_type='gene'))
+    assert len(empty) == 1
+    m80.Tools.delete('RefLoci','empty',force=True)
+
+def test_import_gff(testRefGen):
+    'test importing loci from a GFF file'
+    # as the testRefGen fixture is built from a GFF
+    # this will only pass if it is built
+    assert testRefGen
+
+def test_contains(testRefGen):
+    'get a random locus and then test it is in the RefLoci object'
+    assert testRefGen.rand() in testRefGen
+
 def test_get_item(testRefGen):
-    random_locus = testRefGen.rand()
-    assert random_locus == testRefGen[random_locus.id]
-
-def test_get_items_from_list(testRefGen):
-    random_loci = sorted(testRefGen.rand(n=10))
-    loci = sorted([testRefGen[x.name] for x in random_loci])
-    assert set(random_loci) == set(loci)
-
-def test_lowercase_get_item(testRefGen):
-    random_locus = testRefGen.rand()
-    name = random_locus.name
-    # Stupid mutability
-    name.lower()
-    assert random_locus == testRefGen[name]
-
-def test_loci_within(testRefGen):
-    random_locus = testRefGen.random_locus()
-    bigger_locus = Locus(
-        random_locus.chrom,
-        start=random_locus.start-100,
-        end=random_locus.end+100
-    )
-    genes = testRefGen.genes_within(bigger_locus)
-    assert random_locus in genes
-
-def test_locus_not_in_upstream_downstream(testRefGen):
     '''
-        Upstream and downstream should not include the gene of interest.
+        Get a random locus and then
+        retrieve that locus again
+        by its id
     '''
     random_locus = testRefGen.rand()
-    upstream = testRefGen.upstream_loci(
-        random_locus,window_size=50e5,locus_limit=5
-    )
-    downstream = testRefGen.downstream_loci(
-        random_locus,locus_limit=5,window_size=50e5
-    )
-    assert random_locus not in upstream
-    assert random_locus not in downstream
+    assert random_locus == testRefGen[random_locus.name]
 
-def test_upstream_downstream_loci(testRefGen):
-    '''
-        Take downstream of genes, then upstream genes of the 
-        last gene in downstream. Tests that returns the same interval 
-    '''
-    # Grab downstream genes of random genes
-    random_locus = testRefGen.random_locus()
-    # Grab 10 downstream genes
-    downstream_loci = testRefGen.downstream_loci(
-        random_locus,locus_limit=11,window_size=50e10
-    )
-    assert len(downstream_loci) == 11
-    # grab last gene
-    last_gene = downstream_loci.pop(-1)
-    # Grab upstream genes
-    upstream_loci = testRefGen.upstream_loci(
-        last_gene,locus_limit=10,window_size=50e10
-    )
-    assert sorted(downstream_loci) == sorted(upstream_loci)
+def test_iter(testRefGen):
+    'test that the iter interface works' 
+    i = 0
+    for locus in testRefGen:
+        i += 1
+    assert i == 39656
 
-def test_flanking_loci(testRefGen):
-    random_locus = testRefGen.random_locus()
-    downstream = testRefGen.downstream_loci(
-        random_locus, window_size=50e6, locus_limit=5
-    )
-    upstream = testRefGen.upstream_loci(
-        random_locus, window_size=50e6, locus_limit=5
-    )
-    flanking = testRefGen.flanking_loci(
-        random_locus, window_size=50e6, flank_limit=5
-    )
-    assert sorted(flanking) == sorted(upstream + downstream)
+def test_filter_feature_type_context_manager(testRefGen):
+    # Check to see we are in gene space
+    prev_len = len(testRefGen)
+    # temporarily conver to CDS
+    with testRefGen.filter_feature_type('CDS'):
+        assert len(testRefGen) == 292257
+    # assert we didn't need to do anything to switch back
+    assert len(testRefGen) == prev_len
 
-def test_flanking_loci_includes_within_loci_for_SNPS(testRefGen):
-    random_locus = testRefGen.random_locus()
-    # test snp
-    test_snp = Locus(random_locus.chrom,random_locus.start,window=50e5)
-    flanking = testRefGen.flanking_loci(test_snp)
-    assert random_locus not in flanking
+def test_set_primary_feature_type(testRefGen):
+    testRefGen.set_primary_feature_type('gene')
+    assert len(testRefGen) == 39656
+    testRefGen.set_primary_feature_type('CDS')
+    assert len(testRefGen) == 292257
+    # switch back to gene
+    testRefGen.set_primary_feature_type('gene')
+    assert len(testRefGen) == 39656
 
-def test_candidate_loci_from_SNP(testRefGen):
-    random_locus = testRefGen.random_locus()
-    # grab a bunch of downstream genes
-    down1,down2 = testRefGen.downstream_loci(
-        random_locus,locus_limit=2,window_size=50e6
-    )
-    # Create a Locus containing both down1 and down2
-    test_snp = Locus(
-        down1.chrom,
-        down1.start,
-        end=down2.end,
-        window=50e6
-    )
-    candidates = testRefGen.candidate_loci(
-        test_snp,flank_limit=5,chain=False
-    )
-    assert len(candidates) == 12 
+def test_rand(testRefGen):
+    'test instance type'
+    assert isinstance(testRefGen.rand(),Locus)
 
-def test_candidate_loci_from_gene_includes_gene(testRefGen):
-    random_locus = testRefGen.random_locus()
-    # grab a bunch of downstream genes
-    downstream = testRefGen.downstream_loci(
-        random_locus,locus_limit=10,window_size=50e6
-    )
-    # Create a Locus that is on gene 5
-    candidates = testRefGen.candidate_loci(
-        downstream[5],flank_limit=10,window_size=50e6
-    )
-    assert downstream[4] in candidates
+def test_rand_length(testRefGen):
+    'test the length of rand with n specified'
+    assert len(testRefGen.rand(n=100)) == 100 
 
-def test_non_chained_candidates(testRefGen):
-    random_loci = testRefGen.random_loci(n=10)
-    # Create a Locus that is on gene 5
-    candidates = testRefGen.candidate_loci(
-        random_loci,flank_limit=10,window_size=50e6,chain=False
-    )
-    # test that we got candidates for each random locus
-    assert len(candidates) == len(random_loci)
-   
+def test_rand_distinct(testRefGen):
+    assert len(testRefGen.rand(2000,distinct=True)) == 2000
 
-def test_flank_limit_for_candidate_loci(testRefGen):
-    random_locus = testRefGen.random_locus()
-    # Create a Locus that is on gene 5
-    candidates = testRefGen.candidate_loci(
-        random_locus,flank_limit=5,window_size=50e6,chain=True
-    )
-    assert len(candidates) == 11
+def test_rand_too_many(testRefGen):
+    try:
+        testRefGen.rand(100000)
+    except ValueError as e:
+        assert True
 
-def test_flank_limit_for_candidate_loci_from_SNP(testRefGen):
-    random_locus = testRefGen.random_locus()
-    downstream = testRefGen.downstream_loci(
-        random_locus,locus_limit=10,window_size=50e6
-    )
-    test_snp = Locus(downstream[5].chrom,downstream[5].start,window=50e6)
-    # Create a Locus that is on gene 5
-    candidates = testRefGen.candidate_loci(
-        test_snp,flank_limit=5,window_size=50e6
-    )
-    assert len(candidates) == 11
+def test_rand_no_autopop(testRefGen):
+    assert len(testRefGen.rand(1,autopop=False)) == 1
 
-def test_bootstrap_candidate_length_equal_from_SNP(testRefGen):
-    random_locus = testRefGen.random_locus()
-    test_snp = Locus(random_locus.chrom,random_locus.start,window=50e6)
-    candidates = testRefGen.candidate_loci(test_snp)
-    bootstraps = testRefGen.bootstrap_candidate_loci(test_snp)
-    assert len(candidates) == len(bootstraps)
-
-def test_bootstrap_candidate_length_equal_from_gene(testRefGen):
-    random_locus = testRefGen.random_locus()
-    candidates = testRefGen.candidate_loci(random_locus,window_size=5e10)
-    bootstraps = testRefGen.bootstrap_candidate_loci(random_locus,window_size=5e10)
-    assert len(candidates) == len(bootstraps)
-
-def test_refgen_length(testRefGen):
-    # grab length from sqlite 
-    from_sql = testRefGen._db.cursor().execute('''
-        SELECT COUNT(*) FROM loci;
-    ''').fetchone()[0]
-    assert from_sql == len(testRefGen)
-
-def test_random_loci_returns_correct_n(testRefGen):
-    assert len(testRefGen.random_loci(n=50)) == 50
-
-# New Tests
-
-def test_add_loci(simpleRefLoci):
-    new_locus = Locus(1,100,300,id='new_locus')
-    simpleRefLoci.add_loci(new_locus)
-    assert new_locus in simpleRefLoci
-
-def test_removie_locus(simpleRefLoci):
-    new_locus = Locus(1,100,300,id='new_locus')
-    if new_locus not in simpleRefLoci:
-        simpleRefLoci.add_locus(new_locus)
-    assert new_locus in simpleRefLoci
-    simpleRefLoci.remove_locus(new_locus.id)
-    assert new_locus not in simpleRefLoci
-
-def test_add_gff(testRefGen):
-    assert len(testRefGen) > 0
-
-def test_len(simpleRefLoci):
-    assert isinstance(len(simpleRefLoci),int)
-
-def test_num_loci(simpleRefLoci):
-    assert isinstance(simpleRefLoci.num_loci(),int)
-
-def test_random_locus(simpleRefLoci):
-    assert isinstance(simpleRefLoci.random_locus(),Locus)
-
-def test_random_loci(simpleRefLoci):
-    loci = simpleRefLoci.random_loci(n=3)
-    assert len(loci) == 3
-    for x in loci:
-        assert isinstance(x,Locus)
-
-def test_iter_loci(simpleRefLoci):
-    for x in simpleRefLoci.iter_loci():
-        assert isinstance(x,Locus)
-
-def test_intersection():
-    pass
-
-def test_from_id(simpleRefLoci):
-    locus = simpleRefLoci.get_locus_from_id('gene_a')
-    assert locus.id in simpleRefLoci
-    assert isinstance(locus,Locus)
-
-#def test_get_loci_from_ids(simpleRefLoci):
-#    loci = simpleRefLoci.get_loci_from_ids(['gene_a','gene_b','gene_c'])
-#    assert len(loci) == 3
-
-def test_get_item(simpleRefLoci):
-    assert isinstance(simpleRefLoci['gene_a'],Locus)
-
-def test_encompassing_loci(simpleRefLoci):
-    pass
-
-def test_loci_within(simpleRefLoci):
-    pass
-
-def test_upstream_loci(simpleRefLoci):
-    pass
-
-def test_downstream_loci(simpleRefLoci):
-    pass
-
-def test_flanking_loci(simpleRefLoci):
-    pass
-
-def test_candidate_loci(simpleRefLoci):
-    pass
-
-def test_bootstrap_candidate_loci(simpleRefLoci):
-    pass
-
-def test_pairwise_distance(simpleRefLoci):
-    pass
-
-def test_contains(simpleRefLoci):
-    assert 'gene_a' in simpleRefLoci 
-
-def test_add_alias(simpleRefLoci):
-    simpleRefLoci._remove_aliases()
-    assert 'alias_1' not in simpleRefLoci
-    simpleRefLoci.add_alias('gene_a','alias_1')
-    assert 'alias_1' in simpleRefLoci
-
-def test_num_aliases(simpleRefLoci):
-    simpleRefLoci._remove_aliases()
-    simpleRefLoci.add_alias('gene_a','alias_1')
-    assert simpleRefLoci.num_aliases() == 1
-    simpleRefLoci._remove_aliases()
-
-def test_aliases(simpleRefLoci):
-    simpleRefLoci._remove_aliases()
-    simpleRefLoci.add_alias('gene_a','alias_1')
-    x = simpleRefLoci['alias_1']
-    assert x.id == 'gene_a'
-    simpleRefLoci._remove_aliases()
-
-def test_remove_aliases(simpleRefLoci):
-    simpleRefLoci._remove_aliases()
-    assert simpleRefLoci.num_aliases() == 0
-
-def test_has_annotations():
-    pass
-
-def test_export_annotations():
-    pass
-
-def test_add_annotations():
-    pass
-
-def test_remove_annotations():
-    pass
-
-def test_get_attrs(simpleRefLoci):
-    nLocus = Locus(1,2,3,'nLocus',foo="bar",baz="bat")
-    simpleRefLoci.add_locus(nLocus)
-    del nLocus
-    nLocus = simpleRefLoci['nLocus']
-    assert nLocus['foo'] == 'bar'
-    assert nLocus['baz'] == 'bat'
+# The first 4 genes on chromosome 9
+# 1       ensembl gene    4854    9652    .       -       .       ID=GRMZM2G059865;Name=GRMZM2G059865;biotype=protein_coding
+# 1       ensembl gene    9882    10387   .       -       .       ID=GRMZM5G888250;Name=GRMZM5G888250;biotype=protein_coding
+# 1       ensembl gene    109519  111769  .       -       .       ID=GRMZM2G093344;Name=GRMZM2G093344;biotype=protein_coding
+# 1       ensembl gene    136307  138929  .       +       .       ID=GRMZM2G093399;Name=GRMZM2G093399;biotype=protein_coding
 
 
+def test_within(testRefGen):
+    'simple within to get chromosomal segment'
+    assert len(list(testRefGen.within(Locus('1',1,139000),partial=False))) == 4
+
+def test_within_partial_false(testRefGen):
+    'put the locus boundaries within gene [1] and [4] and exclude them with partial'
+    assert len(list(testRefGen.within(Locus('1',6000,137000),partial=False))) == 2
+
+def test_within_partial_true(testRefGen):
+    'put the locus boundaries within gene [1] and [4] and exclude them with partial'
+    assert len(list(testRefGen.within(Locus('1',6000,137000),partial=True))) == 4
+
+def test_within_same_strand(testRefGen):
+    'test fetching loci only on the same strand'
+    assert len(list(testRefGen.within(Locus('1',1,139000,strand='+'),partial=True,same_strand=True))) == 1
+
+def test_within_same_strand_minus(testRefGen):
+    'test fetching loci only on the same strand'
+    assert len(list(testRefGen.within(Locus('1',1,139000,strand='-'),partial=True,same_strand=True))) == 3
+
+def test_within_strand_order(testRefGen):
+    # should return the locus at the beginning of the chromosome 
+    loci = list(testRefGen.within(Locus('1',1,139000,strand='+')))
+    assert loci[0].start == 4854
+
+def test_within_strand_order_minus(testRefGen):
+    # should return fourth gene first 
+    loci = list(testRefGen.within(Locus('1',1,139000,strand='-')))
+    assert loci[0].start == 136307
+
+def test_within_strand_order_minus(testRefGen):
+    # should return first gene since we ignore the strand 
+    loci = list(testRefGen.within(Locus('1',1,139000,strand='-'),ignore_strand=True))
+    assert loci[0].start == 4854
+
+def test_within_error_on_both_same_strand_and_ignore_strand(testRefGen):
+    try:
+        testRefGen.within(Locus('1',1,139000,strand='-'),ignore_strand=True,same_strand=True)
+    except ValueError as e:
+        assert True
+
+def test_upstream(testRefGen):
+    l = [x.name for x in testRefGen.upstream_loci(testRefGen['GRMZM2G093399'],n=3)]
+    assert l[0] == 'GRMZM2G093344'
+    assert l[1] == 'GRMZM5G888250'
+    assert l[2] == 'GRMZM2G059865'
