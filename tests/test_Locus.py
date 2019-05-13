@@ -55,8 +55,24 @@ def test_default_getitem(simple_Locus):
 def test_start(simple_Locus):
     assert simple_Locus.start == 100
 
+def test_plus_stranded_start():
+    l = Locus('1',1,100,strand='+')
+    assert l.stranded_start == 1 
+
+def test_minus_stranded_start():
+    l = Locus('1',1,100,strand='-')
+    assert l.stranded_start == 100 
+
 def test_end(simple_Locus):
     assert simple_Locus.end == 200
+
+def test_plus_stranded_end():
+    l = Locus('1',1,100,strand='+')
+    assert l.stranded_end == 100 
+
+def test_minus_stranded_end():
+    l = Locus('1',1,100,strand='-')
+    assert l.stranded_end == 1 
 
 def test_coor(simple_Locus):
     assert simple_Locus.coor == (100, 200)
