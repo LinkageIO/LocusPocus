@@ -13,7 +13,7 @@ from functools import lru_cache,wraps
 from contextlib import contextmanager
 
 from .Locus import Locus
-from .Exceptions import ZeroWindowError
+from .Exceptions import ZeroWindowError,MissingLocusError,StrandError
 
 __all__ = ['RefLoci']
 
@@ -112,7 +112,7 @@ class RefLoci(Freezable):
 
         Raises
         ------
-        `TypeError` if there is no Locus in the database with that LID.
+        `MissingLocusError` if there is no Locus in the database with that LID.
         '''
         try:
             cur = self._db.cursor()
@@ -140,7 +140,7 @@ class RefLoci(Freezable):
             )
             return locus
         except TypeError as e:
-            raise ValueError(f'There is no locus in the database with LID of {LID}')
+            raise MissingLocusError(e,f'{LID}')
 
     def _get_LID(self,locus: Locus) -> int:
         '''
@@ -165,7 +165,7 @@ class RefLoci(Freezable):
                 (locus,)
             ).fetchone()
             if result is None:
-                raise ValueError('Locus not in database!')
+                raise MissingLocusError
             else:
                 LID = result[0]
         else:
@@ -177,20 +177,21 @@ class RefLoci(Freezable):
             ]
             # If the hash is not in the db, there is no LID
             if len(possible_lids) == 0:
-                raise ValueError('Locus not in database!')
+                raise MissingLocusError
             # If there is one possible hash, return the LID
             elif len(possible_lids) == 1:
                 LID = possible_lids[0]
             # Iterate through the loci and find the right one
-            else:
+            else: #pragma: no cover
+                # TODO: Write a test for this case
                 LID = None
                 for lid in possible_lids:
                     loc = self._get_locus_by_LID(lid)
                     if locus == loc:
                         LID = lid
                         break
-                if LID is None:
-                    raise ValueError(f"NO LID for locus {locus}")
+                if LID is None: 
+                    raise MissingLocusError
         return LID
 
     @invalidates_primary_loci_cache
@@ -226,7 +227,8 @@ class RefLoci(Freezable):
         )
         # get the fresh LID
         (LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
-        if LID is None:
+        if LID is None: #pragma: no cover
+            # I dont know hwen this would happen without another exception being thrown
             raise ValueError(f"{locus} was not assigned a valid LID!")
         # Add the key val pairs
         for key,val in attrs.items():
@@ -270,7 +272,7 @@ class RefLoci(Freezable):
         ID_attr="ID", 
         parent_attr='Parent',
         attr_split="="
-    ) -> None:
+    ) -> None: #pragma: no cover
         '''
             Imports RefLoci from a gff (General Feature Format) file.
             See more about the format here:
@@ -389,7 +391,7 @@ class RefLoci(Freezable):
             # If we can get an LID, it exists
             LID = self._get_LID(locus)
             return True
-        except ValueError as e:
+        except MissingLocusError as e:
             return False
 
     def __getitem__(self, item):
@@ -484,7 +486,7 @@ class RefLoci(Freezable):
             try:
                 rand_LID = random.choice(LIDS) 
                 loci.add(self._get_locus_by_LID(rand_LID))
-            except ValueError as e:
+            except MissingLocusError as e: #pragma: no cover
                 self.log.info(f'hit a tombstone! LID {rand_LID}')
                 continue
         loci = list(loci)
@@ -492,7 +494,7 @@ class RefLoci(Freezable):
             loci = loci[0]
         return loci
 
-    def feature_types(self, print_tree=True):
+    def feature_types(self, print_tree=True): #pragma: no cover
         '''
         Returns a summary of the feature types represented in 
         the RefLoci database
@@ -537,7 +539,7 @@ class RefLoci(Freezable):
             print(RenderTree(root))
         return root
 
-    #@accepts_loci 
+    @accepts_loci 
     def within(
         self, 
         locus, 
@@ -632,7 +634,7 @@ class RefLoci(Freezable):
                 order = 'l.start DESC'
                 index = 'locus_start'
         else:
-            raise ValueError(f'The input locus had an invalid strand: {locus.strand}')
+            raise StrandError
         query = f'''
             SELECT l.LID FROM primary_loci p, loci l 
             INDEXED BY {index} 
@@ -642,25 +644,21 @@ class RefLoci(Freezable):
             ORDER BY {order}; 
         '''
         LIDS = cur.execute(query)
-        # if the query is empty, yield nothing  
-        if LIDS is None:
-            yield
-        else:
-            for x, in LIDS:
-                l = self._get_locus_by_LID(x) 
-                if same_strand == True and l.strand != locus.strand:
-                    continue
-                yield l
+        for x, in LIDS:
+            l = self._get_locus_by_LID(x) 
+            if same_strand == True and l.strand != locus.strand:
+                continue
+            yield l
 
-    #@accepts_loci
+    @accepts_loci
     def upstream_loci(
         self, 
         locus, 
         n=np.inf, 
         max_distance=10e100, 
         partial=False,
-        ignore_strand=False,
-        same_strand=False
+        same_strand=False,
+        force_strand=None
     ):
         '''
             Find loci upstream of a locus.
@@ -669,7 +667,7 @@ class RefLoci(Freezable):
             at the beginning of the list.
 
             NOTE: this respects the strand of the locus unless
-                  `ignore_strand` is set to True
+                  `force_strand` is set.
 
             __________________Ascii Example___________________________
             These features get returned (y: yes, n:no)
@@ -708,39 +706,37 @@ class RefLoci(Freezable):
                     A flag indicating whether or not to return
                     loci that are partially within the boundaries
                     of the input Locus. See Ascii example above.
-                ignore_strand : bool (default: False)
-                    If True, the strand of the input locus
-                    will be ignored, and loci upstream on the 
-                    plus (+) strand will be returned.
                 same_strand : bool (default: False)
                     If True, only Loci on the same strand
                     as the input locus will be returned,
                     otherwise, the method will return loci
                     on either strand.
-
         '''
         # calculate the start and stop anchors 
-        if ignore_strand:
-            start,end = max(0,(locus.start - max_distance)),locus.start
-        else:
-            start,end = sorted([locus.stranded_start, locus.upstream(max_distance)])
+        start,end = sorted([locus.stranded_start, locus.upstream(max_distance)])
+        # The dummy locus needs to have the opposite "strand" so the loci
+        # are returned in the correct order
+        dummy_strand = '+' if locus.strand == '-' else '-'
         # create a dummy locus
-        upstream_strand = '+' if locus.strand == '-' else '-'
-        upstream_region = Locus(locus.chromosome,start,end,strand=upstream_strand)
+        upstream_region = Locus(locus.chromosome,start,end,strand=dummy_strand)
         # return loci within dummy locus coordinates
         loci = self.within(
             upstream_region, 
-            partial=partial,
-            ignore_strand=False
+            partial=partial
         )
-        for i,x in enumerate(loci,start=1):
+        # Keep track of how many values have been yielded 
+        i = 1
+        for x in loci:
+            # If we've yielded enough values, stop
             if i > n:
                 break
+            # Check to see if if we should filter loci
             if same_strand and x.strand != locus.strand:
                 continue
             yield x
+            i+=1
 
-    #@accepts_loci
+    @accepts_loci
     def downstream_loci(
         self, 
         locus, 
@@ -798,10 +794,6 @@ class RefLoci(Freezable):
                     A flag indicating whether or not to return
                     loci that are partially within the boundaries
                     of the input Locus. See Ascii example above.
-                ignore_strand : bool (default: False)
-                    If True, the strand of the input locus
-                    will be ignored, and loci upstream on the 
-                    plus (+) strand will be returned.
                 same_strand : bool (default: False)
                     If True, only Loci on the same strand
                     as the input locus will be returned,
@@ -809,23 +801,28 @@ class RefLoci(Freezable):
                     on either strand.
         '''
         # calculate the start and stop anchors 
-        if ignore_strand:
-            start,end = locus.end, locus.end+max_distance
-        else:
-            start,end = sorted([locus.stranded_end, locus.downstream(max_distance)])
+        start,end = sorted([locus.stranded_end, locus.downstream(max_distance)])
+        # The dummy locus needs to have the same strand so that
+        # are returned in the correct order
+        dummy_strand = '+' if locus.strand == '+' else '-'
         # create a dummy locus
-        downstream_region = Locus(locus.chromosome,start,end,strand=locus.strand)
+        downstream_region = Locus(locus.chromosome,start,end,strand=dummy_strand)
         # return loci within dummy locus coordinates
         loci = self.within(
             downstream_region, 
-            partial=partial,
-            ignore_strand=True,
-            same_strand=same_strand
+            partial=partial
         )
-        for i,x in enumerate(loci,start=1):
+        # Keep track of how many values have been yielded 
+        i = 1
+        for x in loci:
+            # If we've yielded enough values, stop
             if i > n:
                 break
+            # Check to see if if we should filter loci
+            if same_strand and x.strand != locus.strand:
+                continue
             yield x
+            i+=1
 
     def flanking_loci(
         self,
@@ -833,7 +830,6 @@ class RefLoci(Freezable):
         n=np.inf,
         max_distance=10e100,
         partial=False,
-        ignore_strand=False,
         same_strand=False
     ):
         '''
@@ -852,7 +848,6 @@ class RefLoci(Freezable):
             'n':n,
             'max_distance':max_distance,
             'partial':partial,
-            'ignore_strand':ignore_strand,
             'same_strand':same_strand
         }
         return (
@@ -890,11 +885,8 @@ class RefLoci(Freezable):
             AND p.end > ?
             AND p.LID = l.LID
         ''',(locus.chromosome,locus.start,locus.end))
-        if LIDS is None:
-            loci = []
-        else:
-            loci = [self._get_locus_by_LID(x) for (x,) in LIDS]
-        return loci
+        for x, in LIDS:
+            yield self._get_locus_by_LID(x) 
 
     def candidate_loci(
         self,
@@ -911,7 +903,7 @@ class RefLoci(Freezable):
         include_SNP_distance=False,
         attrs=None,
         return_table=False
-    ):
+    ): #pragma: no cover
         '''
             Map surrounding loci to an input Locus. 
             
@@ -1047,7 +1039,7 @@ class RefLoci(Freezable):
             candidates = pd.DataFrame([x.as_dict() for x in candidates])
         return candidates
     
-    def _rtree_within(self, locus, partial=False):
+    def _rtree_within(self, locus, partial=False): #pragma: no cover
         '''
             Implements the wihtin function using the R*Tree index
             This method has the same functionality as RefLoci.within()
@@ -1077,6 +1069,7 @@ class RefLoci(Freezable):
         yield from (self._get_locus_by_LID(x) for (x,) in LIDS)
  
 
+    @invalidates_primary_loci_cache
     def _nuke_tables(self):
         cur = self._db.cursor()
         cur.execute(
