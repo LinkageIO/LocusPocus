@@ -35,7 +35,7 @@ def test_frozen(simple_Locus):
         # This should throw an exception
         simple_Locus.chromosome = 2
     except Exception as e:
-        return True
+        assert True
 
 
 def test_setitem(simple_Locus):
@@ -142,3 +142,97 @@ def test_repr(simple_Locus):
 def test_hash(simple_Locus):
     assert hash(simple_Locus) == 1470741785701407904
 
+def test_subloci_getitem_db_backed(testRefGen):
+    x = testRefGen['GRMZM2G176595']
+    assert x.subloci[0].name == 'GRMZM2G176595_T01'
+
+def test_subloci_getitem():
+    x = Locus('1',1,2)
+    y = Locus('1',3,4,name='sublocus')
+    x.add_sublocus(y)
+    assert x.subloci[0].name == 'sublocus'
+
+def test_subloci_iter(testRefGen):
+    x = Locus('1',1,2)
+    y = Locus('1',3,4,name='sublocus1')
+    z = Locus('1',3,4,name='sublocus2')
+
+    x.add_sublocus(y)
+    x.add_sublocus(z)
+    for sub in x.subloci:
+        assert sub.chromosome == '1' 
+
+def test_subloci_iter_db_backed(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    for sub in x.subloci:
+        assert sub.feature_type == 'mRNA'
+
+def test_subloci_len_db_backed(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    assert len(x.subloci) == 3
+
+def test_subloci_len():
+    x = Locus('1',1,2)
+    y = Locus('1',3,4,name='sublocus1')
+    z = Locus('1',3,4,name='sublocus2')
+
+    x.add_sublocus(y)
+    x.add_sublocus(z)
+    assert len(x.subloci) == 2
+
+def test_no_append_db_backed_subloci(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    with pytest.raises(ValueError):
+        x.subloci.append(0)
+
+def test_attrs_dbgetitem_on_non_db_backed(testRefGen):
+    x = Locus('1',3,4,attrs={'foo':'locus1'})
+    with pytest.raises(ValueError):
+        x.attrs._db_getitem('foo')
+
+def test_attrs_dbgetitem(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    assert x.attrs['Name'] == 'GRMZM2G008687' 
+
+def test_attrs_dbgetitem_not_there(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    with pytest.raises(KeyError):
+        assert x.attrs['NO'] 
+
+def test_attrs_cannot_set_item(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    with pytest.raises(ValueError):
+        x.attrs['foo'] = 'bar'
+
+def test_attrs_keys_method_db_backed(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    assert sorted(x.attrs.keys()) == ['ID', 'Name', 'biotype']
+
+def test_attrs_keys_method(testRefGen):
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert sorted(x.attrs.keys()) == ['bar','foo']
+
+def test_attrs_keys_method_empty(testRefGen):
+    x = Locus('1',3,4,attrs={})
+    assert len(list(x.attrs.keys())) == 0
+
+
+def test_attrs_vals_method_db_backed(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    assert len(sorted(x.attrs.values())) == 3
+
+def test_attrs_vals_method(testRefGen):
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert len(sorted(x.attrs.values())) == 2
+
+def test_attrs_vals_method_empty(testRefGen):
+    x = Locus('1',3,4,attrs={})
+    assert len(list(x.attrs.values())) == 0
+
+def test_attrs_items_db_backed(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    assert len(sorted(x.attrs.items())) == 3
+
+def test_attrs_items(testRefGen):
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert len(sorted(x.attrs.items())) == 2
