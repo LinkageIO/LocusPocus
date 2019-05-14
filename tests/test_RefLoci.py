@@ -1,6 +1,8 @@
 import pytest
 
 from locuspocus import Locus,RefLoci
+from locuspocus.Exceptions import *
+
 import minus80 as m80
 
 '''
@@ -26,10 +28,34 @@ def test_get_locus_by_LID(testRefGen):
     rand_locus = testRefGen.rand()
     assert rand_locus == testRefGen._get_locus_by_LID(rand_locus._LID)
 
+def test_get_locus_by_LID_missing(testRefGen):
+    'make sure that fetching a locus by its LID yields the same locus'
+    with pytest.raises(MissingLocusError):
+        testRefGen._get_locus_by_LID(-1)
+
+#def test_get_locus_by_LID_hash_collision(testRefGen):
+#    # This locus has a known collision
+#    x = Locus(
+#        '1',276326656,276326741,source='ensembl',feature_type='intron',strand='+',
+#        attrs={'Name': 'intron.198641', 'Parent': 'GRMZM2G017186_T13'}
+#    )
+#    LID = testRefGen._get_LID(x)
+#    assert True
+
 def test_get_LID(testRefGen):
     'Make sure that fetching a locus by LID returns the same locus'
     x = testRefGen.rand()
     assert testRefGen._get_LID(x) == x._LID
+
+def test_get_LID_missing(testRefGen):
+    'Make sure that fetching a locus by LID returns the same locus'
+    with pytest.raises(MissingLocusError):
+        assert testRefGen._get_LID(Locus('na',1,1))
+
+def test_get_LID_from_name_missing(testRefGen):
+    'Make sure that fetching a locus by LID returns the same locus'
+    with pytest.raises(MissingLocusError):
+        assert testRefGen._get_LID('DoesNotExist')
 
 def test_add_locus():
     'add a locus to an empty refloci db and then retrieve it'
@@ -37,9 +63,54 @@ def test_add_locus():
         m80.Tools.delete('RefLoci','empty',force=True)
     empty = RefLoci('empty')
     assert len(empty) == 0
-    empty.add_locus(Locus('1',1,1,feature_type='gene'))
+    empty.add_locus(Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'}))
     assert len(empty) == 1
     m80.Tools.delete('RefLoci','empty',force=True)
+
+def test_add_locus_with_attrs():
+    'add a locus to an empty refloci db and then retrieve it'
+    if m80.Tools.available('RefLoci','empty'):
+        m80.Tools.delete('RefLoci','empty',force=True)
+    empty = RefLoci('empty')
+    assert len(empty) == 0
+    LID = empty.add_locus(Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'}))
+    assert len(empty) == 1
+    l = empty._get_locus_by_LID(LID)
+    assert l['foo'] == 'bar'
+    m80.Tools.delete('RefLoci','empty',force=True)
+
+def test_nuke_tables():
+    'add a locus to an empty refloci db and then retrieve it'
+    if m80.Tools.available('RefLoci','empty'):
+        m80.Tools.delete('RefLoci','empty',force=True)
+    empty = RefLoci('empty')
+    assert len(empty) == 0
+    x = Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'})
+    y = Locus('1',2,2,feature_type='exon',attrs={'baz':'bat'})
+    x.add_sublocus(y)
+    LID = empty.add_locus(x)
+    assert len(empty) == 1
+    empty._nuke_tables()
+    assert len(empty) == 0
+    m80.Tools.delete('RefLoci','empty',force=True)
+
+
+def test_add_locus_with_subloci():
+    'add a locus to an empty refloci db and then retrieve it'
+    if m80.Tools.available('RefLoci','empty'):
+        m80.Tools.delete('RefLoci','empty',force=True)
+    empty = RefLoci('empty')
+    assert len(empty) == 0
+    x = Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'})
+    y = Locus('1',2,2,feature_type='exon',attrs={'baz':'bat'})
+    x.add_sublocus(y)
+    LID = empty.add_locus(x)
+    assert len(empty) == 1
+    l = empty._get_locus_by_LID(LID)
+    assert l['foo'] == 'bar'
+    assert len(l.subloci) == 1
+    m80.Tools.delete('RefLoci','empty',force=True)
+
 
 def test_import_gff(testRefGen):
     'test importing loci from a GFF file'
@@ -47,9 +118,12 @@ def test_import_gff(testRefGen):
     # this will only pass if it is built
     assert testRefGen
 
-def test_contains(testRefGen):
+def test_contains_true(testRefGen):
     'get a random locus and then test it is in the RefLoci object'
     assert testRefGen.rand() in testRefGen
+
+def test_contains_false(testRefGen):
+    assert ('NO' in testRefGen) is False
 
 def test_get_item(testRefGen):
     '''
@@ -111,10 +185,18 @@ def test_rand_no_autopop(testRefGen):
 # 1       ensembl gene    109519  111769  .       -       .       ID=GRMZM2G093344;Name=GRMZM2G093344;biotype=protein_coding
 # 1       ensembl gene    136307  138929  .       +       .       ID=GRMZM2G093399;Name=GRMZM2G093399;biotype=protein_coding
 
-
 def test_within(testRefGen):
     'simple within to get chromosomal segment'
     assert len(list(testRefGen.within(Locus('1',1,139000),partial=False))) == 4
+
+def test_within_bad_strand(testRefGen):
+    'simple within to get chromosomal segment'
+    with pytest.raises(StrandError):
+        assert len(list(testRefGen.within(Locus('1',1,139000,strand='='),partial=False))) == 4
+
+def test_within_yields_nothing(testRefGen):
+    l = Locus('0',1,1,strand='+')
+    assert len(list(testRefGen.within(l,partial=False))) == 0
 
 def test_within_partial_false(testRefGen):
     'put the locus boundaries within gene [1] and [4] and exclude them with partial'
@@ -127,6 +209,11 @@ def test_within_partial_true(testRefGen):
 def test_within_same_strand(testRefGen):
     'test fetching loci only on the same strand'
     assert len(list(testRefGen.within(Locus('1',1,139000,strand='+'),partial=True,same_strand=True))) == 1
+
+def test_within_same_strand_and_ignore_strand(testRefGen):
+    'test fetching loci only on the same strand'
+    with pytest.raises(ValueError):
+        list(testRefGen.within(Locus('1',1,139000,strand='+'),ignore_strand=True,same_strand=True))
 
 def test_within_same_strand_minus(testRefGen):
     'test fetching loci only on the same strand'
@@ -142,19 +229,76 @@ def test_within_strand_order_minus(testRefGen):
     loci = list(testRefGen.within(Locus('1',1,139000,strand='-')))
     assert loci[0].start == 136307
 
-def test_within_strand_order_minus(testRefGen):
-    # should return first gene since we ignore the strand 
-    loci = list(testRefGen.within(Locus('1',1,139000,strand='-'),ignore_strand=True))
-    assert loci[0].start == 4854
-
 def test_within_error_on_both_same_strand_and_ignore_strand(testRefGen):
     try:
         testRefGen.within(Locus('1',1,139000,strand='-'),ignore_strand=True,same_strand=True)
     except ValueError as e:
         assert True
 
-def test_upstream(testRefGen):
-    l = [x.name for x in testRefGen.upstream_loci(testRefGen['GRMZM2G093399'],n=3)]
+def test_upstream_plus_strand(testRefGen):
+    # Below is GRMZM2G093399, but on the minus strand
+    x = Locus('1',136307,138929)
+    l = [x.name for x in testRefGen.upstream_loci(x,n=3)]
     assert l[0] == 'GRMZM2G093344'
     assert l[1] == 'GRMZM5G888250'
     assert l[2] == 'GRMZM2G059865'
+
+def test_upstream_minus_strand(testRefGen):
+    x = testRefGen['GRMZM5G888250']
+    l = [x.name for x in testRefGen.upstream_loci(x,n=2)]
+    assert l[0] == 'GRMZM2G093344'
+    assert l[1] == 'GRMZM2G093399'
+
+def test_upstream_accepts_loci(testRefGen):
+    loci = [testRefGen['GRMZM2G093399'],testRefGen['GRMZM2G093399']]
+    l1,l2 = map(list,testRefGen.upstream_loci(loci,n=2))
+    assert len(l1) == 2
+    assert len(l2) == 2
+
+def test_upstream_same_strand(testRefGen):
+    x = testRefGen['GRMZM5G888250']
+    for x in testRefGen.upstream_loci(x,n=5,same_strand=True):
+        assert x.strand == '-'
+
+def test_upstream_limit_n(testRefGen):
+    g = testRefGen.upstream_loci(testRefGen['GRMZM2G093399'],n=2)
+    assert len(list(g)) == 2
+
+def test_upstream_filter_same_strand(testRefGen):
+    g = testRefGen.upstream_loci(testRefGen['GRMZM2G093399'],n=3,same_strand=True)
+    assert len(list(g)) == 0
+
+def test_downstream(testRefGen):
+    l = [x.name for x in testRefGen.downstream_loci(Locus('1',4854,9652),n=3)]
+    assert l[0] == 'GRMZM5G888250'
+    assert l[1] == 'GRMZM2G093344'
+    assert l[2] == 'GRMZM2G093399'
+
+def test_downstream_accepts_loci(testRefGen):
+    x = Locus('1',4854,9652)
+    loci = [x,x]
+    l1,l2 = map(list,testRefGen.downstream_loci(loci,n=2))
+    assert len(l1) == 2
+    assert len(l2) == 2
+
+def test_downstream_limit_n(testRefGen):
+    l = [x.name for x in testRefGen.downstream_loci(Locus('1',4854,9652),n=1)]
+    assert l[0] == 'GRMZM5G888250'
+    assert len(l) == 1
+
+def test_downstream_same_strand_limit_n(testRefGen):
+    l = [x.name for x in testRefGen.downstream_loci(Locus('1',4854,9652),n=1,same_strand=True)]
+    assert len(l) == 1
+    # This skips GRMZM5G888250 and GRMZM2G093344 since they are on the - strand
+    assert l[0] == 'GRMZM2G093399'
+
+def test_flank_loci_limited_n(testRefGen):
+    x = Locus('1',10500,10500)
+    up,down = testRefGen.flanking_loci(x,n=2)
+    assert len(list(up)) == 2
+    assert len(list(down)) == 2
+
+def test_encompassing_loci(testRefGen):
+    x = Locus('1',10000,10000)
+    loci = list(testRefGen.encompassing_loci(x))
+    assert loci[0].name == 'GRMZM5G888250'
