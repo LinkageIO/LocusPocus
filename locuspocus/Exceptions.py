@@ -7,3 +7,18 @@ class ZeroWindowError(Exception): # pragma: no cover
             'Operation requiring window, but window is 0:' + \
             message.format(args)
         )
+
+class MissingLocusError(Exception): # pragma: no cover
+    def __init__(self,expr=None,message=None):
+        self.expr = expr
+        self.message = (
+            f'Locus not present in RefLoci:{message}'
+        )
+
+class StrandError(Exception): #pragma: no cover
+    def __init__(self,expr=None,message=''):
+        self.expr = expr
+        self.message = (
+            f'Locus has a bad strand:{message}'
+        )
+
