@@ -40,7 +40,7 @@ class SubLoci(object):
         else:
             return (self._refloci._get_locus_by_LID(i) for i in self._subloci)
 
-    def __repr__(self):
+    def __repr__(self): #pragma: no cover
         return repr(list(self))
 
     def __len__(self):
@@ -102,7 +102,7 @@ class LociAttrs(object):
                 '''SELECT key FROM loci_attrs WHERE LID = ?''',
                 (self._LID,)
             ).fetchall()
-            if keys is None:
+            if keys is None: #pragma: no cover
                 return []
             else:
                 return (k[0] for k in keys)
@@ -116,7 +116,7 @@ class LociAttrs(object):
                 '''SELECT val FROM loci_attrs WHERE LID = ?''',
                 (self._LID,)
             ).fetchall()
-            if vals is None:
+            if vals is None: #pragma: no cover
                 return []
             else:
                 return (v[0] for v in vals)
