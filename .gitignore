@@ -16,3 +16,4 @@ dist/*
 locuspocus.egg-info/*
 .pytest_cache
 .eggs
+tests/htmlcov
