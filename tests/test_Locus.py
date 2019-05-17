@@ -4,6 +4,8 @@ import numpy as np
 from itertools import chain
 from locuspocus import Locus
 
+from locuspocus.Exceptions import StrandError
+
 @pytest.fixture
 def simple_Locus():
     return Locus(1,100,200,attrs={'foo':'bar'}) 
@@ -37,14 +39,12 @@ def test_frozen(simple_Locus):
     except Exception as e:
         assert True
 
-
 def test_setitem(simple_Locus):
     try:
         # This should throw an exception
         simple_Locus['foo'] = 'baz'
     except Exception as e:
         return True
-
 
 def test_getitem(simple_Locus):
     assert simple_Locus['foo'] == 'bar'
@@ -80,8 +80,20 @@ def test_coor(simple_Locus):
 def test_upstream(simple_Locus):
     assert simple_Locus.upstream(50) == 50
 
+def test_upstream_minus_strand(simple_Locus):
+    l = Locus('1',1,100,strand='-')
+    assert l.upstream(50) == 150
+
 def test_downstream(simple_Locus):
     assert simple_Locus.downstream(50) == 250
+
+def test_downstream_minus_strand(simple_Locus):
+    l = Locus('1',100,200,strand='-')
+    assert l.downstream(50) == 50
+
+def test_center():
+    l = Locus('1',100,200,strand='-')
+    assert l.center == 150.5 
 
 def test_name(simple_Locus):
     assert simple_Locus.name is None
@@ -216,7 +228,6 @@ def test_attrs_keys_method_empty(testRefGen):
     x = Locus('1',3,4,attrs={})
     assert len(list(x.attrs.keys())) == 0
 
-
 def test_attrs_vals_method_db_backed(testRefGen):
     x = testRefGen['GRMZM2G008687']
     assert len(sorted(x.attrs.values())) == 3
@@ -236,3 +247,72 @@ def test_attrs_items_db_backed(testRefGen):
 def test_attrs_items(testRefGen):
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
     assert len(sorted(x.attrs.items())) == 2
+
+def test_attrs_contains(testRefGen):
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert 'foo' in x.attrs
+
+def test_attrs_contains_db_backed(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    assert 'biotype' in x.attrs
+
+def test_attrs_contains_db_backed_missing(testRefGen):
+    x = testRefGen['GRMZM2G008687']
+    assert 'abcdefg' not in x.attrs
+
+def test_attrs_repr():
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert repr(x.attrs)
+
+def test_le_equals():
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    y = Locus('1',3,4)
+    assert x <= y
+
+def test_le_less():
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    y = Locus('1',30,40)
+    assert x <= y
+
+def test_ge_equals():
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    y = Locus('1',3,4)
+    assert x >= y
+
+def test_ge_greater():
+    x = Locus('1',30,40,attrs={'foo':'locus1','bar':'baz'})
+    y = Locus('1',3,4)
+    assert x >= y
+
+def test_stranded_start_invalid():
+    # Strand cannot be '='
+    x = Locus('1',3,4,strand='=')
+    with pytest.raises(StrandError):
+        x.stranded_start
+
+def test_stranded_stop_invalid():
+    # Strand cannot be '='
+    x = Locus('1',3,4,strand='=')
+    with pytest.raises(StrandError):
+        x.stranded_end
+
+def test_as_record():
+    x = Locus('1',3,4,strand='+')
+    # This doesn't compare the dictionaries of each ...
+    assert x.as_record()[0] == ('1', 3, 4, 'locuspocus', None, '+', None, None, 775822660398626334)
+
+def test_center_distance():
+    x = Locus('1',1,100,strand='+')
+    # This needs to be 201 since x starts at 1
+    y = Locus('1',201,300,strand='=')
+    assert x.center_distance(y) == 200
+
+def test_center_distance_different_chroms():
+    x = Locus('1',1,100,strand='+')
+    # This needs to be 201 since x starts at 1
+    y = Locus('2',201,300,strand='+')
+    assert x.center_distance(y) == np.inf
+
+def test_str():
+    x = Locus('1',1,100,strand='+')
+    assert str(x) == repr(x)
