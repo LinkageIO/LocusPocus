@@ -9,7 +9,7 @@ env:
 install:
     - pip install .
 script:
-    - pip install 'pytest>=3.6' pytest-cov
+    - pip install 'pytest>=3.6' pytest-cov python-coveralls
     - cd tests
     - py.test -v --cov=locuspocus
 after_success:
