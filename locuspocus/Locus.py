@@ -4,12 +4,16 @@ from dataclasses import dataclass,field,InitVar,FrozenInstanceError
 from itertools import chain
 from typing import Union, Any, List, Optional, cast, Callable, Iterable
 
-import hashlib
+from .Exceptions import StrandError
+
 import re
-import pandas as pd
-import numpy as np
+import math
+import hashlib
 import locuspocus
 import dataclasses
+
+import pandas as pd
+import numpy as np
 
 class SubLoci(object):
     '''
@@ -36,9 +40,9 @@ class SubLoci(object):
 
     def __iter__(self):
         if not self.db_backed:
-            return (x for x in self._subloci)
+            yield from (x for x in self._subloci)
         else:
-            return (self._refloci._get_locus_by_LID(i) for i in self._subloci)
+            yield from (self._refloci._get_locus_by_LID(i) for i in self._subloci)
 
     def __repr__(self): #pragma: no cover
         return repr(list(self))
@@ -102,10 +106,7 @@ class LociAttrs(object):
                 '''SELECT key FROM loci_attrs WHERE LID = ?''',
                 (self._LID,)
             ).fetchall()
-            if keys is None: #pragma: no cover
-                return []
-            else:
-                return (k[0] for k in keys)
+            return (k[0] for k in keys)
 
     def values(self): 
         if not self.db_backed:
@@ -116,10 +117,7 @@ class LociAttrs(object):
                 '''SELECT val FROM loci_attrs WHERE LID = ?''',
                 (self._LID,)
             ).fetchall()
-            if vals is None: #pragma: no cover
-                return []
-            else:
-                return (v[0] for v in vals)
+            return (v[0] for v in vals)
 
     def items(self):
         if not self.db_backed:
@@ -179,13 +177,13 @@ class Locus:
             return self.chromosome < locus.chromosome
 
     def __le__(self,locus):
-        if self == locus:
+        if (self.chromosome,self.coor) == (locus.chromosome,locus.coor):
             return True
         else:
             return self < locus
 
     def __ge__(self,locus):
-        if self == locus:
+        if (self.chromosome,self.coor) == (locus.chromosome,locus.coor):
             return True
         else:
             return self > locus
@@ -241,7 +239,7 @@ class Locus:
         elif self.strand == '-':
             return max(self.coor)
         else:
-            raise ValueError(f'Invalid Locus Strand: "{self.strand}"')
+            raise StrandError
 
     @property
     def stranded_end(self):
@@ -250,7 +248,7 @@ class Locus:
         elif self.strand == '-':
             return min(self.coor)
         else:
-            raise ValueError(f'Invalid Locus Strand: "{self.strand}"')
+            raise StrandError
 
 
     def __getitem__(self,item):
@@ -267,10 +265,7 @@ class Locus:
             super().__setattr__(key,val)
 
     def add_sublocus(self,locus):
-        if self.subloci is None:
-            self.subloci = [locus]
-        else:
-            self.subloci.append(locus)
+        self.subloci.append(locus)
 
     def as_record(self):
         return ((
@@ -358,9 +353,17 @@ class Locus:
     def center(self):
         '''
         Calculates the center base pair position of
-        the locus
+        the locus.
+
+        NOTE: If the locus has an odd length, a 'half-bp'
+              will be returned. 
+              E.g: Locus('1',100,200).center == 
+
+        Returns
+        -------
+        The center position
         '''
-        return abs(self.start - self.end) 
+        return self.start + len(self)/2
 
     def center_distance(self, locus):
         '''
@@ -379,10 +382,10 @@ class Locus:
         if self.chromosome != locus.chromosome:
             distance = np.inf
         else:
-            distance = abs(self.center - locus.center)
+            distance = math.floor(abs(self.center - locus.center))
         return distance
 
-    def as_tree(self,parent=None):
+    def as_tree(self,parent=None): #pragma: no cover
         from anytree import Node, RenderTree
         root = Node(f'{self.feature_type}:{self.name}',parent=parent)
         for c in self.subloci:
@@ -393,4 +396,4 @@ class Locus:
         return root
 
     def __str__(self):
-        return ""
+        return repr(self)
