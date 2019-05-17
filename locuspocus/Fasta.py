@@ -1,14 +1,13 @@
-from collections import defaultdict
 import logging
-
 import re
+import reprlib
+import pprint
+
 import numpy as np
 
 from minus80 import Freezable
 from minus80.RawFile import RawFile
-import reprlib
-import pprint
-
+from collections import defaultdict
 from functools import lru_cache
 from locuspocus import Chromosome
 
@@ -83,19 +82,25 @@ class Fasta(Freezable):
             )
         ''')
 
-    def add_chrom(self,chrom,cur=None,force=False):
+    def add_chrom(self,chrom,replace=False,cur=None):
         '''
             Add a chromosome to the Fasta object.
 
             Parameters
             ----------
-            name : str
-                The name of the chromosome
+            chrom : Chromosome object
+                The chromosome object to add.
+                See LocusPocus.Chromosome
+            replace : bool (default: False)
+                By default a chromosome can only be added 
+                once. If this is set, the chromosome object
+                will be replaced.
+
         '''
         self.log.info(f'Adding {chrom.name}') 
         # Check for duplicates
         if chrom.name in self:
-            if not force:
+            if not replace:
                 raise ValueError(f'{chrom.name} already in FASTA')
         else:
             if cur is None:
@@ -112,6 +117,26 @@ class Fasta(Freezable):
         seqarray = np.array(chrom.seq)
         self._bcolz_array(chrom.name,seqarray)
         self.cache_clear()
+
+    def del_chrom(self,chrom):
+        '''
+            Delete a chromosome from the database
+        '''
+        if isinstance(chrom,Chromosome):
+            name = chrom.name
+        elif isinstance(chrom,str):
+            name = chrom
+        else:
+            raise ValueError(f'input must be a Chromosome object or a string')
+        if name not in self:
+            raise ValueError(f"'{name}' not in the {self._m80_dtype}('{self._m80_name}')")
+        self._db.cursor().execute('''
+            DELETE FROM added_order WHERE name = ?;
+            DELETE FROM nicknames WHERE chrom = ?;
+            DELETE FROM attributes WHERE chrom = ?;
+        ''',(name,name,name))
+        self._bcolz_remove(name)
+        
 
     def chrom_names(self):
         '''
@@ -133,7 +158,7 @@ class Fasta(Freezable):
         self.__getitem__.cache_clear()
 
     @classmethod
-    def from_file(cls,name,fasta_file,force=False,parent=None):
+    def from_file(cls,name,fasta_file,replace=False,parent=None):
         '''
             Create a Fasta object from a file.
         '''    
@@ -149,7 +174,7 @@ class Fasta(Freezable):
                     # Finish the last chromosome before adding a new one
                     if len(seqs) > 0:
                         cur_chrom = Chromosome(name,seqs,*attrs)
-                        self.add_chrom(cur_chrom,cur=cur,force=force)
+                        self.add_chrom(cur_chrom,cur=cur,replace=replace)
                         seqs = []
                     name,*attrs = line.lstrip('>').split()
                 else:
@@ -157,7 +182,7 @@ class Fasta(Freezable):
                     #cur_chrom.seq = np.append(cur_chrom.seq,list(line))
             # Add the last chromosome
             cur_chrom = Chromosome(name,seqs,*attrs)
-            self.add_chrom(cur_chrom,cur=cur,force=force)
+            self.add_chrom(cur_chrom,cur=cur,replace=replace)
         return self
 
     def __iter__(self):
@@ -248,7 +273,7 @@ class Fasta(Freezable):
                     sequence = chrom.seq[i:i+70]
                     print(''.join(sequence),file=OUT) 
                     printed_length += len(sequence)
-                if printed_length != start_length:
+                if printed_length != start_length: #pragma: no cover
                     raise ValueError('Chromosome was truncated during printing')
         return None
 
