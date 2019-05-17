@@ -77,7 +77,7 @@ setup(
         'cython',
     ],
     install_requires = [
-        'minus80>=0.3.1',
+        'minus80>=0.3.3',
         'Cython>=0.16.0',
         'numpy>=1.14.3',
         'anytree==2.6.0',
