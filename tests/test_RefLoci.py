@@ -1,3 +1,5 @@
+
+import os
 import pytest
 
 from locuspocus import Locus,RefLoci
@@ -9,6 +11,8 @@ import minus80 as m80
     Unit tests
 '''
 
+NUM_GENES = 39656
+NUM_CDS = 292257
 
 def test_init(testRefGen):
     assert testRefGen
@@ -16,12 +20,12 @@ def test_init(testRefGen):
 def test_primary_LIDS(testRefGen):
     'make sure the internal _primary_LIDS method works'
     with testRefGen.filter_feature_type('gene'):
-        assert len(testRefGen._primary_LIDS()) == 39656
+        assert len(testRefGen._primary_LIDS()) == NUM_GENES
 
 def test_len(testRefGen):
     'quick check to make sure that the refgen reports the correct number of features'
     with testRefGen.filter_feature_type('gene'):
-        assert len(testRefGen) == 39656
+        assert len(testRefGen) == NUM_GENES
 
 def test_get_locus_by_LID(testRefGen):
     'make sure that fetching a locus by its LID yields the same locus'
@@ -32,15 +36,6 @@ def test_get_locus_by_LID_missing(testRefGen):
     'make sure that fetching a locus by its LID yields the same locus'
     with pytest.raises(MissingLocusError):
         testRefGen._get_locus_by_LID(-1)
-
-#def test_get_locus_by_LID_hash_collision(testRefGen):
-#    # This locus has a known collision
-#    x = Locus(
-#        '1',276326656,276326741,source='ensembl',feature_type='intron',strand='+',
-#        attrs={'Name': 'intron.198641', 'Parent': 'GRMZM2G017186_T13'}
-#    )
-#    LID = testRefGen._get_LID(x)
-#    assert True
 
 def test_get_LID(testRefGen):
     'Make sure that fetching a locus by LID returns the same locus'
@@ -139,25 +134,25 @@ def test_iter(testRefGen):
     i = 0
     for locus in testRefGen:
         i += 1
-    assert i == 39656
+    assert i == NUM_GENES
 
 def test_filter_feature_type_context_manager(testRefGen):
     # Check to see we are in gene space
     prev_len = len(testRefGen)
     # temporarily conver to CDS
     with testRefGen.filter_feature_type('CDS'):
-        assert len(testRefGen) == 292257
+        assert len(testRefGen) == NUM_CDS
     # assert we didn't need to do anything to switch back
     assert len(testRefGen) == prev_len
 
 def test_set_primary_feature_type(testRefGen):
     testRefGen.set_primary_feature_type('gene')
-    assert len(testRefGen) == 39656
+    assert len(testRefGen) == NUM_GENES
     testRefGen.set_primary_feature_type('CDS')
-    assert len(testRefGen) == 292257
+    assert len(testRefGen) == NUM_CDS
     # switch back to gene
     testRefGen.set_primary_feature_type('gene')
-    assert len(testRefGen) == 39656
+    assert len(testRefGen) == NUM_GENES
 
 def test_rand(testRefGen):
     'test instance type'
@@ -302,3 +297,31 @@ def test_encompassing_loci(testRefGen):
     x = Locus('1',10000,10000)
     loci = list(testRefGen.encompassing_loci(x))
     assert loci[0].name == 'GRMZM5G888250'
+
+def test_import_gff():
+    if m80.Tools.available('RefLoci','ZmSmall'):
+        m80.Tools.delete('RefLoci','ZmSmall',force=True)
+    gff = os.path.expanduser(
+        os.path.join(
+            'raw', 
+            'maize_small.gff'
+        )
+    )
+    x = RefLoci('ZmSmall')
+    x.import_gff(gff)
+    m80.Tools.delete('RefLoci','ZmSmall',force=True)
+
+def test_import_gff_gzipped():
+    if m80.Tools.available('RefLoci','ZmSmall'):
+        m80.Tools.delete('RefLoci','ZmSmall',force=True)
+    gff = os.path.expanduser(
+        os.path.join(
+            'raw', 
+            'maize_small.gff.gz'
+        )
+    )
+    x = RefLoci('ZmSmall')
+    x.import_gff(gff)
+    m80.Tools.delete('RefLoci','ZmSmall',force=True)
+
+  
