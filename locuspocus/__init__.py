@@ -10,3 +10,4 @@ from .Fasta import Fasta
 from .Locus import Locus
 from .RefLoci import RefLoci
 
+from .Term import Term
