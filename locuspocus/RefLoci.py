@@ -13,6 +13,7 @@ from functools import lru_cache,wraps
 from contextlib import contextmanager
 
 from .Locus import Locus
+from .LocusView import LocusView
 from .Exceptions import ZeroWindowError,MissingLocusError,StrandError
 
 __all__ = ['RefLoci']
@@ -96,7 +97,7 @@ class RefLoci(Freezable):
         '''
         return len(self._primary_LIDS())
 
-    def _get_locus_by_LID(self,LID: int) -> Locus:
+    def _get_locus_by_LID(self,LID: int):
         '''
         Get a locus by its LID
         
@@ -108,39 +109,13 @@ class RefLoci(Freezable):
 
         Returns
         -------
-        The Locus object corresponding to the LID.
+        The LocusView.
 
         Raises
         ------
         `MissingLocusError` if there is no Locus in the database with that LID.
         '''
-        try:
-            cur = self._db.cursor()
-            chromosome,start,end,source,feature_type,strand,frame,name = cur.execute('''
-                SELECT chromosome, start, end, source, feature_type, strand, frame, name 
-                FROM loci  
-                WHERE LID = ?
-            ''',(LID,)).fetchone()
-            children = [x[0] for x in cur.execute('''
-                SELECT child FROM relationships
-                WHERE parent = ?
-            ''',(LID,)).fetchall()]
-            locus = Locus(
-                chromosome=chromosome,
-                start=start,
-                end=end,
-                source=source,
-                feature_type=feature_type,
-                strand=strand,
-                frame=frame,
-                subloci=children,
-                name=name,
-                refloci=self,
-                _LID=LID
-            )
-            return locus
-        except TypeError as e:
-            raise MissingLocusError(e,f'{LID}')
+        return LocusView(LID,self)
 
     def _get_LID(self,locus: Locus) -> int:
         '''
@@ -887,187 +862,6 @@ class RefLoci(Freezable):
         ''',(locus.chromosome,locus.start,locus.end))
         for x, in LIDS:
             yield self._get_locus_by_LID(x) 
-
-    def candidate_loci(
-        self,
-        locus,
-        nflank=2,
-        max_distance=10e100,
-        chain=True,
-        # Advanced options
-        include_parent_locus=False,
-        include_parent_attrs=False,
-        include_num_intervening=False,
-        include_rank_intervening=False,
-        include_num_siblings=False,
-        include_SNP_distance=False,
-        attrs=None,
-        return_table=False
-    ): #pragma: no cover
-        '''
-            Map surrounding loci to an input Locus. 
-            
-            Return loci between locus start and stop, plus additional
-            flanking loci within a maximum distance (up to flank_limit).
-            
-
-            __________________Ascii Example___________________________
-
-
-
-            __________________________________________________________
-            
-
-            Parameters
-            ----------
-            loci : locuspocus.Locus (also handles an iterable containing Loci)
-                an input locus or iterable of locus objects
-            nflank : int (default : 2)
-                The max number of flanking loci **on each side**
-                returned surrounding a locus. I.e.,
-                if nflank is 2, up to two up and 2 down are returned.
-                Its possible fewer than the n specified are returned
-                if they are further than max distance.
-            max_distance : int (default: 10e100)
-                The maximum distance away from the start/stop
-                boundaries of the input locus.
-            chain : bool (default : true)
-                Calls itertools chain on results before returning,
-                Otherwise, returns a 3-tuple containng:
-                (upstream, within, downstream).
-
-            Advanced Options
-            ----------------
-            include_parent_locus : bool (default: False)
-                Optional parameter which will update candidate loci
-                'attr' attribute with the id of the parent locus
-                which contains it.
-            include_parent_attrs : iterable (default: False)
-                Optional parameter to include attributes from the parent
-                locus. Parent locus attrs specified here will be included.
-                If effective loci is > 1, the maximum value will be
-                included. E.g. - including the SNP effect size with
-                candidate loci.
-            include_num_intervening : bool (default: False)
-                Optional argument which adds an attribute to each
-                candidate loci containing the rank of each loci
-                as a function of distance away from the parent
-                locus. (i.e. the closest candidate is 1 and the
-                furthest candidate is n)
-            include_rank_intervening : bool (default: False)
-                Optional argument which adds the rank of each
-                candidatea as a funtion of distance from the parent
-                Locus. i.e. The closest loci is ranked 1 and the furthest
-                loci is ranked n.
-            include_num_siblings : bool (default: False)
-                Optional argument which adds an attribute to each
-                candidate loci containing the number of total
-                candidates (siblings) identifies at the locus.
-            include_SNP_distance : bool (default:False)
-                Include the distance from the canadidate loci and
-                the parent SNP
-            attrs : dict (default: None)
-                An optional dictionary which will be updated to each
-                candidate loci attr value.
-            return_table : bool(default: False)
-                If True, return a Pandas table (DataFrame)
-
-            Returns
-            -------
-            a list of candidate loci (or list of lists if chain is False)
-
-        '''
-        # make sure to convert generators to lists
-        within = list(self.loci_within(locus,partial=False))
-        up, down = map(list,self.flanking_loci(
-            locus, n=flank_limit, partial=True
-        ))
-
-        # This always returns candidates together, if
-        # you want specific up,within and down loci
-        # use the specific methods
-        candidates = sorted(up_loci+loci_within+down_loci)
-        return candidates
-        # include the number of effective loci
-        if include_rank_intervening == True:
-            ranks = sp.stats.rankdata(
-                [abs(x.center_distance(locus)) for x in candidates]
-            )
-        # Iterate through candidate loci and propagate the
-        # parental info
-        for i, cand in enumerate(candidates):
-            # include parent locus id if thats specified
-            if include_parent_locus == True:
-                cand.update({"parent_locus": locus.id})
-            if include_rank_intervening == True:
-                cand.update({"intervening_rank": ranks[i]})
-            # update all the parent_attrs
-            if include_parent_attrs and len(include_parent_attrs) > 0:
-                if "all" in include_parent_attrs:
-                    include_parent_attrs = locus.attr.keys()
-                for attr in include_parent_attrs:
-                    attr_name = "parent_{}".format(attr)
-                    cand.update({attr_name: locus[attr]})
-        if include_num_intervening == True:
-            num_down = 0
-            num_up = 0
-            # Sort the loci by their distance from the locus
-            cands_with_distances = [
-                (cand, abs(cand.center_distance(locus))) for cand in candidates
-            ]
-            cands_with_distances = sorted(cands_with_distances, key=lambda x: x[1])
-            for cand, distance in cands_with_distances:
-                if locus.within(cand):
-                    cand.update({"num_intervening": -1})
-                elif cand.center >= locus.center:
-                    cand.update({"num_intervening": num_down})
-                    num_down += 1
-                elif cand.center <= locus.center:
-                    cand.update({"num_intervening": num_up})
-                    num_up += 1
-        if include_num_siblings == True:
-            for cand in candidates:
-                cand.update({"num_siblings": len(candidates)})
-        if include_SNP_distance == True:
-            for cand in candidates:
-                distance = abs(cand.center_distance(locus))
-                cand.update({"SNP_distance": distance})
-        if attrs is not None:
-            for cand in candidates:
-                 cand.update(attrs)
-        if return_table == True:
-            candidates = pd.DataFrame([x.as_dict() for x in candidates])
-        return candidates
-    
-    def _rtree_within(self, locus, partial=False): #pragma: no cover
-        '''
-            Implements the wihtin function using the R*Tree index
-            This method has the same functionality as RefLoci.within()
-            but just used a different SQLite approach. The within()
-            method appears to be faster, but I want to keep this
-            around in the commit history for a bit
-        '''
-        cur = self._db.cursor()
-        if partial == False:
-            LIDS = cur.execute('''
-                SELECT l.LID FROM positions p, primary_loci l 
-                WHERE p.chromosome = ? 
-                AND p.start > ? 
-                AND p.end < ?
-                AND p.LID = l.LID
-                ORDER BY p.start;
-            ''',(locus.chromosome,locus.start,locus.end))
-        else:
-            LIDS = cur.execute('''
-                SELECT l.LID FROM positions p, primary_loci l 
-                WHERE p.chromosome = ?
-                AND p.start < ? 
-                AND p.end > ?
-                AND p.LID = l.LID
-                ORDER BY p.start;
-            ''',(locus.chromosome,locus.end,locus.start))
-        yield from (self._get_locus_by_LID(x) for (x,) in LIDS)
- 
 
     @invalidates_primary_loci_cache
     def _nuke_tables(self):
