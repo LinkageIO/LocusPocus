@@ -4,7 +4,7 @@ import numpy as np
 from itertools import chain
 from locuspocus import Locus
 
-from locuspocus.Exceptions import StrandError
+from locuspocus.Exceptions import StrandError,ChromosomeError
 
 @pytest.fixture
 def simple_Locus():
@@ -23,7 +23,7 @@ def test_as_dict(simple_Locus):
             'start': 100, 
             'end': 200, 
             'source': 'locuspocus', 
-            'feature_type': None, 
+            'feature_type': 'locus', 
             'strand': '+', 
             'frame': None, 
             'name': None, 
@@ -147,12 +147,11 @@ def test_gt(simple_Locus):
     assert simple_Locus > same_chrom_Locus
     assert diff_chrom_Locus > simple_Locus
 
-
 def test_repr(simple_Locus):
-    assert repr(simple_Locus) == "Locus(chromosome=1, start=100, end=200, source='locuspocus', feature_type=None, strand='+', frame=None, name=None)"
+    assert repr(simple_Locus) == "Locus(chromosome=1, start=100, end=200, source='locuspocus', feature_type='locus', strand='+', frame=None, name=None)"
 
 def test_hash(simple_Locus):
-    assert hash(simple_Locus) == 1470741785701407904
+    assert hash(simple_Locus) == 471250808972275261
 
 def test_subloci_getitem_db_backed(testRefGen):
     x = testRefGen['GRMZM2G176595']
@@ -164,7 +163,7 @@ def test_subloci_getitem():
     x.add_sublocus(y)
     assert x.subloci[0].name == 'sublocus'
 
-def test_subloci_iter(testRefGen):
+def test_subloci_iter():
     x = Locus('1',1,2)
     y = Locus('1',3,4,name='sublocus1')
     z = Locus('1',3,4,name='sublocus2')
@@ -299,7 +298,7 @@ def test_stranded_stop_invalid():
 def test_as_record():
     x = Locus('1',3,4,strand='+')
     # This doesn't compare the dictionaries of each ...
-    assert x.as_record()[0] == ('1', 3, 4, 'locuspocus', None, '+', None, None, 775822660398626334)
+    assert x.as_record()[0] == ('1', 3, 4, 'locuspocus', 'locus', '+', None, None, 1030788771219373542)
 
 def test_center_distance():
     x = Locus('1',1,100,strand='+')
@@ -316,3 +315,19 @@ def test_center_distance_different_chroms():
 def test_str():
     x = Locus('1',1,100,strand='+')
     assert str(x) == repr(x)
+
+def test_combine():
+    x = Locus('1',1,2)
+    y = Locus('1',3,4)
+    z = x.combine(y)
+
+    assert z.start == 1
+    assert z.end == 4
+    assert x in z.subloci
+    assert y in z.subloci
+
+def test_combine_chromosome_mismatch():
+    x = Locus('1',1,2)
+    y = Locus('2',3,4)
+    with pytest.raises(ChromosomeError):
+        z = x.combine(y)
