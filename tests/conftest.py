@@ -28,18 +28,21 @@ def simpleRefLoci():
 def testRefGen():
     # We have to build it
     if m80tools.available('RefLoci','Zm5bFGS'):
-        return RefLoci('Zm5bFGS')
-    m80tools.delete('RefLoci','Zm5bFGS',force=True)
-    gff = os.path.expanduser(
-        os.path.join(
-            'raw', 'ZmB73_5b_FGS.gff.gz'
+        x =  RefLoci('Zm5bFGS')
+    else:
+        m80tools.delete('RefLoci','Zm5bFGS',force=True)
+        gff = os.path.expanduser(
+            os.path.join(
+                'raw', 
+                'ZmB73_5b_FGS.gff.gz'
+            )
         )
-    )
-    x = RefLoci('Zm5bFGS')
-    if len(x) == 0:
-        x.import_gff(  
-            gff
-        )
+        x = RefLoci('Zm5bFGS')
+        if len(x) == 0:
+            x.import_gff(  
+                gff
+            )
+    x.set_primary_feature_type('gene')
     return x
 
 

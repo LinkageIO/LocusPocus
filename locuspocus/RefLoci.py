@@ -272,7 +272,7 @@ class RefLoci(Freezable):
         ID_attr="ID", 
         parent_attr='Parent',
         attr_split="="
-    ) -> None: #pragma: no cover
+    ) -> None:
         '''
             Imports RefLoci from a gff (General Feature Format) file.
             See more about the format here:
