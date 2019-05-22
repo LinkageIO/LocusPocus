@@ -6,7 +6,7 @@ from locuspocus.Exceptions import *
 import minus80 as m80
 
 '''
-    Unit tests
+    Unit tests for RefLoci
 '''
 
 
