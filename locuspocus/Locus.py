@@ -4,7 +4,7 @@ from dataclasses import dataclass,field,InitVar,FrozenInstanceError
 from itertools import chain
 from typing import Union, Any, List, Optional, cast, Callable, Iterable
 
-from .Exceptions import StrandError
+from .Exceptions import StrandError, ChromosomeError
 
 import re
 import math
@@ -25,12 +25,12 @@ class SubLoci(object):
         self._subloci = subloci if subloci is not None else []
         if refloci is None:
             # If there is not db ref, make sure all items are Locuses
-            assert all([isinstance(x,Locus) for x in self._subloci])
             self.db_backed = False
+            assert all([isinstance(x,Locus) for x in self._subloci])
         else:
+            self.db_backed = True
             assert all([isinstance(x,int) for x in self._subloci])
             self._refloci = refloci
-            self.db_backed = True
 
     def __getitem__(self, key):
         if not self.db_backed :
@@ -40,9 +40,9 @@ class SubLoci(object):
 
     def __iter__(self):
         if not self.db_backed:
-            yield from (x for x in self._subloci)
+            return (x for x in self._subloci)
         else:
-            yield from (self._refloci._get_locus_by_LID(i) for i in self._subloci)
+            return (self._refloci._get_locus_by_LID(i) for i in self._subloci)
 
     def __repr__(self): #pragma: no cover
         return repr(list(self))
@@ -147,7 +147,7 @@ class Locus:
     end: int
 
     source: str = 'locuspocus'
-    feature_type: str = None
+    feature_type: str = 'locus'
     strand: str = '+'
     frame: int = None
 
@@ -195,7 +195,7 @@ class Locus:
             return self.chromosome > locus.chromosome
 
     def __hash__(self):
-        """
+        '''
             Convert the locus to a hash, uses md5.
 
             Parameters
@@ -214,8 +214,8 @@ class Locus:
             if two loci only differ by attrs or subloci.
             This is **NOT** a uuid.
 
-        """
-        loc_string  = "_".join([str(x) for x in (
+        '''
+        field_list = [str(x) for x in (
             self.chromosome,
             self.start,
             self.end,
@@ -224,7 +224,11 @@ class Locus:
             self.strand,
             self.frame,
             self.name
-        )])
+        )]
+        subloci_list = [str(hash(x)) for x in self.subloci]
+        attr_list = list(chain(*zip(self.attrs.keys(),self.attrs.values())))
+        # Create a full string
+        loc_string  = "_".join(field_list + attr_list + subloci_list)
         digest = hashlib.md5(str.encode(loc_string)).hexdigest()
         return int(digest, base=16)
 
@@ -365,9 +369,42 @@ class Locus:
         '''
         return self.start + len(self)/2
 
+    def distance(self,locus):
+        '''
+        Return the number of base pairs between two loci.
+        NOTE: this excludes the start/end bases of the loci.
+
+        Locus A             Locus B
+        ==========---------=========
+        1       10         20      30
+
+        There are 9 bases between 10 and 20 (excluding positions
+        10 and 20 themselves because they are included in the 
+        loci).
+
+        If the loci are on different chromosomes, return np.inf
+
+        Parameters
+        ----------
+        locus: Locus Object
+            A second locus object to calculate distance.
+
+        Returns
+        -------
+        int: the number of bp between the loci
+        np.inf: if on different chromosomes
+
+        '''
+        if self.chromosome != locus.chromosome:
+            distance = np.inf
+        else:
+            x,y = sorted([self,locus])
+            distance = y.start - x.end - 1
+        return distance
+
     def center_distance(self, locus):
         '''
-        Return the absolute distance between the center of two loci. 
+        Return the distance between the center of two loci. 
         If the loci are on different chromosomes, return np.inf.
 
         Parameters
@@ -378,12 +415,39 @@ class Locus:
         Returns
         -------
         int : the distance between the center of two loci.
+        np.inf: if on different chromosomes
+
         '''
         if self.chromosome != locus.chromosome:
             distance = np.inf
         else:
             distance = math.floor(abs(self.center - locus.center))
         return distance
+
+    def combine(self, locus):
+        '''
+        Returns a new Locus with start and stop boundaries
+        that contain both of the input loci. Both input loci are
+        added to the subloci of the new Locus.
+
+        NOTE: this ignores strand, the resultant Locus is just
+              a container for the input loci.
+
+        ___________Ascii Example__________________________
+             
+              Locus A          Locus B
+        ------=========-------=============---------------
+        
+        A.combine(B)
+        ------=============================---------------
+              subloci=[A,B]
+        '''
+        if self.chromosome != locus.chromosome:
+            raise ChromosomeError('Input Chromosomes do not match') 
+        x,y = sorted([self,locus])
+        start = x.start
+        end = y.end
+        return Locus(self.chromosome,start,end,subloci=[self,locus])
 
     def as_tree(self,parent=None): #pragma: no cover
         from anytree import Node, RenderTree
