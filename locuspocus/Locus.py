@@ -15,130 +15,52 @@ import dataclasses
 import pandas as pd
 import numpy as np
 
-class SubLoci(object):
-    '''
-        This class can either be an actual list of subloci OR
-        a list of LIDS and a reference to the database where the 
-        subloci can be accessed as they are needed.
-    '''
-    def __init__(self, subloci, refloci=None):
-        self._subloci = subloci if subloci is not None else []
-        if refloci is None:
-            # If there is not db ref, make sure all items are Locuses
-            self.db_backed = False
-            assert all([isinstance(x,Locus) for x in self._subloci])
-        else:
-            self.db_backed = True
-            assert all([isinstance(x,int) for x in self._subloci])
-            self._refloci = refloci
+__all__ = ['Locus']
 
-    def __getitem__(self, key):
-        if not self.db_backed :
-            return self._subloci[key]
-        else:
-            return self._refloci._get_locus_by_LID(self._subloci[key])
+class SubLoci():
+    # A restricted list interface to subloci
+    def __init__(self,loci=None):
+        if loci is None:
+            loci = list()
+        self.loci = loci
 
     def __iter__(self):
-        if not self.db_backed:
-            return (x for x in self._subloci)
-        else:
-            return (self._refloci._get_locus_by_LID(i) for i in self._subloci)
+        return (x for x in self.loci)
 
-    def __repr__(self): #pragma: no cover
-        return repr(list(self))
+    def add(self,locus):
+        self.loci.append(locus)
+
+    def __getitem__(self,index):
+        return self.loci[index]
 
     def __len__(self):
-        return len(self._subloci)
+        return len(self.loci)
+    
 
-    def append(self,x):
-        if self.db_backed:
-            raise ValueError("cannot change subloci of a db backed Locus")
-        else:
-            assert isinstance(x,Locus)
-            self._subloci.append(x)
-
-class LociAttrs(object):
-    '''
-        This class can either be a normal dictionary with attributes OR
-        a reference to a RefLoci database and a LID for the locus.
-    '''
-    def __init__(self, attrs, refloci=None, LID=None):
-        if refloci is None and LID is None:
-            if attrs is None:
-                self._attrs = {}
-            else:
-                assert isinstance(attrs,dict)
-                self._attrs = attrs
-            self.db_backed = False
-        elif refloci is not None and LID is not None:
-            self._LID = LID
-            self._refloci = refloci
-            self.db_backed = True
-
-    def _db_getitem(self,key):
-        if not self.db_backed:
-            raise ValueError('The locus is not backed by a database')
-        cur = self._refloci._db.cursor()
-        results = cur.execute(
-            '''SELECT val FROM loci_attrs WHERE LID = ? AND key = ? ''',
-            (self._LID,key)
-        ).fetchone()
-        if results is None:
-            raise KeyError(f'{key} not in attrs')
-        else:
-            return results[0]
-
-    def __getitem__(self,key):
-        if not self.db_backed:
-            return self._attrs[key]
-        else:
-            return self._db_getitem(key)
-
-    def __setitem__(self,key,val):
-        raise ValueError('Loci attrs cannot be changed')
+class LocusAttrs():
+    # a restricted dict interface to attributes
+    def __init__(self,attrs=None):
+        if attrs is None:
+            attrs = dict()
+        self.attrs = attrs
 
     def keys(self):
-        if not self.db_backed:
-            return self._attrs.keys()
-        else:
-            cur = self._refloci._db.cursor()
-            keys = cur.execute(
-                '''SELECT key FROM loci_attrs WHERE LID = ?''',
-                (self._LID,)
-            ).fetchall()
-            return (k[0] for k in keys)
+        return self.attrs.keys()
 
-    def values(self): 
-        if not self.db_backed:
-            return self._attrs.values()
-        else:
-            cur = self._refloci._db.cursor()
-            vals = cur.execute(
-                '''SELECT val FROM loci_attrs WHERE LID = ?''',
-                (self._LID,)
-            ).fetchall()
-            return (v[0] for v in vals)
+    def values(self):
+        return self.attrs.values()
 
     def items(self):
-        if not self.db_backed:
-            return self._attrs.items()
-        else:
-            return (
-                (k,v) for k,v in zip(self.keys(),self.values())        
-            )
+        return self.attrs.items()
 
-    def __contains__(self,key):
-        if not self.db_backed:
-             return key in self._attrs
-        else:
-            try:
-                val = self._db_getitem(key)
-                return True
-            except KeyError as e:
-                return False
+    def __getitem__(self,key):
+        return self.attrs[key]
+
+    def __setitem__(self,key,val):
+        self.attrs[key] = val
 
     def __repr__(self):
-        return str(dict(self.items()))
+        return repr(self.attrs)
 
 @dataclass()
 class Locus:
@@ -150,22 +72,11 @@ class Locus:
     feature_type: str = 'locus'
     strand: str = '+'
     frame: int = None
+    name: str = None
 
     # Extra locus stuff
-    name: str = None
-    attrs: InitVar[attrs] = field(default=None)
-    subloci: InitVar[subloci] = field(default=None) 
-    refloci: InitVar[str] = field(default=None)
-    _frozen: bool = field(default=False,repr=False)
-    _LID: int = field(default=None,repr=False)
-
-    def __post_init__(self, attrs, subloci, refloci):
-        self.refloci = refloci
-        # Handle the "smart" things
-        self.subloci = SubLoci(subloci,refloci)
-        self.attrs = LociAttrs(attrs,refloci,self.LID)
-        # Freeze the object
-        self._frozen = True
+    attrs: LocusAttrs = field(default_factory=LocusAttrs)
+    subloci: SubLoci = field(default_factory=SubLoci) 
 
     def __len__(self):
         return abs(self.end - self.start) + 1
@@ -233,10 +144,6 @@ class Locus:
         return int(digest, base=16)
 
     @property
-    def LID(self):
-        return self._LID
-
-    @property
     def stranded_start(self):
         if self.strand == '+':
             return min(self.coor)
@@ -254,22 +161,14 @@ class Locus:
         else:
             raise StrandError
 
-
     def __getitem__(self,item):
-        if self.attrs is not None: 
-            return self.attrs[item]
+        return self.attrs[item]
 
     def __setitem__(self,key,val):
-        raise FrozenInstanceError("Cannot change attrs of Locus")
-
-    def __setattr__(self,key,val):
-        if self._frozen is True:
-            raise FrozenInstanceError("Cannot change attrs of Locus")
-        else:
-            super().__setattr__(key,val)
+        self.attrs[key] = val
 
     def add_sublocus(self,locus):
-        self.subloci.append(locus)
+        self.subloci.add(locus)
 
     def as_record(self):
         return ((
@@ -285,12 +184,6 @@ class Locus:
         ),
             self.attrs
         )
-
-    def as_dict(self) -> dict:
-        '''
-        Returns the Locus as a dictionary
-        '''
-        return dataclasses.asdict(self) 
 
     def default_getitem(self,key,default=None) -> Any:
         '''
