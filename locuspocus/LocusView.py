@@ -1,6 +1,7 @@
 
 from functools import wraps
 from .Locus import Locus,LocusAttrs,SubLoci
+from .Exceptions import *
 
 __all__ = ['LocusView']
 
@@ -35,10 +36,14 @@ class AttrsView(LocusAttrs):
 
     def __getitem__(self,key):
         cur = self._ref._db.cursor()
-        cur.execute('''
-            SELECT val FROM loci_attrs
-            WHERE LID = ? AND key = ?
-        ''',(self._LID,key))
+        try:
+            val, = cur.execute('''
+                SELECT val FROM loci_attrs
+                WHERE LID = ? AND key = ?
+            ''',(self._LID,key)).fetchone()
+        except TypeError:
+            raise KeyError(f'"{key}" in in attrs')
+        return val 
 
     def __setitem__(self,key,val):
         cur = self._ref._db.cursor()
@@ -132,5 +137,10 @@ class LocusView(Locus):
     def add_sublocus(self,locus):
         raise NotImplementedError
 
-    def __repr__(self):
-        return f'LocusView({self.chromosome},{self.start},{self.end},{self.feature_type},{self.strand},{self.frame},{self.name})'
+   #def __repr__(self):
+   #    return (
+   #        f'LocusView('
+   #        f'chromosome={self.chromosome},'
+   #        f'start={self.start},'
+   #        f'end={self.end},'
+   #        f'feature_type={self.feature_type},{self.strand},{self.frame},{self.name})'
