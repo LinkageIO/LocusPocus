@@ -37,10 +37,10 @@ def test_get_locus_by_LID_missing(testRefGen):
     with pytest.raises(MissingLocusError):
         testRefGen._get_locus_by_LID(-1)
 
-def test_get_LID(testRefGen):
-    'Make sure that fetching a locus by LID returns the same locus'
-    x = testRefGen.rand()
-    assert testRefGen._get_LID(x) == x._LID
+#def test_get_LID(testRefGen):
+#    'Make sure that fetching a locus by LID returns the same locus'
+#    x = testRefGen.rand()
+#    assert testRefGen._get_LID(x) == x._LID
 
 def test_get_LID_missing(testRefGen):
     'Make sure that fetching a locus by LID returns the same locus'
@@ -113,9 +113,9 @@ def test_import_gff(testRefGen):
     # this will only pass if it is built
     assert testRefGen
 
-def test_contains_true(testRefGen):
-    'get a random locus and then test it is in the RefLoci object'
-    assert testRefGen.rand() in testRefGen
+#def test_contains_true(testRefGen):
+#    'get a random locus and then test it is in the RefLoci object'
+#    assert testRefGen.rand() in testRefGen
 
 def test_contains_false(testRefGen):
     assert ('NO' in testRefGen) is False
