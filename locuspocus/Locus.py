@@ -81,6 +81,24 @@ class Locus:
     def __len__(self):
         return abs(self.end - self.start) + 1
 
+    def __eq__(self,locus):
+        try:
+            assert self.chromosome == locus.chromosome 
+            assert self.start == locus.start 
+            assert self.end == locus.end 
+            assert self.source == locus.source 
+            assert self.feature_type == locus.feature_type 
+            assert self.strand == locus.strand 
+            assert self.frame == locus.frame 
+            assert self.name == locus.name 
+            for key,val in self.attrs.items():
+                assert val == locus.attrs[key]
+            for x,y in zip(sorted(self.subloci),sorted(locus.subloci)):
+                assert x == y
+            return True
+        except (AssertionError,KeyError):
+            return False
+
     def __lt__(self,locus):
         if self.chromosome == locus.chromosome:
             return self.start < locus.start
@@ -115,15 +133,7 @@ class Locus:
 
             Returns
             -------
-            str : md5 hash of locus
-
-            Notes
-            -----
-            The fields used for this computation are: 
-            (chromosome, start, end, source, feature_type,
-            strand, frame, name). Collisions will happen
-            if two loci only differ by attrs or subloci.
-            This is **NOT** a uuid.
+            int : md5 hash of locus
 
         '''
         field_list = [str(x) for x in (
@@ -137,9 +147,9 @@ class Locus:
             self.name
         )]
         subloci_list = [str(hash(x)) for x in self.subloci]
-        attr_list = list(chain(*zip(self.attrs.keys(),self.attrs.values())))
+        #attr_list = list(chain(*zip(map(str,self.attrs.keys()),map(str,self.attrs.values()))))
         # Create a full string
-        loc_string  = "_".join(field_list + attr_list + subloci_list)
+        loc_string  = "_".join(field_list + subloci_list) # attr_list + subloci_list)
         digest = hashlib.md5(str.encode(loc_string)).hexdigest()
         return int(digest, base=16)
 
