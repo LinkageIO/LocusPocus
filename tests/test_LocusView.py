@@ -1,35 +1,48 @@
 import pytest
 import numpy as np
+import minus80 as m80
 
 from itertools import chain
-from locuspocus import Locus
+from locuspocus import Locus,RefLoci
 
 from locuspocus.Exceptions import StrandError,ChromosomeError
 
+@pytest.fixture(scope='module')
+def SimpleRefLoci():
+    a = Locus('1',10,20)
+    b = Locus('1',20,30)
+    c = Locus('2',30,40)
+    d = Locus('2',40,50)
+
+    x = Locus(
+        '1', 100, 200,
+        attrs={'foo':'bar'},
+        name='x',
+        subloci=[a,b]
+    )
+    y = Locus(
+        '2', 100, 200,
+        attrs={'foo':'bar'},
+        name='y',
+        subloci=[c,d]
+    )
+    if m80.Tools.available('RefLoci','test'):
+        m80.Tools.delete('RefLoci','test',force=True)
+    ref = RefLoci('test')   
+    ref.add_locus(x)
+    ref.add_locus(y)
+    return ref
+
 @pytest.fixture
-def simpleLocusView():
-    return Locus(1,100,200,attrs={'foo':'bar'}) 
+def simpleLocusView(SimpleRefLoci):
+    return SimpleRefLoci['x']
 
 def test_initialization(simpleLocusView):
     # numeric chromosomes
-    assert simpleLocusView.chromosome == 1
+    assert simpleLocusView.chromosome == '1'
     assert simpleLocusView.start == 100
     assert simpleLocusView.end == 200
     assert len(simpleLocusView) == 101
-
-def test_frozen(simpleLocusView):
-    try:
-        # This should throw an exception
-        simpleLocusView.chromosome = 2
-    except Exception as e:
-        assert True
-
-def test_setitem(simpleLocusView):
-    try:
-        # This should throw an exception
-        simpleLocusView['foo'] = 'baz'
-    except Exception as e:
-        return True
 
 def test_getitem(simpleLocusView):
     assert simpleLocusView['foo'] == 'bar'
@@ -81,7 +94,7 @@ def test_center():
     assert l.center == 150.5 
 
 def test_name(simpleLocusView):
-    assert simpleLocusView.name is None
+    assert simpleLocusView.name == 'x'
 
 def test_eq(simpleLocusView):
     another_Locus = Locus(1, 110, 220)
@@ -113,14 +126,14 @@ def test_len(simpleLocusView):
     assert len(Locus(1, 100, 100)) == 1
 
 def test_lt(simpleLocusView):
-    same_chrom_Locus = Locus(1, 110, 220)
-    diff_chrom_Locus = Locus(2, 90, 150)
+    same_chrom_Locus = Locus('1', 110, 220)
+    diff_chrom_Locus = Locus('2', 90, 150)
     assert simpleLocusView < same_chrom_Locus
     assert simpleLocusView < diff_chrom_Locus
 
 def test_gt(simpleLocusView):
-    same_chrom_Locus = Locus(1, 90, 150)
-    diff_chrom_Locus = Locus(2, 90, 150)
+    same_chrom_Locus = Locus('1', 90, 150)
+    diff_chrom_Locus = Locus('2', 90, 150)
     assert simpleLocusView > same_chrom_Locus
     assert diff_chrom_Locus > simpleLocusView
 
@@ -128,7 +141,7 @@ def test_repr(simpleLocusView):
     assert repr(simpleLocusView) 
 
 def test_hash(simpleLocusView):
-    assert hash(simpleLocusView) == 471250808972275261
+    assert hash(simpleLocusView) == 108424482858392584
 
 def test_subloci_getitem():
     x = Locus('1',1,2)
@@ -260,4 +273,8 @@ def test_distance():
 def test_distance_diff_chroms():
     x = Locus('1',1,100)
     y = Locus('2',150,250)
- 
+
+def test_get_subloic_by_index(SimpleRefLoci):
+    x = SimpleRefLoci['x']
+    assert x.subloci[0]
+
