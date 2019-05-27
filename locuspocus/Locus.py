@@ -22,19 +22,19 @@ class SubLoci():
     def __init__(self,loci=None):
         if loci is None:
             loci = list()
-        self.loci = loci
+        self._loci = loci
 
     def __iter__(self):
-        return (x for x in self.loci)
+        return (x for x in self._loci)
 
     def add(self,locus):
-        self.loci.append(locus)
+        self._loci.append(locus)
 
     def __getitem__(self,index):
-        return self.loci[index]
+        return self._loci[index]
 
     def __len__(self):
-        return len(self.loci)
+        return len(self._loci)
     
 
 class LocusAttrs():
@@ -42,25 +42,25 @@ class LocusAttrs():
     def __init__(self,attrs=None):
         if attrs is None:
             attrs = dict()
-        self.attrs = attrs
+        self._attrs = attrs
 
     def keys(self):
-        return self.attrs.keys()
+        return self._attrs.keys()
 
     def values(self):
-        return self.attrs.values()
+        return self._attrs.values()
 
     def items(self):
-        return self.attrs.items()
+        return self._attrs.items()
 
     def __getitem__(self,key):
-        return self.attrs[key]
+        return self._attrs[key]
 
     def __setitem__(self,key,val):
-        self.attrs[key] = val
+        self._attrs[key] = val
 
     def __repr__(self):
-        return repr(self.attrs)
+        return repr(self._attrs)
 
 @dataclass()
 class Locus:
@@ -125,7 +125,8 @@ class Locus:
 
     def __hash__(self):
         '''
-            Convert the locus to a hash, uses md5.
+            Convert the locus to a hash, uses md5. The hash
+            is computed using the primary
 
             Parameters
             ----------
