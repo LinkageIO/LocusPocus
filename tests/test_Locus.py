@@ -17,20 +17,6 @@ def test_initialization(simple_Locus):
     assert simple_Locus.end == 200
     assert len(simple_Locus) == 101
 
-def test_frozen(simple_Locus):
-    try:
-        # This should throw an exception
-        simple_Locus.chromosome = 2
-    except Exception as e:
-        assert True
-
-def test_setitem(simple_Locus):
-    try:
-        # This should throw an exception
-        simple_Locus['foo'] = 'baz'
-    except Exception as e:
-        return True
-
 def test_getitem(simple_Locus):
     assert simple_Locus['foo'] == 'bar'
 
@@ -88,6 +74,29 @@ def test_eq(simple_Locus):
     assert simple_Locus == simple_Locus
     assert simple_Locus != another_Locus
 
+def test_ne_diff_attrs():
+    x = Locus(1, 110, 220,attrs={'foo':'bar'})
+    y = Locus(1, 110, 220,attrs={'baz':'bat'})
+    assert x != y
+
+def test_ne_diff_subloci():
+    a = Locus('1',10,20)
+    b = Locus('1',20,30)
+    c = Locus('1',30,40)
+    d = Locus('1',40,50)
+
+    x = Locus(
+        1, 110, 220,
+        attrs={'foo':'bar'},
+        subloci=[a,b]
+    )
+    y = Locus(
+        1, 110, 220,
+        attrs={'foo':'bar'},
+        subloci=[c,d]
+    )
+    assert x != y
+
 def test_loci_lt_by_chrom():
     x = Locus('1',1,1)
     y = Locus('2',1,1)
@@ -128,7 +137,7 @@ def test_repr(simple_Locus):
     assert repr(simple_Locus) 
 
 def test_hash(simple_Locus):
-    assert hash(simple_Locus) == 471250808972275261
+    assert hash(simple_Locus) == 1866009095984521275
 
 def test_subloci_getitem():
     x = Locus('1',1,2)
@@ -156,24 +165,51 @@ def test_subloci_len():
     assert len(x.subloci) == 2
 
 def test_attrs_keys_method():
-    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
-    assert sorted(x.attrs.keys()) == ['bar','foo']
+    from locuspocus.Locus import LocusAttrs
+    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
+    assert sorted(x.keys()) == ['bar','foo']
 
 def test_attrs_keys_method_empty():
     x = Locus('1',3,4,attrs={})
     assert len(list(x.attrs.keys())) == 0
 
 def test_attrs_vals_method():
-    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
-    assert len(sorted(x.attrs.values())) == 2
+    from locuspocus.Locus import LocusAttrs
+    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
+    assert len(sorted(x.values())) == 2
 
 def test_attrs_vals_method_empty():
     x = Locus('1',3,4,attrs={})
     assert len(list(x.attrs.values())) == 0
 
-def test_attrs_items():
+def test_attrs_getitem():
+    from locuspocus.Locus import LocusAttrs
+    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
+    assert x['foo'] == 'locus1'
+
+def test_attrs_getitem_missing():
+    from locuspocus.Locus import LocusAttrs
+    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
+    with pytest.raises(KeyError):
+        x['foobar']
+
+def test_attrs_setitem():
+    from locuspocus.Locus import LocusAttrs
+    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
+    assert x['foo'] == 'locus1'
+    x['foo'] = 'bar'
+    assert x['foo'] == 'bar'
+
+def test_setitem():
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
-    assert len(sorted(x.attrs.items())) == 2
+    assert x['foo'] == 'locus1'
+    x['foo'] = 'bar'
+    assert x['foo'] == 'bar'
+
+def test_attrs_items():
+    from locuspocus.Locus import LocusAttrs
+    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
+    assert len(sorted(x.items())) == 2
 
 def test_attrs_contains():
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
