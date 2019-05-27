@@ -432,45 +432,42 @@ class RefLoci(Freezable):
             ''',(feature_type,))
 
 
-   #def rand(self, n=1, distinct=True, autopop=True):
-   #    '''
-   #        Fetch random Loci
+    def rand(self, n=1, distinct=True, autopop=True):
+        '''
+            Fetch random Loci
 
-   #        Parameters
-   #        ----------
-   #        n : int (default=1)
-   #            The number of random locus objects to fetch
-   #        distinct : bool (default: True)
-   #            If True, the return set will not contain duplicates
-   #        primary_only : bool (default: True)
-   #            If True, the return set will not include sub-features
-   #            such as exons. Typically, primary features include genes.
-   #        autopop : bool (default: True)
-   #            If true and only 1 locus is requested, a Locus object
-   #            will be returned instead of a list (with a single element)
+            Parameters
+            ----------
+            n : int (default=1)
+                The number of random locus objects to fetch
+            distinct : bool (default=True)
+                If True, the loci are all guaranteed to be distinct, 
+                AKA, sampling without replacement. If False, the
+                sampling is with replacement so there may be
+                duplucates in the out output, especially if the number
+                of n is high.
+            autopop : bool (default: True)
+                If true and only 1 locus is requested, a Locus object
+                will be returned instead of a list (with a single element)
 
+            Returns
+            -------
+            A list of n Locus objects
 
-   #        Returns
-   #        -------
-   #        A list of n Locus objects
-
-   #    '''
-   #    import random
-   #    loci = set()
-   #    LIDS = self._primary_LIDS()
-   #    if n > len(LIDS):
-   #        raise ValueError('More than the maximum loci in the database was requested')
-   #    while len(loci) < n:
-   #        try:
-   #            rand_LID = random.choice(LIDS) 
-   #            loci.add(self._get_locus_by_LID(rand_LID))
-   #        except MissingLocusError as e: #pragma: no cover
-   #            self.log.info(f'hit a tombstone! LID {rand_LID}')
-   #            continue
-   #    loci = list(loci)
-   #    if autopop and len(loci) == 1:
-   #        loci = loci[0]
-   #    return loci
+        '''
+        import random
+        loci = set()
+        LIDS = self._primary_LIDS()
+        if n > len(LIDS):
+            raise ValueError('More than the maximum loci in the database was requested')
+        if distinct == True:
+            LIDs = random.sample(self._primary_LIDS(),n)
+        else:
+            LIDS = random.choices(self._primary_LIDS(),n)
+        loci = [self._get_locus_by_LID(x) for x in LIDs]
+        if autopop and len(loci) == 1:
+            loci = loci[0]
+        return loci
 
     def feature_types(self, print_tree=True): #pragma: no cover
         '''
