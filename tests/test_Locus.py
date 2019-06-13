@@ -4,21 +4,49 @@ import numpy as np
 from itertools import chain
 from locuspocus import Locus
 
-from locuspocus.Exceptions import StrandError,ChromosomeError
+from locuspocus.Exceptions import StrandError,ChromosomeError,LocusError
 
 @pytest.fixture
 def simple_Locus():
-    return Locus(1,100,200,attrs={'foo':'bar'}) 
+    return Locus('1',100,200,attrs={'foo':'bar'}) 
 
 def test_initialization(simple_Locus):
     # numeric chromosomes
-    assert simple_Locus.chromosome == 1
+    assert simple_Locus.chromosome == '1'
     assert simple_Locus.start == 100
     assert simple_Locus.end == 200
     assert len(simple_Locus) == 101
 
+def test_bad_core_attribute(simple_Locus):
+    with pytest.raises(AttributeError):
+        simple_Locus.foo
+
+def test_none_core_attribute_returns_none(simple_Locus):
+    assert simple_Locus.frame is None
+
 def test_getitem(simple_Locus):
     assert simple_Locus['foo'] == 'bar'
+
+def test_getitem_int():
+    x = Locus('1',100,200,attrs={'foo':12}) 
+    assert isinstance(x['foo'],int)
+def test_getitem_float():
+    x = Locus('1',100,200,attrs={'foo':12.0}) 
+    assert isinstance(x['foo'],float)
+def test_getitem_str():
+    x = Locus('1',100,200,attrs={'foo':'12'}) 
+    assert isinstance(x['foo'],str)
+def test_getitem_bool():
+    x = Locus('1',100,200,attrs={'foo':True}) 
+    assert isinstance(x['foo'],bool)
+
+def test_bad_key_set_item():
+    with pytest.raises(ValueError):
+        x = Locus('1',100,200,attrs={1:True}) 
+
+def test_bad_val_set_item():
+    with pytest.raises(ValueError):
+        x = Locus('1',100,200,attrs={'foo':{}}) 
 
 def test_default_getitem(simple_Locus):
     assert simple_Locus.default_getitem('name', 'default') == 'default'
@@ -69,32 +97,14 @@ def test_center():
 def test_name(simple_Locus):
     assert simple_Locus.name is None
 
-def test_eq(simple_Locus):
-    another_Locus = Locus(1, 110, 220)
-    assert simple_Locus == simple_Locus
-    assert simple_Locus != another_Locus
+def test_eq():
+    x = Locus(1, 110, 220)
+    y = Locus(1, 110, 220)
+    assert x == y
 
 def test_ne_diff_attrs():
     x = Locus(1, 110, 220,attrs={'foo':'bar'})
     y = Locus(1, 110, 220,attrs={'baz':'bat'})
-    assert x != y
-
-def test_ne_diff_subloci():
-    a = Locus('1',10,20)
-    b = Locus('1',20,30)
-    c = Locus('1',30,40)
-    d = Locus('1',40,50)
-
-    x = Locus(
-        1, 110, 220,
-        attrs={'foo':'bar'},
-        subloci=[a,b]
-    )
-    y = Locus(
-        1, 110, 220,
-        attrs={'foo':'bar'},
-        subloci=[c,d]
-    )
     assert x != y
 
 def test_loci_lt_by_chrom():
@@ -136,80 +146,27 @@ def test_gt(simple_Locus):
 def test_repr(simple_Locus):
     assert repr(simple_Locus) 
 
-def test_hash(simple_Locus):
-    assert hash(simple_Locus) == 1866009095984521275
-
-def test_subloci_getitem():
-    x = Locus('1',1,2)
-    y = Locus('1',3,4,name='sublocus')
-    x.add_sublocus(y)
-    assert x.subloci[0].name == 'sublocus'
-
-def test_subloci_iter():
+def test_children_len():
     x = Locus('1',1,2)
     y = Locus('1',3,4,name='sublocus1')
     z = Locus('1',3,4,name='sublocus2')
 
-    x.add_sublocus(y)
-    x.add_sublocus(z)
-    for sub in x.subloci:
-        assert sub.chromosome == '1' 
-
-def test_subloci_len():
-    x = Locus('1',1,2)
-    y = Locus('1',3,4,name='sublocus1')
-    z = Locus('1',3,4,name='sublocus2')
-
-    x.add_sublocus(y)
-    x.add_sublocus(z)
-    assert len(x.subloci) == 2
-
-def test_attrs_keys_method():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert sorted(x.keys()) == ['bar','foo']
+    x.children = (y,z)
+    assert len(x.children) == 2
 
 def test_attrs_keys_method_empty():
     x = Locus('1',3,4,attrs={})
     assert len(list(x.attrs.keys())) == 0
 
-def test_attrs_vals_method():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert len(sorted(x.values())) == 2
-
 def test_attrs_vals_method_empty():
     x = Locus('1',3,4,attrs={})
     assert len(list(x.attrs.values())) == 0
-
-def test_attrs_getitem():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert x['foo'] == 'locus1'
-
-def test_attrs_getitem_missing():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    with pytest.raises(KeyError):
-        x['foobar']
-
-def test_attrs_setitem():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert x['foo'] == 'locus1'
-    x['foo'] = 'bar'
-    assert x['foo'] == 'bar'
 
 def test_setitem():
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
     assert x['foo'] == 'locus1'
     x['foo'] = 'bar'
     assert x['foo'] == 'bar'
-
-def test_attrs_items():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert len(sorted(x.items())) == 2
 
 def test_attrs_contains():
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
@@ -251,11 +208,6 @@ def test_stranded_stop_invalid():
     with pytest.raises(StrandError):
         x.stranded_end
 
-def test_as_record():
-    x = Locus('1',3,4,strand='+')
-    # This doesn't compare the dictionaries of each ...
-    assert x.as_record()[0] == ('1', 3, 4, 'locuspocus', 'locus', '+', None, None, 1030788771219373542)
-
 def test_center_distance():
     x = Locus('1',1,100,strand='+')
     # This needs to be 201 since x starts at 1
@@ -279,8 +231,7 @@ def test_combine():
 
     assert z.start == 1
     assert z.end == 4
-    assert x in z.subloci
-    assert y in z.subloci
+    assert len(z.children) == 2
 
 def test_combine_chromosome_mismatch():
     x = Locus('1',1,2)
@@ -297,3 +248,23 @@ def test_distance_diff_chroms():
     x = Locus('1',1,100)
     y = Locus('2',150,250)
     assert x.distance(y) == np.inf
+
+
+def test_get_parent():
+    x = Locus('1',1,2)
+    y = Locus('1',3,4)
+    
+    x.parent = y
+    assert x.parent == y
+
+def test_get_none_parent():
+    x = Locus('1',1,2)
+    assert x.parent is None
+
+
+def test_set_parent_bad_type():
+    x = Locus('1',1,2)
+    with pytest.raises(LocusError):
+        x.parent = 12
+
+
