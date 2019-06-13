@@ -1,10 +1,7 @@
 #!/usr/bin/python3
-from collections import defaultdict
-from dataclasses import dataclass,field,InitVar,FrozenInstanceError
-from itertools import chain
 from typing import Union, Any, List, Optional, cast, Callable, Iterable, Dict
 
-from .Exceptions import StrandError, ChromosomeError
+from locuspocus.Exceptions import StrandError,ChromosomeError,LocusError
 
 import re
 import math
@@ -12,17 +9,16 @@ import locuspocus
 import dataclasses
 import uuid
 
-import pandas as pd
 import numpy as np
 
-from locuspocus.Loci import Loci
 from locuspocus.Utils import guess_type
+import locuspocus.Loci as Loci
 
 
 __all__ = ['Locus']
 
 class Locus:
-    
+    from locuspocus import Loci
     _ref = Loci()
     
     def __init__(
@@ -71,13 +67,10 @@ class Locus:
             self._ref.del_locus(self)
 
     def _core_property(self,key):
-        try:
-            val, = self._ref._db.cursor().execute(f'''
-                SELECT {key} FROM loci WHERE LID = ?
-            ''',(self._LID,)
-            ).fetchone()
-        except ValueError:
-            val = None
+        val, = self._ref._db.cursor().execute(f'''
+            SELECT {key} FROM loci WHERE LID = ?
+        ''',(self._LID,)
+        ).fetchone()
         return val
 
     @property
@@ -112,6 +105,47 @@ class Locus:
     def name(self):
         return self._core_property('name') 
 
+
+    @property
+    def attrs(self):
+        class attrView:
+            def __init__(self,LID,db):
+                self._LID = LID
+                self._db = db
+
+            def keys(self):
+                return [ x[0] for x in 
+                    self._db.cursor().execute('''
+                        SELECT key FROM loci_attrs
+                        WHERE LID = ?;
+                    ''',(self._LID,)).fetchall()
+                ]
+            def values(self):
+                return [ x[0] for x in 
+                    self._db.cursor().execute('''
+                        SELECT val FROM loci_attrs
+                        WHERE LID = ?;
+                    ''',(self._LID,)).fetchall()
+                ]
+            def items(self):
+                return [ (x[0],x[1]) for x in 
+                    self._db.cursor().execute('''
+                        SELECT key,val FROM loci_attrs
+                        WHERE LID = ?;
+                    ''',(self._LID,)).fetchall()
+                ]
+            def __contains__(self,key):
+                count, = self._db.cursor().execute('''
+                    SELECT COUNT(*) FROM loci_attrs
+                    WHERE LID = ? AND key = ?;
+                ''',(self._LID,key)).fetchone()
+                return True if count == 1 else False
+
+
+
+
+        return attrView(self._LID,self._ref._db)
+
     
     # Get and Set Attrs ----------------------------------------------
     def __getitem__(self,key):
@@ -131,7 +165,7 @@ class Locus:
                 WHERE LID = ?
                 AND key = ?
             ''',(self._LID,key)).fetchone()
-        except ValueError as e:
+        except (ValueError,TypeError) as e:
            raise KeyError(f'{key} not in Locus attrs')
         if val_type == 'int':
             val = int(val)
@@ -181,19 +215,22 @@ class Locus:
 
     @parent.setter
     def parent(self,parent):
-        try:
-            with self._ref._db:
-                cur = self._ref._db.cursor()
-                # detach self from tree
-                self.__detach()
-                cur.execute('''
-                    INSERT OR REPLACE INTO relationships
-                    (parent,child) 
-                    VALUES
-                    (?,?)
-                ''',(parent._LID,self._LID))
-        except AttributeError as e:
-            raise LocusError('Parent must be type: Locus') 
+        if parent is None:
+            self.__detach()
+        else:
+            try:
+                with self._ref._db:
+                    cur = self._ref._db.cursor()
+                    # detach self from tree
+                    self.__detach()
+                    cur.execute('''
+                        INSERT OR REPLACE INTO relationships
+                        (parent,child) 
+                        VALUES
+                        (?,?)
+                    ''',(parent._LID,self._LID))
+            except AttributeError as e:
+                raise LocusError('Parent must be type: Locus') 
 
     @property
     def children(self):
@@ -208,14 +245,21 @@ class Locus:
 
     @children.setter
     def children(self,children):
-        for child in children:
-            child.parent = self
+        # detach current children
+        for child in self.children:
+            child.__detach()
+        # attach new children
+        if children is not None:
+            for child in children:
+                child.parent = self
 
 
     def __len__(self):
         return abs(self.end - self.start) + 1
 
     def __eq__(self,locus):
+        if self._ref == locus._ref and self._LID == locus._LID:
+            return True
         try:
             assert self.chromosome == locus.chromosome 
             assert self.start == locus.start 
@@ -225,8 +269,10 @@ class Locus:
             assert self.strand == locus.strand 
             assert self.frame == locus.frame 
             assert self.name == locus.name 
+            for k,v in self.attrs.items():
+                assert locus[k] == v
             return True
-        except AssertionError:
+        except (AssertionError,KeyError):
             return False
 
     def __lt__(self,locus):
@@ -288,7 +334,7 @@ class Locus:
             this value by default.
         '''
         try:
-            val = self.attrs[key]
+            val = self[key]
         except KeyError as e:
             val = default
         finally:
@@ -408,7 +454,7 @@ class Locus:
         '''
         Returns a new Locus with start and stop boundaries
         that contain both of the input loci. Both input loci are
-        added to the subloci of the new Locus.
+        added to the children of the new Locus.
 
         NOTE: this ignores strand, the resultant Locus is just
               a container for the input loci.
@@ -420,19 +466,19 @@ class Locus:
         
         A.combine(B)
         ------=============================---------------
-              subloci=[A,B]
+              children=[A,B]
         '''
         if self.chromosome != locus.chromosome:
             raise ChromosomeError('Input Chromosomes do not match') 
         x,y = sorted([self,locus])
         start = x.start
         end = y.end
-        return Locus(self.chromosome,start,end,subloci=[self,locus])
+        return Locus(self.chromosome,start,end,children=[self,locus])
 
     def as_tree(self,parent=None): #pragma: no cover
         from anytree import Node, RenderTree
         root = Node(f'{self.feature_type}:{self.name}',parent=parent)
-        for c in self.subloci:
+        for c in self.children:
             node = c.as_tree(parent=root)
         if parent is None:
             for pre, _, node in RenderTree(root):
