@@ -5,17 +5,15 @@ import gzip
 import logging
 
 import numpy as np
-import scipy as sp
 import apsw as lite
 
 from minus80 import Freezable
-from collections.abc import Iterable
 from functools import lru_cache,wraps
 from contextlib import contextmanager
 from typing import List
 
-from locuspocus import Locus
 from locuspocus.Exceptions import ZeroWindowError,MissingLocusError,StrandError
+
 
 __all__ = ['Loci']
 
@@ -40,12 +38,13 @@ __all__ = ['Loci']
 def accepts_loci(fn):
     '''
     This decorator augments methods that take as their first
-    argument a Locus object. It allows the method to also accept
+    argument a from locuspocus import Locusocus object. It allows the method to also accept
     an iterable of Locus objects and maps the method to the
     Locus objects in the iterable.
     '''
     @wraps(fn)
     def wrapped(self,loci,*args,**kwargs):
+        from locuspocus import Locus
         if not isinstance(loci,Locus):
             return [fn(self,l,*args,**kwargs) for l in loci]
         else:
@@ -91,7 +90,7 @@ class Loci(Freezable):
         name: str,
 
         attrs: dict = None,
-        parent: Locus = None,
+        parent: None = None,
         children: List = None,
 
         cur = None
@@ -110,6 +109,12 @@ class Loci(Freezable):
             -------
             The locus ID (LID) of the freshly added locus
         '''
+        # Wow! this is a hack!
+        from locuspocus import Locus
+        class GhostLocus(Locus):
+            def __del__(self):
+                pass
+        # Do the import
         if cur is None:
             cur = self._db.cursor()
         # this starts a transaction
@@ -128,53 +133,13 @@ class Loci(Freezable):
             if LID is None: #pragma: no cover
                 # I dont know when this would happen without another exception being thrown
                 raise ValueError(f"{locus} was not assigned a valid LID!")
-            # Add the key val pairs
-            if attrs is not None:
-                for key,val in attrs.items():
-                    cur.execute(
-                        '''
-                        INSERT INTO loci_attrs 
-                        (LID,key,val) 
-                        VALUES (?,?,?)
-                        ''', 
-                        (LID,key,val)
-                    )
-             # Check to see if the locus is a primary feature
+
+            # Check to see if the locus is a primary feature
             if feature_type == self.primary_type:
                 cur.execute('''
                     INSERT INTO primary_loci (LID) VALUES (?)
                 ''',(LID,))
-
-            # Handle Parent Child Relationships
-            if parent is not None:
-                try:
-                    cur.execute('''
-                        INSERT INTO relationships (parent,child)
-                        VALUES (?,?)
-                    ''',(parent._LID,LID))
-                except AttributeError: 
-                    raise ValueError('Parent of locus must be a locus')
-            if children is not None:
-                try:
-                    children_LIDs = [c._LID for c in locus.subloci]
-                except AttributeError as e:
-                    raise ValueError('All children of locus must also be of type Locus')
-                # Add relationships  
-                for CID in children_LIDs:
-                    # children can only have one parent
-                    # detach any children and reassign as parent
-                    cur.execute('''
-                        DELETE FROM relationships
-                        WHERE child IN
-                    ''')
-                    cur.execute(
-                        '''
-                        INSERT INTO relationships (parent,child)
-                        VALUES (?,?)
-                        ''',
-                        (LID,CID)
-                    )
-            # Add the position to the R*Tree
+            # Add to positions table
             cur.execute(
                 '''
                 INSERT INTO positions (LID,start,end,chromosome) VALUES (?,?,?,?)
@@ -182,9 +147,22 @@ class Loci(Freezable):
                 (LID,start,end,chromosome)
             )
 
+            # Now that we have a LID, create a GhostLocus
+            # so we can borrow the API from Locus
+            locus = GhostLocus.from_LID(LID)
+           
+            # Add the key val pairs
+            if attrs is not None:
+                for key,val in attrs.items():
+                    locus[key] = val          
+
+            # Handle Parent Child Relationships
+            locus.parent = parent
+            locus.children = children
+
         return LID
     
-    def del_locus(self,locus: Locus) -> bool:
+    def del_locus(self,locus) -> bool:
         '''
             Remove a locus from the set of Loci
         '''
@@ -219,7 +197,7 @@ class Loci(Freezable):
         ).fetchone()
         return l
 
-    def _get_locus_by_LID(self,LID: int) -> Locus:
+    def _get_locus_by_LID(self,LID: int):
         '''
         Get a locus by its LID
         
@@ -240,6 +218,7 @@ class Loci(Freezable):
         lid_exists, = self._db.cursor().execute('SELECT COUNT(*) FROM loci WHERE LID = ? ',(LID,)).fetchone()
         if lid_exists == 0:
             raise MissingLocusError
+        from locuspocus import Locus
         return Locus(LID,self)
 
 
@@ -535,6 +514,7 @@ class Loci(Freezable):
         # are returned in the correct order
         dummy_strand = '+' if locus.strand == '-' else '-'
         # create a dummy locus
+        from locuspocus import Locus
         upstream_region = Locus(locus.chromosome,start,end,strand=dummy_strand)
         # return loci within dummy locus coordinates
         loci = self.within(
@@ -623,6 +603,7 @@ class Loci(Freezable):
         # are returned in the correct order
         dummy_strand = '+' if locus.strand == '+' else '-'
         # create a dummy locus
+        from locuspocus import Locus
         downstream_region = Locus(locus.chromosome,start,end,strand=dummy_strand)
         # return loci within dummy locus coordinates
         loci = self.within(
@@ -799,6 +780,7 @@ class Loci(Freezable):
                 #del attributes[parent_attr]
             else:
                 parent = None
+            from locuspocus import Locus
             l =  Locus(
                     chromosome=chromosome, 
                     start=start, 
@@ -845,7 +827,7 @@ class Loci(Freezable):
                 /* Store the locus values  */
                 chromosome TEXT NOT NULL,
                 start INTEGER NOT NULL,
-                end INTEGER,
+                end INTEGER NOT NULL,
 
                 source TEXT,
                 feature_type TEXT,
@@ -858,7 +840,6 @@ class Loci(Freezable):
             );
             '''
         )
-
         cur.execute('''
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
             CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
@@ -874,6 +855,7 @@ class Loci(Freezable):
                 LID INT REFERENCES loci(LID) ON DELETE CASCADE,
                 key TEXT,
                 val TEXT,
+                type TEXT,
                 UNIQUE(LID,key)
             );
             '''
