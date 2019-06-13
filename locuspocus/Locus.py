@@ -67,13 +67,17 @@ class Locus:
             Deletes a locus object, inlcuding any traces 
             of it from the Loci db
         '''
-        self._ref.del_locus(self)
+        if self._ref.name is None:
+            self._ref.del_locus(self)
 
     def _core_property(self,key):
-        val, = self._ref._db.cursor().execute(f'''
-            SELECT {key} FROM loci WHERE LID = ?
-        ''',(self._LID,)
-        ).fetchone()
+        try:
+            val, = self._ref._db.cursor().execute(f'''
+                SELECT {key} FROM loci WHERE LID = ?
+            ''',(self._LID,)
+            ).fetchone()
+        except ValueError:
+            val = None
         return val
 
     @property
@@ -87,6 +91,10 @@ class Locus:
     @property
     def end(self):
         return self._core_property('end')
+
+    @property
+    def source(self):
+        return self._core_property('source')
 
     @property
     def feature_type(self):
@@ -152,31 +160,56 @@ class Locus:
         ''',(self._LID,key,val,val_type))
 
     # Tree methods
+    def __detach(self):
+        ' detach self from a parent locus'
+        cur = self._ref._db.cursor()
+        cur.execute('''
+            DELETE FROM relationships
+            WHERE child = ?;
+        ''',(self._LID,))
+
     @property
     def parent(self):
-        parent_lid, = self._ref._db.cursor('''
-            SELECT parent FROM relationships WHERE child = ?
-        ''',(self._LID))
-        return self.from_LID(parent_LID)
+        try:
+            parent_LID, = self._ref._db.cursor().execute('''
+                SELECT parent FROM relationships WHERE child = ?
+            ''',(self._LID,)).fetchone()
+            parent = self.from_LID(parent_LID)
+        except TypeError:
+            parent =  None
+        return parent
 
     @parent.setter
-    def parent(self,val):
-        if not isinstance(val,Locus):
-            raise TypeError('The parent must be a locus')
-        self._ref._db.cursor('''
-            INSERT OR UPDATE INTO relationships
-            (parent,child) 
-            VALUES
-            (?,?)
-        ''',(val._LID,child._LID))
+    def parent(self,parent):
+        try:
+            with self._ref._db:
+                cur = self._ref._db.cursor()
+                # detach self from tree
+                self.__detach()
+                cur.execute('''
+                    INSERT OR REPLACE INTO relationships
+                    (parent,child) 
+                    VALUES
+                    (?,?)
+                ''',(parent._LID,self._LID))
+        except AttributeError as e:
+            raise LocusError('Parent must be type: Locus') 
 
     @property
     def children(self):
-        raise NotImplementedError
+        children = [
+            self.from_LID(x[0]) for x in \
+            self._ref._db.cursor().execute('''
+                SELECT child FROM relationships WHERE parent = ?
+            ''',(self._LID,)
+            )
+        ]
+        return tuple(children)
 
     @children.setter
-    def children(self,val):
-        raise NotImplementedError
+    def children(self,children):
+        for child in children:
+            child.parent = self
 
 
     def __len__(self):
@@ -192,12 +225,8 @@ class Locus:
             assert self.strand == locus.strand 
             assert self.frame == locus.frame 
             assert self.name == locus.name 
-            for key,val in self.attrs.items():
-                assert val == locus.attrs[key]
-            for x,y in zip(sorted(self.subloci),sorted(locus.subloci)):
-                assert x == y
             return True
-        except (AssertionError,KeyError):
+        except AssertionError:
             return False
 
     def __lt__(self,locus):
@@ -412,6 +441,20 @@ class Locus:
 
     def __str__(self):
         return repr(self)
+
+    def __repr__(self):
+        if self.name is not None:
+            string = f"{self.feature_type}('{self.name}')"
+        else:
+            string =  (
+                f"{self.feature_type}({self.chromosome},{self.start},{self.end},"
+                f"source='{self.source}',"
+                f"strand='{self.strand}',"
+                f"frame={self.frame},"
+                f"name='{self.name}'"
+                ')'
+            )
+        return string
 
     @classmethod
     def from_LID(cls,LID,ref=None):
