@@ -2,7 +2,7 @@ import pytest
 import os
 
 from locuspocus import Locus
-from locuspocus import RefLoci
+from locuspocus import Loci
 from locuspocus import Fasta
 
 import minus80.Tools as m80tools
