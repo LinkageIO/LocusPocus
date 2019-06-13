@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 
 from locuspocus.Loci import Loci
+from locuspocus.Utils import guess_type
 
 
 __all__ = ['Locus']
@@ -109,6 +110,43 @@ class Locus:
             SELECT parent FROM relationships WHERE child = ?
         ''',(self._LID))
         return self.from_LID(parent_LID)
+    
+    # Get and Set Attrs
+    def __getitem__(self,key):
+        try:
+            val,val_type = self._ref._db.cursor().execute('''
+                SELECT val,type FROM loci_attrs 
+                WHERE LID = ?
+                AND key = ?
+            ''',(self._LID,key)).fetchone()
+        except ValueError as e:
+           raise KeyError(f'{key} not in Locus attrs')
+        if val_type == 'int':
+            val = int(val)
+        elif val_type == 'float':
+            val = float(val)
+        elif val_type == 'bool':
+            val = bool(val)
+        elif val_type == 'str':
+            val = str(val)
+        return val
+
+    def __setitem__(self,key,val):
+        if not isinstance(key,str):
+            raise ValueError('Locus attribute key must be a str')
+        if not isinstance(val,(str,int,float,bool)):
+            raise ValueError(
+                'Locus attribute value must '
+                'be one of: (str,int,float,bool)'
+            )
+        val_type = guess_type(val)
+        self._ref._db.cursor().execute('''
+            INSERT OR REPLACE INTO loci_attrs
+            (LID,key,val,type)
+            VALUES
+            (?,?,?,?)
+        ''',(self._LID,key,val,val_type))
+
 
     @parent.setter
     def parent(self,val):
@@ -185,12 +223,6 @@ class Locus:
             return min(self.coor)
         else:
             raise StrandError
-
-    def __getitem__(self,item):
-        return self.attrs[item]
-
-    def __setitem__(self,key,val):
-        self.attrs[key] = val
 
 
     def default_getitem(self,key,default=None) -> Any:
@@ -371,4 +403,7 @@ class Locus:
         if ref is not None:
             l._ref = ref
         return l
+
+
+
 
