@@ -872,6 +872,7 @@ class Loci(Freezable):
                 LID INT REFERENCES loci(LID) ON DELETE CASCADE,
                 key TEXT,
                 val TEXT,
+                type TEXT,
                 UNIQUE(LID,key)
             );
             '''
