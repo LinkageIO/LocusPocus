@@ -68,11 +68,11 @@ class Loci(Freezable):
     log.setLevel(logging.INFO)
 
     def __init__(self, name=None, basedir=None):
-        if name is not None:
+        self.name = name
+        if self.name is not None:
             # this sets up the Freezable API which overloads the
             # class attribute: self._db
             super().__init__(name, basedir=basedir)
-            self.name = name
         # initialize some instance variables
         self._initialize_tables()
         self.primary_type = 'locus'
@@ -147,16 +147,18 @@ class Loci(Freezable):
 
             # Handle Parent Child Relationships
             if parent is not None:
-                if not isinstance(parent,Locus):
+                try:
+                    cur.execute('''
+                        INSERT INTO relationships (parent,child)
+                        VALUES (?,?)
+                    ''',(parent._LID,LID))
+                except AttributeError: 
                     raise ValueError('Parent of locus must be a locus')
-                cur.execute('''
-                    INSERT INTO relationships (parent,child)
-                    VALUES (?,?)
-                ''',(parent._LID,LID))
             if children is not None:
-                if not all([isinstance(x,Locus) for x in children]):
+                try:
+                    children_LIDs = [c._LID for c in locus.subloci]
+                except AttributeError as e:
                     raise ValueError('All children of locus must also be of type Locus')
-                children_LIDs = [c._LID for c in locus.subloci]
                 # Add relationships  
                 for CID in children_LIDs:
                     # children can only have one parent
@@ -872,7 +874,6 @@ class Loci(Freezable):
                 LID INT REFERENCES loci(LID) ON DELETE CASCADE,
                 key TEXT,
                 val TEXT,
-                type TEXT,
                 UNIQUE(LID,key)
             );
             '''
