@@ -104,15 +104,19 @@ class Locus:
     def name(self):
         return self._core_property('name') 
 
-    @property
-    def parent(self):
-        parent_lid, = self._ref._db.cursor('''
-            SELECT parent FROM relationships WHERE child = ?
-        ''',(self._LID))
-        return self.from_LID(parent_LID)
     
-    # Get and Set Attrs
+    # Get and Set Attrs ----------------------------------------------
     def __getitem__(self,key):
+        '''
+        Retrieving attributes that are not the core properties requires
+        a string key. 
+
+        Example:
+        >>> l = lp.Locus('1',1,100,attrs={'foo':'bar'})
+        >>> l['foo']
+        'bar'
+
+        '''
         try:
             val,val_type = self._ref._db.cursor().execute('''
                 SELECT val,type FROM loci_attrs 
@@ -147,10 +151,24 @@ class Locus:
             (?,?,?,?)
         ''',(self._LID,key,val,val_type))
 
+    # Tree methods
+    @property
+    def parent(self):
+        parent_lid, = self._ref._db.cursor('''
+            SELECT parent FROM relationships WHERE child = ?
+        ''',(self._LID))
+        return self.from_LID(parent_LID)
 
     @parent.setter
     def parent(self,val):
-        raise NotImplementedError
+        if not isinstance(val,Locus):
+            raise TypeError('The parent must be a locus')
+        self._ref._db.cursor('''
+            INSERT OR UPDATE INTO relationships
+            (parent,child) 
+            VALUES
+            (?,?)
+        ''',(val._LID,child._LID))
 
     @property
     def children(self):
