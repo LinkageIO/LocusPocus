@@ -146,6 +146,10 @@ def test_gt(simple_Locus):
 def test_repr(simple_Locus):
     assert repr(simple_Locus) 
 
+def test_repr_with_name():
+    x = Locus('1',1,100,name='test')
+    assert repr(x)
+
 def test_children_len():
     x = Locus('1',1,2)
     y = Locus('1',3,4,name='sublocus1')
@@ -153,6 +157,18 @@ def test_children_len():
 
     x.children = (y,z)
     assert len(x.children) == 2
+
+def test_children_detach_in_children_setter():
+    x = Locus('1',1,2)
+    y = Locus('1',3,4,name='sublocus1')
+    z = Locus('1',3,4,name='sublocus2')
+
+    x.children = [y]
+    # Now trigger a detach for current children 
+    # when assigning new children
+    x.children = [z]
+    assert len(x.children) == 1 
+
 
 def test_attrs_keys_method_empty():
     x = Locus('1',3,4,attrs={})
@@ -171,10 +187,6 @@ def test_setitem():
 def test_attrs_contains():
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
     assert 'foo' in x.attrs
-
-def test_attrs_repr():
-    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
-    assert repr(x.attrs)
 
 def test_le_equals():
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
