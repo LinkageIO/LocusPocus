@@ -1,8 +1,8 @@
 import apsw as lite
 
-from .locusdb import LocusDB
+from .locusdbmixin import LocusDBMixin
 
-class MemLocusDB(LocusDB):
+class MemLocusDB(LocusDBMixin):
 
     _db = lite.Connection(':memory:')
 

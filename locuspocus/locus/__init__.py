@@ -1,2 +1,2 @@
-from .locusbase import LocusBase  
+from .locusmixin import LocusMixin
 from .memlocus import MemLocus
