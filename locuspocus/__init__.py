@@ -1,14 +1,17 @@
-__version__ = '0.2.0'
+__version__ = '1.0.0-dev'
 __all__ = ['Locus','Loci']
 
 
-#from .chromosome import Chromosome
-#from .fasta import Fasta
-
-#from .loci import Loci
-#from .locus import Locus
-from .loci import MemLoci as Loci
 from .locus import MemLocus
+from .loci import FrozenLoci
+
+
+
+def Loci(
+        name,
+        basedir=None
+):
+    return FrozenLoci(name,basedir=basedir)
 
 
 def Locus(
@@ -27,6 +30,18 @@ def Locus(
         parent = None,
         children = None
 ):
-    return MemLocus.create(chromosome,start,end,source,feature_type,strand,frame,name,attrs,parent,children)
+    return MemLocus.create(
+        chromosome,
+        start,
+        end,
+        source,
+        feature_type,
+        strand,
+        frame,
+        name,
+        attrs,
+        parent,
+        children
+    )
 
 
