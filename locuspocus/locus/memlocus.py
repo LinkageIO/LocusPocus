@@ -1,30 +1,12 @@
-import weakref
 
 from . import LocusMixin
 from locuspocus.locusdb import MemLocusDB
 from collections import defaultdict
 
 class MemLocus(LocusMixin,MemLocusDB):
-
-    _active = {} #weakref.WeakValueDictionary()
-
-    def __new__(cls,LID):
-        if LID in cls._active and cls._active[LID] is not None:
-            print("object already alive, returning a ref")
-            return cls._active[LID]()
-        else:
-            print("Creating a new object")
-            return super().__new__(cls)
-
     def __init__(self,LID):
         super().__init__()
-        if LID is None:
-
-        if LID not in self._active or self._active[LID] is None:
-            print(f'init object for LID: {LID}')
-            self._LID = LID
-            print('caching weakref')
-            self._active[LID] = weakref.ref(self)
+        self._LID = LID
 
     @classmethod
     def create(
@@ -46,7 +28,6 @@ class MemLocus(LocusMixin,MemLocusDB):
 
     ):
         self = cls(None)
-        #super().__init__()
         # this starts a transaction
         with self._db:
             cur = self._db.cursor()
@@ -76,7 +57,6 @@ class MemLocus(LocusMixin,MemLocusDB):
                 (LID,start,end,chromosome)
             )
             self._LID = LID
-            self._active[LID] = weakref.ref(self)
 
             # Add the key val pairs
             if attrs is not None:
@@ -91,8 +71,6 @@ class MemLocus(LocusMixin,MemLocusDB):
 
 
     def __del__(self):
-        print(f'Deleting {self}')
-        self._active[self._LID] = None
         self._db.cursor().execute('''
             DELETE FROM loci WHERE LID = ?
         ''',(self._LID,))
