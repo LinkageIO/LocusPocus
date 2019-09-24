@@ -3,15 +3,8 @@ __all__ = ['Locus','Loci']
 
 
 from .locus import MemLocus
-from .loci import FrozenLoci
+from .loci import Loci
 
-
-
-def Loci(
-        name,
-        basedir=None
-):
-    return FrozenLoci(name,basedir=basedir)
 
 
 def Locus(

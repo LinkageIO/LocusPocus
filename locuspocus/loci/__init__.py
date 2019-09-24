@@ -1,2 +1,1 @@
-from .memloci import MemLoci
-from .frozenloci import FrozenLoci
+from .loci import Loci
