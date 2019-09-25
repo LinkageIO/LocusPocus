@@ -1,1 +1,1 @@
-from .loci import Loci
+from .frozenloci import FrozenLoci
