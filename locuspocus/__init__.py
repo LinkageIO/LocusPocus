@@ -2,10 +2,14 @@ __version__ = '1.0.0-dev'
 __all__ = ['Locus','Loci']
 
 
+from .fasta import Fasta
+from .chromosome import Chromosome
 from .locus import MemLocus
-from .loci import Loci
+from .loci import FrozenLoci
 
 
+def Loci(name,basedir):
+    return FrozenLoci(name, basedir)
 
 def Locus(
         chromosome: str,
