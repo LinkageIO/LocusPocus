@@ -7,7 +7,7 @@ from locuspocus import Fasta
 
 import minus80.Tools as m80tools
 
-from locuspocus.Fasta import Chromosome
+from locuspocus import Chromosome
 
 @pytest.fixture(scope='module')
 def simpleRefLoci():
