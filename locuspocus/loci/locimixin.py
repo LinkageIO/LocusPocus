@@ -12,10 +12,8 @@ from contextlib import contextmanager
 from typing import List
 
 from locuspocus.exceptions import ZeroWindowError,MissingLocusError,StrandError
-from locuspocus.locus import MemLocus
 
 class LociMixin(object):
-
     @property
     def feature_type(self):
         try:
@@ -47,6 +45,11 @@ class LociMixin(object):
         42
         '''
         return len(self._primary_LIDS)
+
+    def _get_locus_by_LID(self,LID):
+        raise NotImplementedError(
+            "This needs to be implemented by the mixin inheritor"        
+        )
 
 
     def rand(self, n=1, distinct=True, autopop=True):
@@ -83,7 +86,7 @@ class LociMixin(object):
             LIDs = random.sample(self._primary_LIDS,n)
         else:
             LIDS = random.choices(self._primary_LIDS,n)
-        loci = [MemLocus(x) for x in LIDs]
+        loci = [self._get_locus_by_LID(x) for x in LIDs]
         if autopop and len(loci) == 1:
             loci = loci[0]
         return loci
