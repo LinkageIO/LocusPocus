@@ -1,7 +1,6 @@
 
 from . import LocusMixin
 from locuspocus.locusdb import MemLocusDB
-from collections import defaultdict
 
 class MemLocus(LocusMixin,MemLocusDB):
     def __init__(self,LID):
