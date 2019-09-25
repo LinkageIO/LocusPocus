@@ -8,3 +8,4 @@ class FrozenLocusDB(LocusDBMixin, Freezable):
         super().__init__(name,basedir=basedir)
         # Ititialize the minus80 API
         self._db = self.m80.db
+        self._initialize_tables()
