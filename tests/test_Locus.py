@@ -4,7 +4,7 @@ import numpy as np
 from itertools import chain
 from locuspocus import Locus
 
-from locuspocus.Exceptions import StrandError,ChromosomeError,LocusError
+from locuspocus.exceptions import StrandError,ChromosomeError,LocusError
 
 @pytest.fixture
 def simple_Locus():

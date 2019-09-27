@@ -139,9 +139,9 @@ def test_to_Fasta_file(smpl_fasta):
     smpl_fasta.to_fasta(tfile.name)
     # now read it back into a new Fasta object
     if m80.tools.available('Fasta','copy'):
-        m80.tools.delete('Fasta','copy',force=True)
+        m80.tools.delete('Fasta','copy')
     fasta_copy = lp.Fasta.from_file('copy',tfile.name) 
     for chrom in smpl_fasta:
         assert chrom in fasta_copy
-    m80.tools.delete('Fasta','copy',force=True)
+    m80.tools.delete('Fasta','copy')
     # Delete the copy  

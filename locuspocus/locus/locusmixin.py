@@ -13,8 +13,8 @@ class LocusMixin(object):
 
     def _core_property(self,key):
         val, = self._db.cursor().execute(f'''
-            SELECT {key} FROM loci WHERE LID = ?
-        ''',(self._LID,)
+            SELECT {key} FROM loci WHERE UUID = ?
+        ''',(self._UUID,)
         ).fetchone()
         return val
 
@@ -60,39 +60,39 @@ class LocusMixin(object):
     @property
     def attrs(self):
         class attrView:
-            def __init__(self,LID,db):
-                self._LID = LID
+            def __init__(self,UUID,db):
+                self._UUID = UUID
                 self._db = db
 
             def keys(self):
                 return [ x[0] for x in 
                     self._db.cursor().execute('''
                         SELECT key FROM loci_attrs
-                        WHERE LID = ?;
-                    ''',(self._LID,)).fetchall()
+                        WHERE UUID = ?;
+                    ''',(self._UUID,)).fetchall()
                 ]
             def values(self):
                 return [ x[0] for x in 
                     self._db.cursor().execute('''
                         SELECT val FROM loci_attrs
-                        WHERE LID = ?;
-                    ''',(self._LID,)).fetchall()
+                        WHERE UUID = ?;
+                    ''',(self._UUID,)).fetchall()
                 ]
             def items(self):
                 return [ (x[0],x[1]) for x in 
                     self._db.cursor().execute('''
                         SELECT key,val FROM loci_attrs
-                        WHERE LID = ?;
-                    ''',(self._LID,)).fetchall()
+                        WHERE UUID = ?;
+                    ''',(self._UUID,)).fetchall()
                 ]
             def __contains__(self,key):
                 count, = self._db.cursor().execute('''
                     SELECT COUNT(*) FROM loci_attrs
-                    WHERE LID = ? AND key = ?;
-                ''',(self._LID,key)).fetchone()
+                    WHERE UUID = ? AND key = ?;
+                ''',(self._UUID,key)).fetchone()
                 return True if count == 1 else False
 
-        return attrView(self._LID,self._db)
+        return attrView(self._UUID,self._db)
 
     def __getitem__(self,key):
         '''
@@ -108,9 +108,9 @@ class LocusMixin(object):
         try:
             val,val_type = self._db.cursor().execute('''
                 SELECT val,type FROM loci_attrs 
-                WHERE LID = ?
+                WHERE UUID = ?
                 AND key = ?
-            ''',(self._LID,key)).fetchone()
+            ''',(self._UUID,key)).fetchone()
         except (ValueError,TypeError) as e:
            raise KeyError(f'{key} not in Locus attrs')
         if val_type == 'int':
@@ -134,10 +134,10 @@ class LocusMixin(object):
         val_type = guess_type(val)
         self._db.cursor().execute('''
             INSERT OR REPLACE INTO loci_attrs
-            (LID,key,val,type)
+            (UUID,key,val,type)
             VALUES
             (?,?,?,?)
-        ''',(self._LID,key,val,val_type))
+        ''',(self._UUID,key,val,val_type))
 
     # Tree methods
     def __detach(self):
@@ -146,15 +146,15 @@ class LocusMixin(object):
         cur.execute('''
             DELETE FROM relationships
             WHERE child = ?;
-        ''',(self._LID,))
+        ''',(self._UUID,))
 
     @property
     def parent(self):
         try:
-            parent_LID, = self._db.cursor().execute('''
+            parent_UUID, = self._db.cursor().execute('''
                 SELECT parent FROM relationships WHERE child = ?
-            ''',(self._LID,)).fetchone()
-            parent = self.from_LID(parent_LID)
+            ''',(self._UUID,)).fetchone()
+            parent = self._from_UUID(parent_UUID)
         except TypeError:
             parent =  None
         return parent
@@ -174,17 +174,17 @@ class LocusMixin(object):
                         (parent,child) 
                         VALUES
                         (?,?)
-                    ''',(parent._LID,self._LID))
+                    ''',(parent._UUID,self._UUID))
             except AttributeError as e:
                 raise LocusError('Parent must be type: Locus') 
 
     @property
     def children(self):
         children = [
-            self.from_LID(x[0]) for x in \
+            self._from_UUID(x[0]) for x in \
             self._db.cursor().execute('''
                 SELECT child FROM relationships WHERE parent = ?
-            ''',(self._LID,)
+            ''',(self._UUID,)
             )
         ]
         return tuple(children)
@@ -416,7 +416,7 @@ class LocusMixin(object):
         x,y = sorted([self,locus])
         start = x.start
         end = y.end
-        return Locus(self.chromosome,start,end,children=[self,locus])
+        return self.create(self.chromosome,start,end,children=[self,locus])
 
     def as_tree(self,parent=None): #pragma: no cover
         from anytree import Node, RenderTree

@@ -1,11 +1,20 @@
 
+import uuid
+
 from . import LocusMixin
 from locuspocus.locusdb import MemLocusDB
 
 class MemLocus(LocusMixin,MemLocusDB):
-    def __init__(self,LID):
+    def __init__(self,UUID):
+        # This super call just gets a handle to the in 
+        # memory database storing all the current memloci
         super().__init__()
-        self._LID = LID
+        self._UUID = UUID
+
+    @classmethod
+    def _from_UUID(cls,UUID):
+        self = cls(UUID)
+        return self
 
     @classmethod
     def create(
@@ -26,7 +35,9 @@ class MemLocus(LocusMixin,MemLocusDB):
         children = None
 
     ):
-        self = cls(None)
+        # Create a new UUID (convert to hex)
+        self = cls(uuid.uuid4().hex)
+        # Create a uuid
         # this starts a transaction
         with self._db:
             cur = self._db.cursor()
@@ -34,28 +45,13 @@ class MemLocus(LocusMixin,MemLocusDB):
             cur.execute(
                 '''
                 INSERT INTO loci 
-                    (chromosome,start,end,source,feature_type,strand,frame,name)
-                    VALUES (?,?,?,?,?,?,?,?)
+                    (UUID,chromosome,start,end,source,feature_type,strand,frame,name)
+                    VALUES (?,?,?,?,?,?,?,?,?)
                 ''',(
                 # chrom/start/end are required, so cast them
-                (str(chromosome),int(start),int(end),
+                (self._UUID,str(chromosome),int(start),int(end),
                  source,feature_type,strand,frame,name))
             )
-            # get the fresh LID
-            (LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
-            if LID is None: #pragma: no cover
-                # I dont know when this would happen without another exception being thrown
-                raise ValueError(f"{locus} was not assigned a valid LID!")
-            # Check to see if the locus is a primary feature
-            cur.execute(
-                '''
-                INSERT INTO positions 
-                (LID,start,end,chromosome) 
-                VALUES (?,?,?,?)
-                ''',
-                (LID,start,end,chromosome)
-            )
-            self._LID = LID
 
             # Add the key val pairs
             if attrs is not None:
@@ -65,11 +61,10 @@ class MemLocus(LocusMixin,MemLocusDB):
             # Handle Parent Child Relationships
             self.parent = parent
             self.children = children
-
+            
             return self
-
 
     def __del__(self):
         self._db.cursor().execute('''
-            DELETE FROM loci WHERE LID = ?
-        ''',(self._LID,))
+            DELETE FROM loci WHERE UUID = ?
+        ''',(self._UUID,))

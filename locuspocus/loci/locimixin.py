@@ -14,6 +14,7 @@ from typing import List
 from locuspocus.exceptions import ZeroWindowError,MissingLocusError,StrandError
 
 class LociMixin(object):
+    
     @property
     def feature_type(self):
         try:
@@ -25,16 +26,26 @@ class LociMixin(object):
     @feature_type.setter
     def feature_type(self,val):
         self._feature_type = val
-        # re-calculate primary LIDS
-        self._calculate_primary_LIDS()
 
     @property
-    def _primary_LIDS(self):
-        return [x[0] for x in \
+    def _primary_UUIDs(self):
+        try:
+            return self.__primary_UUIDs
+        except AttributeError:
+            self._primary_UUIDs = list(self.by_feature(self.feature_type))
+            return self._primary_UUIDs
+
+    @_primary_UUIDs.setter
+    def _primary_UUIDs(self, val):
+        self.__primary_UUIDs = val
+
+
+    def by_feature(self,feature_type): 
+        return (x[0] for x in \
             self._db.cursor().execute('''
-                SELECT LID FROM loci WHERE feature_type = ? 
-            ''',(self.feature_type,))
-        ]
+                SELECT UUID FROM loci WHERE feature_type = ? 
+            ''',(feature_type,))
+        )
 
     def __len__(self) -> int:
         '''
@@ -44,9 +55,9 @@ class LociMixin(object):
         >>> len(ref)
         42
         '''
-        return len(self._primary_LIDS)
+        return len(self._primary_UUIDs)
 
-    def _get_locus_by_LID(self,LID):
+    def _get_locus_by_UUID(self,UUID):
         raise NotImplementedError(
             "This needs to be implemented by the mixin inheritor"        
         )
@@ -77,20 +88,19 @@ class LociMixin(object):
         '''
         import random
         loci = set()
-        LIDS = self._primary_LIDS
-        if n > len(LIDS):
+        UUIDs = self._primary_UUIDs
+        if n > len(UUIDs):
             raise ValueError(
                 'More than the maximum loci in the database was requested'
             )
         if distinct == True:
-            LIDs = random.sample(self._primary_LIDS,n)
+            UUIDs = random.sample(self._primary_UUIDs,n)
         else:
-            LIDS = random.choices(self._primary_LIDS,n)
-        loci = [self._get_locus_by_LID(x) for x in LIDs]
+            UUIDs = random.choices(self._primary_UUIDs,n)
+        loci = [self._get_locus_by_UUID(x) for x in UUIDs]
         if autopop and len(loci) == 1:
             loci = loci[0]
         return loci
-
 
     def within(
         self, 
@@ -188,17 +198,17 @@ class LociMixin(object):
         else:
             raise StrandError
         query = f'''
-            SELECT l.LID FROM loci l 
+            SELECT l.UUID FROM loci l 
             INDEXED BY {index} 
-            WHERE LID = ?
+            WHERE UUID = ?
             AND l.chromosome = '{locus.chromosome}' 
             AND {anchor} 
-            AND l.LID = p.LID 
+            AND l.UUID = p.UUID 
             ORDER BY {order}; 
         '''
-        LIDS = cur.executemany(query,self._primary_LIDS)
-        for x, in LIDS:
-            l = self._get_locus_by_LID(x) 
+        UUIDs = cur.executemany(query,self._primary_UUIDs)
+        for x, in UUIDs:
+            l = self._get_locus_by_UUID(x) 
             if same_strand == True and l.strand != locus.strand:
                 continue
             yield l
@@ -431,15 +441,16 @@ class LociMixin(object):
             Loci that encompass the input loci
         '''
         cur = self._db.cursor()
-        LIDS = cur.execute('''
-            SELECT l.LId FROM positions p, primary_loci l
-            WHERE p.chromosome = ?
-            AND p.start < ?
-            AND p.end > ?
-            AND p.LID = l.LID
+        UUIDs = cur.execute('''
+            SELECT UUID FROM loci
+            WHERE chromosome = ?
+            AND start < ?
+            AND end > ?
         ''',(locus.chromosome,locus.start,locus.end))
-        for x, in LIDS:
-            yield self._get_locus_by_LID(x) 
+        for x, in UUIDs:
+            if x not in self._primary_UUIDs:
+                continue
+            yield self._get_locus_by_UUID(x) 
 
     def _nuke_tables(self):
         cur = self._db.cursor()
@@ -449,107 +460,6 @@ class LociMixin(object):
             DROP TABLE IF EXISTS loci_attrs;
             DROP TABLE IF EXISTS aliases;
             DROP TABLE IF EXISTS relationships;
-            DROP TABLE IF EXISTS positions;
-            DROP TABLE IF EXISTS primary_loci;
             '''
         )
         self._initialize_tables()
-
-    def import_gff(
-        self, 
-        filename: str, 
-        feature_type="*", 
-        ID_attr="ID", 
-        parent_attr='Parent',
-        attr_split="="
-    ) -> None:
-        '''
-            Imports Loci from a gff (General Feature Format) file.
-            See more about the format here:
-            http://www.ensembl.org/info/website/upload/gff.html
-
-            Parameters
-            ----------
-
-            filename : str
-                The path to the GFF file.
-            ID_attr : str (default: ID)
-                The key in the attribute column which designates the ID or
-                name of the feature.
-            parent_attr : str (default: Parent)
-                The key in the attribute column which designates the Parent of
-                the Locus
-            attr_split : str (default: '=')
-                The delimiter for keys and values in the attribute column
-        '''
-        if filename.endswith(".gz"):
-            IN = gzip.open(filename, "rt")
-        else:
-            IN = open(filename, "r")
-        loci = []
-        name_index = {}
-        total_loci = 0
-        for i,line in enumerate(IN):
-            total_loci += 1
-            # skip comment lines
-            if line.startswith("#"):
-                continue
-            # Get the main information
-            (
-                chromosome,
-                source,
-                feature,
-                start,
-                end,
-                score,
-                strand,
-                frame,
-                attributes,
-            ) = line.strip().split("\t")
-            # Cast data into appropriate types
-            start = int(start)
-            end = int(end)
-            strand = None if strand == '.' else strand
-            frame = None if frame == '.' else int(frame)
-            # Get the attributes
-            attributes = dict(
-                [
-                    (field.strip().split(attr_split))
-                    for field in attributes.strip(";").split(";")
-                ]
-            )
-            # Store the score in the attrs if it exists
-            if score != '.':
-                attributes['score'] = float(score)
-            # Parse out the Name (Identifier)
-            if ID_attr in attributes:
-                name = attributes[ID_attr]
-                del attributes[ID_attr]
-            else:
-                name = None
-            # Parse out the parent info
-            if parent_attr in attributes:
-                parent = attributes[parent_attr]
-                del attributes[parent_attr]
-            else:
-                parent = None
-            # fetch the parent 
-            LID = self.add_locus(
-                chromosome=chromosome, 
-                start=start, 
-                end=end, 
-
-                source=source, 
-                feature_type=feature, 
-                strand=strand, 
-                frame=frame, 
-                name=name, 
-
-                attrs=attributes, 
-            )
-
-        IN.close()
-        with self._bulk_transaction() as cur:
-            for l in loci:
-                self.add_locus(l,cur=cur)
-        return None

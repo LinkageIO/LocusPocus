@@ -9,13 +9,10 @@ class LocusDBMixin(object):
             PRAGMA foreign_keys = ON;
         ''')
         cur.execute('''
-            CREATE TABLE IF NOT EXISTS test (
-                value TEXT            
-            ); 
-        ''')
-        cur.execute('''
             CREATE TABLE IF NOT EXISTS loci (
-                LID INTEGER PRIMARY KEY AUTOINCREMENT,
+                /* Store the UUID as text  */
+                /* https://stackoverflow.com/questions/11337324/how-to-efficient-insert-and-fetch-uuid-in-core-data/11337522#11337522 */
+                UUID TEXT PRIMARY KEY,
                 
                 /* Store the locus values  */
                 chromosome TEXT NOT NULL,
@@ -43,18 +40,18 @@ class LocusDBMixin(object):
         cur.execute('''
             -- Create a table that contains loci attribute mapping
             CREATE TABLE IF NOT EXISTS loci_attrs (
-                LID INT REFERENCES loci(LID) ON DELETE CASCADE,
+                UUID TEXT REFERENCES loci(UUID) ON DELETE CASCADE,
                 key TEXT,
                 val TEXT,
                 type TEXT,
-                UNIQUE(LID,key)
+                UNIQUE(UUID,key)
             );
         ''')
         cur.execute('''
             -- Create a table with parent-child relationships        
             CREATE TABLE IF NOT EXISTS relationships (
-                parent INT REFERENCES loci(LID) ON DELETE CASCADE,
-                child INT REFERENCES loci(LID) ON DELETE CASCADE
+                parent INT REFERENCES loci(UUID) ON DELETE CASCADE,
+                child INT REFERENCES loci(UUID) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS relationships_parent ON relationships (parent);
             CREATE INDEX IF NOT EXISTS relationships_child ON relationships (child);
@@ -63,7 +60,7 @@ class LocusDBMixin(object):
         cur.execute('''
             -- Create a R*Tree table so we can efficiently query by ranges
             CREATE VIRTUAL TABLE IF NOT EXISTS positions USING rtree_i32( 
-                LID, 
+                UUID, 
                 start INT,
                 end INT,
                 +chromosome TEXT
