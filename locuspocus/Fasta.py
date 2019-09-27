@@ -9,7 +9,7 @@ from minus80 import Freezable
 from minus80.RawFile import RawFile
 from collections import defaultdict
 from functools import lru_cache
-from .chromosome import Chromosome
+from locuspocus import Chromosome
 
 
 class Fasta(Freezable):
@@ -32,7 +32,7 @@ class Fasta(Freezable):
         log.addHandler(handler)                                                         
         log.setLevel(logging.INFO)          
 
-    def __init__(self,name,basedir=None):
+    def __init__(self,name,parent=None):
         '''
             Load a Fasta object from the Minus80.
 
@@ -45,7 +45,7 @@ class Fasta(Freezable):
             -------
             A Fasta object
         '''
-        super().__init__(name,basedir=basedir)
+        super().__init__(name,parent=parent)
         # Load up from the database
         self._initialize_tables()
 
@@ -55,7 +55,7 @@ class Fasta(Freezable):
 
             NOTE: internal method
         '''
-        cur = self.m80.db.cursor()
+        cur = self._db.cursor()
 
         cur.execute('''
             CREATE TABLE IF NOT EXISTS added_order (
@@ -104,7 +104,7 @@ class Fasta(Freezable):
                 raise ValueError(f'{chrom.name} already in FASTA')
         else:
             if cur is None:
-                cur = self.m80.db.cursor()
+                cur = self._db.cursor()
             cur.execute(
                 '''
                 INSERT OR REPLACE INTO added_order 
@@ -114,8 +114,8 @@ class Fasta(Freezable):
             )
             for x in chrom._attrs:
                 self._add_attribute(chrom.name,x)
-        seqarray = chrom.seq
-        self.m80.col[chrom.name] = seqarray
+        seqarray = np.array(chrom.seq)
+        self._bcolz_array(chrom.name,seqarray)
         self.cache_clear()
 
     def del_chrom(self,chrom):
@@ -129,13 +129,13 @@ class Fasta(Freezable):
         else:
             raise ValueError(f'input must be a Chromosome object or a string')
         if name not in self:
-            raise ValueError(f"'{name}' not in the {self.m80.dtype}('{self.m80.name}')")
-        self.m80.db.cursor().execute('''
+            raise ValueError(f"'{name}' not in the {self._m80_dtype}('{self._m80_name}')")
+        self._db.cursor().execute('''
             DELETE FROM added_order WHERE name = ?;
             DELETE FROM nicknames WHERE chrom = ?;
             DELETE FROM attributes WHERE chrom = ?;
         ''',(name,name,name))
-        self.m80.col.remove(name)
+        self._bcolz_remove(name)
         
 
     def chrom_names(self):
@@ -150,7 +150,7 @@ class Fasta(Freezable):
             -------
             An iterable of chromosome names in added order
         '''
-        return (x for (x,) in self.m80.db.cursor().execute('''
+        return (x for (x,) in self._db.cursor().execute('''
             SELECT name FROM added_order ORDER BY aorder
         '''))
 
@@ -158,12 +158,13 @@ class Fasta(Freezable):
         self.__getitem__.cache_clear()
 
     @classmethod
-    def from_file(cls,name,fasta_file,replace=False,basedir=None):
+    def from_file(cls,name,fasta_file,replace=False,parent=None):
         '''
             Create a Fasta object from a file.
         '''    
-        self = cls(name,basedir=basedir)
-        with RawFile(fasta_file) as IN, self.m80.db.bulk_transaction() as cur: 
+        self = cls(name,parent=parent)
+        with RawFile(fasta_file) as IN, self._db as db: 
+            cur = db.cursor()
             cur_chrom = None
             seqs = []
             name, attrs = None,None
@@ -188,7 +189,7 @@ class Fasta(Freezable):
         '''
             Iterate over chromosome objects
         '''
-        chroms  = self.m80.db.cursor().execute('SELECT name FROM added_order ORDER BY aorder')
+        chroms  = self._db.cursor().execute('SELECT name FROM added_order ORDER BY aorder')
         for (chrom,) in chroms:
             yield self[chrom]
 
@@ -196,7 +197,7 @@ class Fasta(Freezable):
         '''
             Returns the number of chroms in the Fasta
         '''
-        return self.m80.db.cursor().execute('''
+        return self._db.cursor().execute('''
             SELECT COUNT(*) FROM added_order
         ''').fetchone()[0]
 
@@ -207,7 +208,7 @@ class Fasta(Freezable):
         '''
         if isinstance(obj,Chromosome):
             obj = obj.name 
-        cur = self.m80.db.cursor()
+        cur = self._db.cursor()
         # Check if in chrom names
         in_added = cur.execute(''' 
             SELECT COUNT(*) FROM added_order
@@ -229,14 +230,14 @@ class Fasta(Freezable):
     @lru_cache(maxsize=128)
     def __getitem__(self,chrom_name):
         if chrom_name not in self:
-            raise ValueError(f'{chrom_name} not in {self.m80.name}')
+            raise ValueError(f'{chrom_name} not in {self._m80_name}')
         try:
-            seq_array = self.m80.col[chrom_name]
+            seq_array = self._bcolz_array(chrom_name)
         except Exception as e:
             chrom_name = self._get_nickname(chrom_name)
-            seq_array = self.m80.col[chrom_name]
+            seq_array = self._bcolz_array(chrom_name)
         finally:
-            attrs = [x[0] for x in self.m80.db.cursor().execute('''
+            attrs = [x[0] for x in self._db.cursor().execute('''
                 SELECT attribute FROM attributes 
                 WHERE chrom = ?
                 ORDER BY rowid -- This preserves the ordering of attrs
@@ -268,8 +269,8 @@ class Fasta(Freezable):
                 #    easy_id = easy_id + '_' + chrom_name
                 print(f'>{chrom_name} {"|".join(chrom._attrs)}',file=OUT)     
                 printed_length = 0
-                for i in range(1,len(chrom),70):                                        
-                    sequence = chrom[i:(i-1)+70]
+                for i in range(0,len(chrom),70):                                        
+                    sequence = chrom.seq[i:i+70]
                     print(''.join(sequence),file=OUT) 
                     printed_length += len(sequence)
                 if printed_length != start_length: #pragma: no cover
@@ -291,7 +292,7 @@ class Fasta(Freezable):
                 the attribute you are adding
         '''
         if cur is None:
-            cur = self.m80.db.cursor()
+            cur = self._db.cursor()
         cur.execute(
             '''
             INSERT INTO attributes 
@@ -314,7 +315,7 @@ class Fasta(Freezable):
                 The alternative name for the chromosome
         '''
         if cur is None:
-            cur = self.m80.db.cursor()
+            cur = self._db.cursor()
         cur.execute(
             '''
             INSERT OR REPLACE INTO nicknames 
@@ -328,7 +329,7 @@ class Fasta(Freezable):
         '''
             Get a chromosomem name by nickname
         '''
-        return self.m80.db.cursor().execute('''
+        return self._db.cursor().execute('''
             SELECT chrom FROM nicknames 
             WHERE nickname = ?
         ''',(nickname,)).fetchone()[0]

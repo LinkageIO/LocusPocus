@@ -11,11 +11,6 @@ class ZeroWindowError(Exception): # pragma: no cover
             message.format(args)
         )
 
-class LocusError(Exception): # pragma: no cover
-    def __init__(self,expr=None,message=None):
-        self.expr = expr
-        self.message = message
-
 class MissingLocusError(Exception): # pragma: no cover
     def __init__(self,expr=None,message=None):
         self.expr = expr
@@ -30,7 +25,7 @@ class StrandError(Exception): #pragma: no cover
             f'Locus has a bad strand:{message}'
         )
 
-class ChromosomeError(Exception): #pragma: no cover
+class ChromosomeError(Error): #pragma: no cover
     def __init__(self,message=''):
         self.message = (
             f'{message}'

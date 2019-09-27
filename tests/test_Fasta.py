@@ -24,7 +24,7 @@ def test_m80_init(m80_Fasta):
     assert len(f['chr1']) == 100
       
 def test_init_tables(smpl_fasta):
-    tables = set([x[0] for x in smpl_fasta.m80.db.cursor().execute(
+    tables = set([x[0] for x in smpl_fasta._db.cursor().execute(
         'SELECT name FROM sqlite_master'        
     ).fetchall()])
     assert 'added_order' in tables
@@ -135,13 +135,13 @@ def test_get_chrom_not_in_fasta(smpl_fasta):
 def test_to_Fasta_file(smpl_fasta):
     # this does not test that the fasta file is
     # correct, just that the 
-    tfile = smpl_fasta.m80.tmpfile()
+    tfile = smpl_fasta._tmpfile()
     smpl_fasta.to_fasta(tfile.name)
     # now read it back into a new Fasta object
     if m80.tools.available('Fasta','copy'):
-        m80.tools.delete('Fasta','copy')
+        m80.tools.delete('Fasta','copy',force=True)
     fasta_copy = lp.Fasta.from_file('copy',tfile.name) 
     for chrom in smpl_fasta:
         assert chrom in fasta_copy
-    m80.tools.delete('Fasta','copy')
+    m80.tools.delete('Fasta','copy',force=True)
     # Delete the copy  

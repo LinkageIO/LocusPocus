@@ -21,6 +21,11 @@ def find_version(*file_paths):
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
 
+locusdist = Extension(
+    'locuspocus.LocusDist',
+    sources=['locuspocus/LocusDist.pyx'],
+)
+
 setup(
     name = 'locuspocus',
     version = find_version('locuspocus','__init__.py'),
@@ -57,9 +62,10 @@ setup(
         'Tracker' : 'https://github.com/LinkageIO/LocusPocus/issues'
     },
 
+
     packages = find_packages(),
     scripts = [],
-    ext_modules = [],
+    ext_modules = [locusdist],
     cmdclass = {
     },
     package_data = {
@@ -68,9 +74,11 @@ setup(
     setup_requires = [
         # Setuptools 18.0 properly handles Cython extensions.
         'setuptools>=18.0',
+        'cython',
     ],
     install_requires = [
-        'minus80>=1.0.0-dev',
+        'minus80>=0.3.3',
+        'Cython>=0.16.0',
         'numpy>=1.14.3',
         'anytree==2.6.0',
         'scipy>=0.19.0'

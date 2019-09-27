@@ -1,30 +1,57 @@
 import pytest
 import numpy as np
+import minus80 as m80
 
 from itertools import chain
-from locuspocus import Locus
+from locuspocus import Locus,RefLoci
 
 from locuspocus.Exceptions import StrandError,ChromosomeError
 
+@pytest.fixture(scope='module')
+def SimpleRefLoci():
+    a = Locus('1',10,20)
+    b = Locus('1',20,30)
+    c = Locus('2',30,40)
+    d = Locus('2',40,50)
+
+    x = Locus(
+        '1', 100, 200,
+        attrs={'foo':'bar'},
+        name='x',
+        subloci=[a,b]
+    )
+    y = Locus(
+        '2', 100, 200,
+        attrs={'foo':'bar'},
+        name='y',
+        subloci=[c,d]
+    )
+    if m80.Tools.available('RefLoci','test'):
+        m80.Tools.delete('RefLoci','test',force=True)
+    ref = RefLoci('test')   
+    ref.add_locus(x)
+    ref.add_locus(y)
+    return ref
+
 @pytest.fixture
-def simple_Locus():
-    return Locus(1,100,200,attrs={'foo':'bar'}) 
+def simpleLocusView(SimpleRefLoci):
+    return SimpleRefLoci['x']
 
-def test_initialization(simple_Locus):
+def test_initialization(simpleLocusView):
     # numeric chromosomes
-    assert simple_Locus.chromosome == 1
-    assert simple_Locus.start == 100
-    assert simple_Locus.end == 200
-    assert len(simple_Locus) == 101
+    assert simpleLocusView.chromosome == '1'
+    assert simpleLocusView.start == 100
+    assert simpleLocusView.end == 200
+    assert len(simpleLocusView) == 101
 
-def test_getitem(simple_Locus):
-    assert simple_Locus['foo'] == 'bar'
+def test_getitem(simpleLocusView):
+    assert simpleLocusView['foo'] == 'bar'
 
-def test_default_getitem(simple_Locus):
-    assert simple_Locus.default_getitem('name', 'default') == 'default'
+def test_default_getitem(simpleLocusView):
+    assert simpleLocusView.default_getitem('name', 'default') == 'default'
 
-def test_start(simple_Locus):
-    assert simple_Locus.start == 100
+def test_start(simpleLocusView):
+    assert simpleLocusView.start == 100
 
 def test_plus_stranded_start():
     l = Locus('1',1,100,strand='+')
@@ -34,8 +61,8 @@ def test_minus_stranded_start():
     l = Locus('1',1,100,strand='-')
     assert l.stranded_start == 100 
 
-def test_end(simple_Locus):
-    assert simple_Locus.end == 200
+def test_end(simpleLocusView):
+    assert simpleLocusView.end == 200
 
 def test_plus_stranded_end():
     l = Locus('1',1,100,strand='+')
@@ -45,20 +72,20 @@ def test_minus_stranded_end():
     l = Locus('1',1,100,strand='-')
     assert l.stranded_end == 1 
 
-def test_coor(simple_Locus):
-    assert simple_Locus.coor == (100, 200)
+def test_coor(simpleLocusView):
+    assert simpleLocusView.coor == (100, 200)
 
-def test_upstream(simple_Locus):
-    assert simple_Locus.upstream(50) == 50
+def test_upstream(simpleLocusView):
+    assert simpleLocusView.upstream(50) == 50
 
-def test_upstream_minus_strand(simple_Locus):
+def test_upstream_minus_strand(simpleLocusView):
     l = Locus('1',1,100,strand='-')
     assert l.upstream(50) == 150
 
-def test_downstream(simple_Locus):
-    assert simple_Locus.downstream(50) == 250
+def test_downstream(simpleLocusView):
+    assert simpleLocusView.downstream(50) == 250
 
-def test_downstream_minus_strand(simple_Locus):
+def test_downstream_minus_strand(simpleLocusView):
     l = Locus('1',100,200,strand='-')
     assert l.downstream(50) == 50
 
@@ -66,36 +93,13 @@ def test_center():
     l = Locus('1',100,200,strand='-')
     assert l.center == 150.5 
 
-def test_name(simple_Locus):
-    assert simple_Locus.name is None
+def test_name(simpleLocusView):
+    assert simpleLocusView.name == 'x'
 
-def test_eq(simple_Locus):
+def test_eq(simpleLocusView):
     another_Locus = Locus(1, 110, 220)
-    assert simple_Locus == simple_Locus
-    assert simple_Locus != another_Locus
-
-def test_ne_diff_attrs():
-    x = Locus(1, 110, 220,attrs={'foo':'bar'})
-    y = Locus(1, 110, 220,attrs={'baz':'bat'})
-    assert x != y
-
-def test_ne_diff_subloci():
-    a = Locus('1',10,20)
-    b = Locus('1',20,30)
-    c = Locus('1',30,40)
-    d = Locus('1',40,50)
-
-    x = Locus(
-        1, 110, 220,
-        attrs={'foo':'bar'},
-        subloci=[a,b]
-    )
-    y = Locus(
-        1, 110, 220,
-        attrs={'foo':'bar'},
-        subloci=[c,d]
-    )
-    assert x != y
+    assert simpleLocusView == simpleLocusView
+    assert simpleLocusView != another_Locus
 
 def test_loci_lt_by_chrom():
     x = Locus('1',1,1)
@@ -117,27 +121,27 @@ def test_loci_gt_by_pos():
     y = Locus('1',2,200)
     assert y > x
 
-def test_len(simple_Locus):
-    assert len(simple_Locus) == 101
+def test_len(simpleLocusView):
+    assert len(simpleLocusView) == 101
     assert len(Locus(1, 100, 100)) == 1
 
-def test_lt(simple_Locus):
-    same_chrom_Locus = Locus(1, 110, 220)
-    diff_chrom_Locus = Locus(2, 90, 150)
-    assert simple_Locus < same_chrom_Locus
-    assert simple_Locus < diff_chrom_Locus
+def test_lt(simpleLocusView):
+    same_chrom_Locus = Locus('1', 110, 220)
+    diff_chrom_Locus = Locus('2', 90, 150)
+    assert simpleLocusView < same_chrom_Locus
+    assert simpleLocusView < diff_chrom_Locus
 
-def test_gt(simple_Locus):
-    same_chrom_Locus = Locus(1, 90, 150)
-    diff_chrom_Locus = Locus(2, 90, 150)
-    assert simple_Locus > same_chrom_Locus
-    assert diff_chrom_Locus > simple_Locus
+def test_gt(simpleLocusView):
+    same_chrom_Locus = Locus('1', 90, 150)
+    diff_chrom_Locus = Locus('2', 90, 150)
+    assert simpleLocusView > same_chrom_Locus
+    assert diff_chrom_Locus > simpleLocusView
 
-def test_repr(simple_Locus):
-    assert repr(simple_Locus) 
+def test_repr(simpleLocusView):
+    assert repr(simpleLocusView) 
 
-def test_hash(simple_Locus):
-    assert hash(simple_Locus) == 1866009095984521275
+def test_hash(simpleLocusView):
+    assert hash(simpleLocusView) == 108424482858392584
 
 def test_subloci_getitem():
     x = Locus('1',1,2)
@@ -165,51 +169,24 @@ def test_subloci_len():
     assert len(x.subloci) == 2
 
 def test_attrs_keys_method():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert sorted(x.keys()) == ['bar','foo']
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert sorted(x.attrs.keys()) == ['bar','foo']
 
 def test_attrs_keys_method_empty():
     x = Locus('1',3,4,attrs={})
     assert len(list(x.attrs.keys())) == 0
 
 def test_attrs_vals_method():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert len(sorted(x.values())) == 2
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert len(sorted(x.attrs.values())) == 2
 
 def test_attrs_vals_method_empty():
     x = Locus('1',3,4,attrs={})
     assert len(list(x.attrs.values())) == 0
 
-def test_attrs_getitem():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert x['foo'] == 'locus1'
-
-def test_attrs_getitem_missing():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    with pytest.raises(KeyError):
-        x['foobar']
-
-def test_attrs_setitem():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert x['foo'] == 'locus1'
-    x['foo'] = 'bar'
-    assert x['foo'] == 'bar'
-
-def test_setitem():
-    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
-    assert x['foo'] == 'locus1'
-    x['foo'] = 'bar'
-    assert x['foo'] == 'bar'
-
 def test_attrs_items():
-    from locuspocus.Locus import LocusAttrs
-    x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
-    assert len(sorted(x.items())) == 2
+    x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
+    assert len(sorted(x.attrs.items())) == 2
 
 def test_attrs_contains():
     x = Locus('1',3,4,attrs={'foo':'locus1','bar':'baz'})
@@ -296,4 +273,8 @@ def test_distance():
 def test_distance_diff_chroms():
     x = Locus('1',1,100)
     y = Locus('2',150,250)
-    assert x.distance(y) == np.inf
+
+def test_get_subloic_by_index(SimpleRefLoci):
+    x = SimpleRefLoci['x']
+    assert x.subloci[0]
+
