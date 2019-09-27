@@ -13,9 +13,9 @@ from functools import lru_cache,wraps
 from contextlib import contextmanager
 from typing import List
 
-from .Locus import Locus
-from .LocusView import LocusView
-from .Exceptions import ZeroWindowError,MissingLocusError,StrandError
+from .locus import Locus
+from .locusview import LocusView
+from .exceptions import ZeroWindowError,MissingLocusError,StrandError
 
 __all__ = ['RefLoci']
 
@@ -54,7 +54,7 @@ def accepts_loci(fn):
     return wrapped
 
 
-class RefLoci(Freezable):
+class Loci(Freezable):
     '''
         RefLoci are more than the sum of their parts. They have a name and
         represent something bigger than theirselves. They are important. They
@@ -84,7 +84,7 @@ class RefLoci(Freezable):
         Note: this method takes no arguments.
         '''
         self.log.info("Caching LIDS from database")
-        LIDS = [x[0] for x in self._db.cursor().execute('SELECT LID FROM primary_loci')]
+        LIDS = [x[0] for x in self.m80.db.cursor().execute('SELECT LID FROM primary_loci')]
         return LIDS
 
 
@@ -116,7 +116,7 @@ class RefLoci(Freezable):
         ------
         `MissingLocusError` if there is no Locus in the database with that LID.
         '''
-        lid_exists, = self._db.cursor().execute('SELECT COUNT(*) FROM loci WHERE LID = ? ',(LID,)).fetchone()
+        lid_exists, = self.m80.db.cursor().execute('SELECT COUNT(*) FROM loci WHERE LID = ? ',(LID,)).fetchone()
         if lid_exists == 0:
             raise MissingLocusError
         return LocusView(LID,self)
@@ -136,7 +136,7 @@ class RefLoci(Freezable):
             An integer Locus ID (LID)
 
         '''
-        cur = self._db.cursor()
+        cur = self.m80.db.cursor()
         if isinstance(locus,str):
             # Handle the easy case where we have a name
             result = cur.execute(
@@ -192,7 +192,7 @@ class RefLoci(Freezable):
             The locus ID (LID) of the freshly added locus
         '''
         if cur is None:
-            cur = self._db.cursor()
+            cur = self.m80.db.cursor()
         # insert the core feature data
         core,attrs = locus.as_record()
         cur.execute(
@@ -344,7 +344,7 @@ class RefLoci(Freezable):
             f'total loci, adding them to database'
         ))
         IN.close()
-        with self._bulk_transaction() as cur:
+        with self.m80.db.bulk_transaction() as cur:
             for l in loci:
                 self.add_locus(l,cur=cur)
         self.log.info('Done!')
@@ -398,7 +398,7 @@ class RefLoci(Freezable):
         cur_lids = self._primary_LIDS()
         self.set_primary_feature_type(feature_type,clear_previous=True)
         yield
-        with self._bulk_transaction() as cur:
+        with self.m80.db.bulk_transaction() as cur:
             cur.execute('DELETE FROM primary_loci')
             cur.executemany('''
                 INSERT INTO primary_loci (LID) 
@@ -423,7 +423,7 @@ class RefLoci(Freezable):
             If false, append types
 
         '''
-        with self._bulk_transaction() as cur: 
+        with self.m80.db.bulk_transaction() as cur: 
             if clear_previous:
                 cur.execute('DELETE FROM primary_loci')
             cur.execute('''
@@ -486,7 +486,7 @@ class RefLoci(Freezable):
         '''
         raise NotImplementedError('This method is BUGGY')
         from anytree import Node, RenderTree
-        cur = self._db.cursor()
+        cur = self.m80.db.cursor()
         primary_ftypes = [x[0] for x in cur.execute('''
             SELECT DISTINCT feature_type 
             FROM primary_loci p 
@@ -588,7 +588,7 @@ class RefLoci(Freezable):
         if ignore_strand and same_strand:
             raise ValueError('`ignore_strand` and `same_strand` cannot both be True')
         # set up variables to use based on 'partial' flag
-        cur = self._db.cursor()
+        cur = self.m80.db.cursor()
         # Calculate the correct strand orientation
         if locus.strand == '+' or ignore_strand == True:
             if partial == False:
@@ -852,7 +852,7 @@ class RefLoci(Freezable):
             -------
             Loci that encompass the input loci
         '''
-        cur = self._db.cursor()
+        cur = self.m80.db.cursor()
         LIDS = cur.execute('''
             SELECT l.LId FROM positions p, primary_loci l
             WHERE p.chromosome = ?
@@ -865,7 +865,7 @@ class RefLoci(Freezable):
 
     @invalidates_primary_loci_cache
     def _nuke_tables(self):
-        cur = self._db.cursor()
+        cur = self.m80.db.cursor()
         cur.execute(
             '''
             DROP TABLE IF EXISTS loci;
@@ -884,7 +884,7 @@ class RefLoci(Freezable):
         Initializes the Tables holding all the information
         about the Loci.
         '''
-        cur = self._db.cursor()
+        cur = self.m80.db.cursor()
         cur.execute(
             '''
             CREATE TABLE IF NOT EXISTS loci (
