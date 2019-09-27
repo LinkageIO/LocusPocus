@@ -2,16 +2,16 @@ import pytest
 import os
 
 from locuspocus import Locus
-from locuspocus import RefLoci
+from locuspocus import Loci
 from locuspocus import Fasta
 
 import minus80.Tools as m80tools
 
-from locuspocus.Fasta import Chromosome
+from locuspocus import Chromosome
 
 @pytest.fixture(scope='module')
-def simpleRefLoci():
-    m80tools.delete('RefLoci','simpleRefLoci',force=True)
+def simpleLoci():
+    m80tools.delete('Loci','simpleLoci')
     # Create a Locus
     a = Locus(1,100,150, id='gene_a')
     # Create a couple more!
@@ -20,24 +20,24 @@ def simpleRefLoci():
     d = Locus(1,210,300, id='gene_d')
     e = Locus(2,100,150, id='gene_e')
 
-    x = RefLoci('simpleRefLoci')
+    x = Loci('simpleLoci')
     x.add_loci([a,b,c,d,e])
     return x
 
 @pytest.fixture(scope="module")
 def testRefGen():
     # We have to build it
-    if m80tools.available('RefLoci','Zm5bFGS'):
-        x =  RefLoci('Zm5bFGS')
+    if m80tools.available('Loci','Zm5bFGS'):
+        x =  Loci('Zm5bFGS')
     else:
-        m80tools.delete('RefLoci','Zm5bFGS',force=True)
+        m80tools.delete('Loci','Zm5bFGS')
         gff = os.path.expanduser(
             os.path.join(
                 'raw', 
                 'ZmB73_5b_FGS.gff.gz'
             )
         )
-        x = RefLoci('Zm5bFGS')
+        x = Loci('Zm5bFGS')
         if len(x) == 0:
             x.import_gff(  
                 gff
@@ -54,7 +54,7 @@ def m80_Fasta():
         the m80 API
     '''
     # delete the onl
-    m80tools.delete('Fasta','ACGT',force=True)
+    m80tools.delete('Fasta','ACGT')
     f = Fasta.from_file('ACGT','raw/ACGT.fasta')
     return True
 
@@ -62,7 +62,7 @@ def m80_Fasta():
 @pytest.fixture(scope='module')                                                               
 def smpl_fasta():                                                                  
     ''' A simple fasta that agrees with smpl_annot'''                           
-    m80tools.delete('Fasta','smpl_fasta',force=True)
+    m80tools.delete('Fasta','smpl_fasta')
     fasta = Fasta('smpl_fasta')                                                             
     chr1 = Chromosome('chr1','A'*500000)                                                  
     chr2 = Chromosome('chr2','C'*500000)                                               

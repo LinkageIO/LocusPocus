@@ -1,6 +1,6 @@
 import pytest
-from locuspocus import Locus,RefLoci,Term
-from locuspocus.Exceptions import *
+from locuspocus import Locus,Loci,Term
+from locuspocus.exceptions import *
 import minus80 as m80
 from dataclasses import FrozenInstanceError
 

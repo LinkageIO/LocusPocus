@@ -4,7 +4,7 @@ import numpy as np
 from itertools import chain
 from locuspocus import Locus
 
-from locuspocus.Exceptions import StrandError,ChromosomeError
+from locuspocus.exceptions import StrandError,ChromosomeError
 
 @pytest.fixture
 def simple_Locus():
@@ -165,7 +165,7 @@ def test_subloci_len():
     assert len(x.subloci) == 2
 
 def test_attrs_keys_method():
-    from locuspocus.Locus import LocusAttrs
+    from locuspocus.locus import LocusAttrs
     x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
     assert sorted(x.keys()) == ['bar','foo']
 
@@ -174,7 +174,7 @@ def test_attrs_keys_method_empty():
     assert len(list(x.attrs.keys())) == 0
 
 def test_attrs_vals_method():
-    from locuspocus.Locus import LocusAttrs
+    from locuspocus.locus import LocusAttrs
     x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
     assert len(sorted(x.values())) == 2
 
@@ -183,18 +183,18 @@ def test_attrs_vals_method_empty():
     assert len(list(x.attrs.values())) == 0
 
 def test_attrs_getitem():
-    from locuspocus.Locus import LocusAttrs
+    from locuspocus.locus import LocusAttrs
     x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
     assert x['foo'] == 'locus1'
 
 def test_attrs_getitem_missing():
-    from locuspocus.Locus import LocusAttrs
+    from locuspocus.locus import LocusAttrs
     x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
     with pytest.raises(KeyError):
         x['foobar']
 
 def test_attrs_setitem():
-    from locuspocus.Locus import LocusAttrs
+    from locuspocus.locus import LocusAttrs
     x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
     assert x['foo'] == 'locus1'
     x['foo'] = 'bar'
@@ -207,7 +207,7 @@ def test_setitem():
     assert x['foo'] == 'bar'
 
 def test_attrs_items():
-    from locuspocus.Locus import LocusAttrs
+    from locuspocus.locus import LocusAttrs
     x = LocusAttrs(attrs={'foo':'locus1','bar':'baz'})
     assert len(sorted(x.items())) == 2
 

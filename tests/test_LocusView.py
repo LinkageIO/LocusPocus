@@ -3,12 +3,12 @@ import numpy as np
 import minus80 as m80
 
 from itertools import chain
-from locuspocus import Locus,RefLoci
+from locuspocus import Locus,Loci
 
-from locuspocus.Exceptions import StrandError,ChromosomeError
+from locuspocus.exceptions import StrandError,ChromosomeError
 
 @pytest.fixture(scope='module')
-def SimpleRefLoci():
+def SimpleLoci():
     a = Locus('1',10,20)
     b = Locus('1',20,30)
     c = Locus('2',30,40)
@@ -26,16 +26,16 @@ def SimpleRefLoci():
         name='y',
         subloci=[c,d]
     )
-    if m80.Tools.available('RefLoci','test'):
-        m80.Tools.delete('RefLoci','test',force=True)
-    ref = RefLoci('test')   
+    if m80.Tools.available('Loci','test'):
+        m80.Tools.delete('Loci','test',force=True)
+    ref = Loci('test')   
     ref.add_locus(x)
     ref.add_locus(y)
     return ref
 
 @pytest.fixture
-def simpleLocusView(SimpleRefLoci):
-    return SimpleRefLoci['x']
+def simpleLocusView(SimpleLoci):
+    return SimpleLoci['x']
 
 def test_initialization(simpleLocusView):
     # numeric chromosomes
@@ -274,7 +274,7 @@ def test_distance_diff_chroms():
     x = Locus('1',1,100)
     y = Locus('2',150,250)
 
-def test_get_subloic_by_index(SimpleRefLoci):
-    x = SimpleRefLoci['x']
+def test_get_subloic_by_index(SimpleLoci):
+    x = SimpleLoci['x']
     assert x.subloci[0]
 
