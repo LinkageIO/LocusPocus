@@ -2,13 +2,13 @@
 import os
 import pytest
 
-from locuspocus import Locus,RefLoci
-from locuspocus.Exceptions import *
+from locuspocus import Locus,Loci
+from locuspocus.exceptions import *
 
 import minus80 as m80
 
 '''
-    Unit tests for RefLoci
+    Unit tests for Loci
 '''
 
 NUM_GENES = 39656
@@ -54,31 +54,31 @@ def test_get_LID_from_name_missing(testRefGen):
 
 def test_add_locus():
     'add a locus to an empty refloci db and then retrieve it'
-    if m80.Tools.available('RefLoci','empty'):
-        m80.Tools.delete('RefLoci','empty',force=True)
-    empty = RefLoci('empty')
+    if m80.Tools.available('Loci','empty'):
+        m80.Tools.delete('Loci','empty')
+    empty = Loci('empty')
     assert len(empty) == 0
     empty.add_locus(Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'}))
     assert len(empty) == 1
-    m80.Tools.delete('RefLoci','empty',force=True)
+    m80.Tools.delete('Loci','empty')
 
 def test_add_locus_with_attrs():
     'add a locus to an empty refloci db and then retrieve it'
-    if m80.Tools.available('RefLoci','empty'):
-        m80.Tools.delete('RefLoci','empty',force=True)
-    empty = RefLoci('empty')
+    if m80.Tools.available('Loci','empty'):
+        m80.Tools.delete('Loci','empty')
+    empty = Loci('empty')
     assert len(empty) == 0
     LID = empty.add_locus(Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'}))
     assert len(empty) == 1
     l = empty._get_locus_by_LID(LID)
     assert l['foo'] == 'bar'
-    m80.Tools.delete('RefLoci','empty',force=True)
+    m80.Tools.delete('Loci','empty')
 
 def test_nuke_tables():
     'add a locus to an empty refloci db and then retrieve it'
-    if m80.Tools.available('RefLoci','empty'):
-        m80.Tools.delete('RefLoci','empty',force=True)
-    empty = RefLoci('empty')
+    if m80.Tools.available('Loci','empty'):
+        m80.Tools.delete('Loci','empty')
+    empty = Loci('empty')
     assert len(empty) == 0
     x = Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'})
     y = Locus('1',2,2,feature_type='exon',attrs={'baz':'bat'})
@@ -87,14 +87,14 @@ def test_nuke_tables():
     assert len(empty) == 1
     empty._nuke_tables()
     assert len(empty) == 0
-    m80.Tools.delete('RefLoci','empty',force=True)
+    m80.Tools.delete('Loci','empty')
 
 
 def test_add_locus_with_subloci():
     'add a locus to an empty refloci db and then retrieve it'
-    if m80.Tools.available('RefLoci','empty'):
-        m80.Tools.delete('RefLoci','empty',force=True)
-    empty = RefLoci('empty')
+    if m80.Tools.available('Loci','empty'):
+        m80.Tools.delete('Loci','empty')
+    empty = Loci('empty')
     assert len(empty) == 0
     x = Locus('1',1,1,feature_type='gene',attrs={'foo':'bar'})
     y = Locus('1',2,2,feature_type='exon',attrs={'baz':'bat'})
@@ -104,7 +104,7 @@ def test_add_locus_with_subloci():
     l = empty._get_locus_by_LID(LID)
     assert l['foo'] == 'bar'
     assert len(l.subloci) == 1
-    m80.Tools.delete('RefLoci','empty',force=True)
+    m80.Tools.delete('Loci','empty')
 
 
 def test_import_gff(testRefGen):
@@ -114,7 +114,7 @@ def test_import_gff(testRefGen):
     assert testRefGen
 
 #def test_contains_true(testRefGen):
-#    'get a random locus and then test it is in the RefLoci object'
+#    'get a random locus and then test it is in the Loci object'
 #    assert testRefGen.rand() in testRefGen
 
 def test_contains_false(testRefGen):
@@ -299,29 +299,29 @@ def test_encompassing_loci(testRefGen):
     assert loci[0].name == 'GRMZM5G888250'
 
 def test_import_gff():
-    if m80.Tools.available('RefLoci','ZmSmall'):
-        m80.Tools.delete('RefLoci','ZmSmall',force=True)
+    if m80.Tools.available('Loci','ZmSmall'):
+        m80.Tools.delete('Loci','ZmSmall')
     gff = os.path.expanduser(
         os.path.join(
             'raw', 
             'maize_small.gff'
         )
     )
-    x = RefLoci('ZmSmall')
+    x = Loci('ZmSmall')
     x.import_gff(gff)
-    m80.Tools.delete('RefLoci','ZmSmall',force=True)
+    m80.Tools.delete('Loci','ZmSmall')
 
 def test_import_gff_gzipped():
-    if m80.Tools.available('RefLoci','ZmSmall'):
-        m80.Tools.delete('RefLoci','ZmSmall',force=True)
+    if m80.Tools.available('Loci','ZmSmall'):
+        m80.Tools.delete('Loci','ZmSmall')
     gff = os.path.expanduser(
         os.path.join(
             'raw', 
             'maize_small.gff.gz'
         )
     )
-    x = RefLoci('ZmSmall')
+    x = Loci('ZmSmall')
     x.import_gff(gff)
-    m80.Tools.delete('RefLoci','ZmSmall',force=True)
+    m80.Tools.delete('Loci','ZmSmall')
 
   
