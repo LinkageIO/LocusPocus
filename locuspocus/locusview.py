@@ -1,7 +1,7 @@
 
 from functools import wraps
-from .Locus import Locus,LocusAttrs,SubLoci
-from .Exceptions import *
+from .locus import Locus,LocusAttrs,SubLoci
+from .exceptions import *
 
 __all__ = ['LocusView']
 
@@ -12,7 +12,7 @@ class AttrsView(LocusAttrs):
         self._ref = refloci
 
     def keys(self):
-        cur = self._ref._db.cursor()
+        cur = self._ref.m80.db.cursor()
         results = cur.execute('''
             SELECT key FROM loci_attrs 
             WHERE LID = ?
@@ -22,7 +22,7 @@ class AttrsView(LocusAttrs):
         return [k[0] for k in results]
 
     def values(self):
-        cur = self._ref._db.cursor()
+        cur = self._ref.m80.db.cursor()
         results = cur.execute('''
             SELECT val FROM loci_attrs 
             WHERE LID = ?
@@ -35,7 +35,7 @@ class AttrsView(LocusAttrs):
         return zip(self.keys(),self.values())
 
     def __getitem__(self,key):
-        cur = self._ref._db.cursor()
+        cur = self._ref.m80.db.cursor()
         try:
             val, = cur.execute('''
                 SELECT val FROM loci_attrs
@@ -46,7 +46,7 @@ class AttrsView(LocusAttrs):
         return val 
 
     def __setitem__(self,key,val):
-        cur = self._ref._db.cursor()
+        cur = self._ref.m80.db.cursor()
         cur.execute('''
             INSERT OR REPLACE INTO loci_attrs
             (LID,key,val)
@@ -64,7 +64,7 @@ class SubLociView(SubLoci):
         self._ref = refloci
         # Grab Views for each sublocus
         self.LIDs = [x[0] for x in \
-            self._ref._db.cursor().execute('''
+            self._ref.m80.db.cursor().execute('''
             SELECT child FROM relationships
             WHERE parent = ?
         ''',(self._LID,)).fetchall()]
@@ -100,7 +100,7 @@ class LocusView(Locus):
         self.subloci = SubLociView(self._LID,self._ref) 
 
     def _property(self,name):
-        val, = self._ref._db.cursor().execute(
+        val, = self._ref.m80.db.cursor().execute(
             f"SELECT {name} FROM loci WHERE LID = ?",
             (self._LID,)
         ).fetchone()
