@@ -4,7 +4,7 @@ from dataclasses import dataclass,field,InitVar,FrozenInstanceError
 from itertools import chain
 from typing import Union, Any, List, Optional, cast, Callable, Iterable
 
-from .Exceptions import StrandError, ChromosomeError
+from .exceptions import StrandError, ChromosomeError
 
 import re
 import math
