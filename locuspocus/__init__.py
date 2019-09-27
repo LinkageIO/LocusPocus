@@ -4,10 +4,10 @@ __all__ = ['Locus','RefLoci','Fasta']
 import pyximport
 pyximport.install()
 
-from .Chromosome import Chromosome
-from .Fasta import Fasta
+from .chromosome import Chromosome
+from .fasta import Fasta
 
-from .Locus import Locus
-from .RefLoci import RefLoci
+from .locus import Locus
+from .loci import Loci
 
-from .Term import Term
+from .term import Term
