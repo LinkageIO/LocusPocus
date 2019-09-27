@@ -27,7 +27,7 @@ def SimpleLoci():
         subloci=[c,d]
     )
     if m80.Tools.available('Loci','test'):
-        m80.Tools.delete('Loci','test',force=True)
+        m80.Tools.delete('Loci','test')
     ref = Loci('test')   
     ref.add_locus(x)
     ref.add_locus(y)
