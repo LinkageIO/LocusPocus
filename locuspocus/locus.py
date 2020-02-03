@@ -2,7 +2,10 @@
 from collections import defaultdict
 from dataclasses import dataclass,field,InitVar,FrozenInstanceError
 from itertools import chain
-from typing import Union, Any, List, Optional, cast, Callable, Iterable
+from typing import (
+    Union, Any, List, Optional, 
+    cast, Callable, Iterable
+)
 
 from .exceptions import StrandError, ChromosomeError
 
@@ -24,6 +27,9 @@ class SubLoci():
             loci = list()
         self._loci = loci
 
+    def __eq__(self, other):
+        return self._loci == other._loci
+
     def __iter__(self):
         return (x for x in self._loci)
 
@@ -40,26 +46,52 @@ class SubLoci():
 class LocusAttrs():
     # a restricted dict interface to attributes
     def __init__(self,attrs=None):
-        if attrs is None:
-            attrs = dict()
         self._attrs = attrs
 
+    def __eq__(self, other):
+        if self.empty and other.empty:
+            return True
+        else:
+            return self._attrs == other._attrs
+
+    @property
+    def empty(self):
+        if self._attrs is None:
+            return True
+        else:
+            return False
+
     def keys(self):
-        return self._attrs.keys()
+        if self.empty:
+            return []
+        else:
+            return self._attrs.keys()
 
     def values(self):
-        return self._attrs.values()
+        if self.empty:
+            return []
+        else:
+            return self._attrs.values()
 
     def items(self):
-        return self._attrs.items()
+        if self.empty:
+            return {}
+        else:
+            return self._attrs.items()
 
     def __getitem__(self,key):
+        if self.empty:
+            raise KeyError()
         return self._attrs[key]
 
     def __setitem__(self,key,val):
+        if self.empty:
+            self._attrs = {}
         self._attrs[key] = val
 
     def __repr__(self):
+        if self.empty:
+            return repr({})
         return repr(self._attrs)
 
 @dataclass()
@@ -80,24 +112,6 @@ class Locus:
 
     def __len__(self):
         return abs(self.end - self.start) + 1
-
-    def __eq__(self,locus):
-        try:
-            assert self.chromosome == locus.chromosome 
-            assert self.start == locus.start 
-            assert self.end == locus.end 
-            assert self.source == locus.source 
-            assert self.feature_type == locus.feature_type 
-            assert self.strand == locus.strand 
-            assert self.frame == locus.frame 
-            assert self.name == locus.name 
-            for key,val in self.attrs.items():
-                assert val == locus.attrs[key]
-            for x,y in zip(sorted(self.subloci),sorted(locus.subloci)):
-                assert x == y
-            return True
-        except (AssertionError,KeyError):
-            return False
 
     def __lt__(self,locus):
         if self.chromosome == locus.chromosome:
@@ -126,7 +140,8 @@ class Locus:
     def __hash__(self):
         '''
             Convert the locus to a hash, uses md5. The hash
-            is computed using the primary
+            is computed using the primary features of the 
+            locus (i.e. it does not include the attrs)
 
             Parameters
             ----------
@@ -137,6 +152,7 @@ class Locus:
             int : md5 hash of locus
 
         '''
+        # NOTE: Do not rely on the build-in hash funtion! 
         field_list = [str(x) for x in (
             self.chromosome,
             self.start,
