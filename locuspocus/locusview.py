@@ -11,6 +11,11 @@ class AttrsView(LocusAttrs):
         self._LID = LID
         self._ref = refloci
 
+    @property
+    def empty(self):
+        # An attr view is never empty
+        return False
+
     def keys(self):
         cur = self._ref.m80.db.cursor()
         results = cur.execute('''
