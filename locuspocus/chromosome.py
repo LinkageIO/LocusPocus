@@ -14,6 +14,8 @@ class Nucleotide(Enum):
     t = 8
     U = 9
     u = 10
+    N = 11
+    n = 12
 
 class Chromosome(object) :                                                          
     '''                                                                             

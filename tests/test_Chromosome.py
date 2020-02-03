@@ -10,7 +10,6 @@ def chr1():
 def chr2():
     return Chromosome('chr1','C'*500000)                                                  
 
-
 def test_init(chr1):
     assert chr1
 
@@ -41,3 +40,12 @@ def test_equals(chr1,chr2):
     y = chr2
     assert x == x
     assert x != y
+
+def test_N_in_chromosome():
+    Chromosome('test','aaacccgggtttAN')
+    assert True
+
+def test_bad_nucleotide_in_chromosome_seq():
+    with pytest.raises(KeyError):
+        Chromosome('test','abcd')
+    assert True
