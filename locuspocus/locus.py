@@ -28,7 +28,7 @@ class SubLoci():
         self._loci = loci
 
     def __eq__(self, other):
-        return self._loci == other._loci
+        return sorted(self) == sorted(other)
 
     def __iter__(self):
         return (x for x in self._loci)
@@ -52,7 +52,7 @@ class LocusAttrs():
         if self.empty and other.empty:
             return True
         else:
-            return self._attrs == other._attrs
+            return sorted(self.items()) == sorted(other.items())
 
     @property
     def empty(self):
