@@ -121,7 +121,7 @@ class Loci(Freezable):
             raise MissingLocusError
         return LocusView(LID,self)
 
-    def _get_LID(self,locus: Locus) -> int:
+    def _get_LID(self,locus: Locus) -> int: #pragma: no cover
         '''
             Return the Locus Identifier used internally by RefLoci
 
