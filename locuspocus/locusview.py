@@ -5,7 +5,6 @@ from .exceptions import *
 
 __all__ = ['LocusView']
 
-
 class AttrsView(LocusAttrs):
     def __init__(self,LID, refloci):
         self._LID = LID
@@ -73,6 +72,11 @@ class SubLociView(SubLoci):
             SELECT child FROM relationships
             WHERE parent = ?
         ''',(self._LID,)).fetchall()]
+
+    @property
+    def empty(self):
+        # a subloci view is never empty
+        return False
 
     def __iter__(self):
         return (LocusView(x,self._ref) for x in self.LIDs)
