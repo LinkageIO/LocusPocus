@@ -79,6 +79,21 @@ def test_ne_diff_attrs():
     y = Locus(1, 110, 220,attrs={'baz':'bat'})
     assert x != y
 
+def test_empty_subloci_getitem():
+    a = Locus('1',10,20)
+    with pytest.raises(IndexError):
+        a.subloci[1]
+
+def test_empty_subloci_repr():
+    a = Locus('1',10,20)
+    b = Locus('1',20,30)
+    x = Locus(
+        1, 110, 220,
+        attrs={'foo':'bar'},
+        subloci=[a,b]
+    )
+    assert repr(x)
+
 def test_ne_diff_subloci():
     a = Locus('1',10,20)
     b = Locus('1',20,30)
@@ -139,6 +154,9 @@ def test_repr(simple_Locus):
 def test_hash(simple_Locus):
     assert hash(simple_Locus) == 1866009095984521275
 
+def test_subloci_repr(simple_Locus):
+    assert repr(simple_Locus.subloci)
+
 def test_subloci_getitem():
     x = Locus('1',1,2)
     y = Locus('1',3,4,name='sublocus')
@@ -163,6 +181,51 @@ def test_subloci_len():
     x.add_sublocus(y)
     x.add_sublocus(z)
     assert len(x.subloci) == 2
+
+def test_empty_attr():
+    # empty attr
+    x = Locus('chr1',1,100)
+    assert x.attrs.keys() == []
+
+def test_empty_attr_cmp():
+    x = Locus('chr1',1,100)
+    y = Locus('chr1',2,200)
+    # both are empty
+    assert x.attrs == y.attrs
+
+def test_empty_attrs_contains():
+    x = Locus('chr1',1,100)
+    assert 'foo' not in x.attrs
+
+def test_empty_attr_values():
+    # empty attr
+    x = Locus('chr1',1,100)
+    assert x.attrs.values() == []
+
+def test_empty_getitem():
+    # empty attr
+    x = Locus('chr1',1,100)
+    with pytest.raises(KeyError):
+        x['test']
+
+def test_empty_items():
+    # empty attr
+    x = Locus('chr1',1,100)
+    assert x.attrs.items() == {}
+
+def test_attrs_repr():
+    x = Locus('chr1',1,100,attrs={'foo':'bar'})
+    assert repr(x)
+
+def test_attrs_cmp_with_empty():
+    x = Locus('chr1',1,100,attrs={'foo':'bar'})
+    y = Locus('chr1',2,200)
+    assert x.attrs != y.attrs
+
+def test_empty_setitem():
+    # empty attr
+    x = Locus('chr1',1,100)
+    x['test'] = 'foo'
 
 def test_attrs_keys_method():
     from locuspocus.locus import LocusAttrs
