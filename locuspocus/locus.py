@@ -23,24 +23,42 @@ __all__ = ['Locus']
 class SubLoci():
     # A restricted list interface to subloci
     def __init__(self,loci=None):
-        if loci is None:
-            loci = list()
         self._loci = loci
+
+    @property
+    def empty(self):
+        if self._loci is None:
+            return True
+        else:
+            return False
 
     def __eq__(self, other):
         return sorted(self) == sorted(other)
 
     def __iter__(self):
+        if self.empty:
+            return (x for x in [])
         return (x for x in self._loci)
 
     def add(self,locus):
+        if self.empty:
+            self._loci = []
         self._loci.append(locus)
 
     def __getitem__(self,index):
+        if self.empty:
+            raise IndexError
         return self._loci[index]
 
     def __len__(self):
+        if self.empty:
+            return 0
         return len(self._loci)
+
+    def __repr__(self):
+        if len(self) == 0 or self.empty:
+            return "[]"
+        return f"[{len(self)} subloci]"
     
 
 class LocusAttrs():
@@ -79,6 +97,11 @@ class LocusAttrs():
         else:
             return self._attrs.items()
 
+    def __contains__(self,key):
+        if self.empty:
+            return False
+        return key in self._attrs
+
     def __getitem__(self,key):
         if self.empty:
             raise KeyError()
@@ -107,8 +130,29 @@ class Locus:
     name: str = None
 
     # Extra locus stuff
-    attrs: LocusAttrs = field(default_factory=LocusAttrs)
-    subloci: SubLoci = field(default_factory=SubLoci) 
+    attrs: LocusAttrs = None 
+    subloci: SubLoci  = None 
+
+    def __post_init__(self):
+        self.attrs = LocusAttrs(self.attrs)
+        self.subloci = SubLoci(self.subloci)
+
+    def __eq__(self,other):
+        if (self.chromosome == other.chromosome
+            and self.start == other.start
+            and self.end == other.end
+            and self.source == other.source
+            and self.feature_type == other.feature_type
+            and self.strand == other.strand
+            and self.frame == other.frame
+            and self.name == other.name
+            and self.attrs == other.attrs
+            and self.subloci == other.subloci
+        ):
+            return True
+        else:
+            return False
+
 
     def __len__(self):
         return abs(self.end - self.start) + 1
@@ -163,10 +207,10 @@ class Locus:
             self.frame,
             self.name
         )]
-        subloci_list = [str(hash(x)) for x in self.subloci]
+        #subloci_list = [str(hash(x)) for x in self.subloci]
         #attr_list = list(chain(*zip(map(str,self.attrs.keys()),map(str,self.attrs.values()))))
         # Create a full string
-        loc_string  = "_".join(field_list + subloci_list) # attr_list + subloci_list)
+        loc_string  = "_".join(field_list)# + subloci_list) # attr_list + subloci_list)
         digest = hashlib.md5(str.encode(loc_string)).hexdigest()
         return int(digest, base=16)
 
