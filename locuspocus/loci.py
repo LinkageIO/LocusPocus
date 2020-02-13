@@ -65,7 +65,7 @@ class Loci(Freezable):
     # Set up a class  logger
     log = logging.getLogger(__name__)
     handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
+    formatter = logging.Formatter("{asctime} {name:12s} {levelname:8s} {message}",style='{')
     handler.setFormatter(formatter)
     log.addHandler(handler)
     log.setLevel(logging.INFO)
