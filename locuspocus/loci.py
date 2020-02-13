@@ -1,29 +1,31 @@
 #!/usr/bin/python3
-import itertools
-import random
-import scipy as sp
 import gzip
+import random
 import logging
+import itertools
 
+import scipy as sp
 import numpy as np
 
+from typing import (
+    List, Optional
+)
+
+from pathlib import Path
 from minus80 import Freezable
 from collections.abc import Iterable
 from functools import lru_cache,wraps
 from contextlib import contextmanager
-from typing import List
 
 from .locus import Locus
 from .locusview import LocusView
 from .exceptions import ZeroWindowError,MissingLocusError,StrandError
 
-__all__ = ['RefLoci']
+__all__ = ['Loci']
 
 
 # --------------------------------------------------
-#
 #       Decorators
-#
 # --------------------------------------------------
 
 def invalidates_primary_loci_cache(fn):
@@ -60,19 +62,20 @@ class Loci(Freezable):
         represent something bigger than theirselves. They are important. They
         live on the disk in a database.
     '''
+    # Set up a class  logger
+    log = logging.getLogger(__name__)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
+    log.setLevel(logging.INFO)
+
 
     def __init__(self, name, basedir=None):
         # set up the freezable API
         super().__init__(name, basedir=basedir)
         self.name = name
         self._initialize_tables()
-        # Set up a logger
-        self.log = logging.getLogger(__name__)
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter("%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
-        handler.setFormatter(formatter)
-        self.log.addHandler(handler)
-        self.log.setLevel(logging.INFO)
 
     @lru_cache(maxsize=1)
     def _primary_LIDS(self) -> List[int]:
@@ -246,10 +249,10 @@ class Loci(Freezable):
     def import_gff(
         self, 
         filename: str, 
-        feature_type="*", 
-        ID_attr="ID", 
-        parent_attr='Parent',
-        attr_split="="
+        /,
+        ID_attr: str = "ID", 
+        parent_attr: str = 'Parent',
+        attr_split: str = "="
     ) -> None:
         '''
             Imports RefLoci from a gff (General Feature Format) file.
@@ -960,6 +963,59 @@ class Loci(Freezable):
                 FOREIGN KEY (LID) REFERENCES loci(LID)
             );
         '''
+        )
+
+
+    # --------------------------------------------------
+    #       factory methods
+    # --------------------------------------------------
+
+    @classmethod
+    def from_gff(
+        cls,
+        name: str,
+        gff_file: str, 
+        /,
+        basedir: Optional[str] = None,
+        ID_attr: str = "ID", 
+        parent_attr: str = 'Parent',
+        attr_split: str = "="
+    ) -> "Loci":
+        '''
+            Create a new Loci object from a GFF file.
+
+            Parameters
+            ----------
+            name : str
+                The name of the resultant Loci object
+            gff_file: str
+                The path to the gff file
+            ID_attr : str (default: ID)
+                The key in the attribute column which designates the ID or
+                name of the feature.
+            parent_attr : str (default: Parent)
+                The key in the attribute column which designates the Parent of
+                the Locus
+            attr_split : str (default: '=')
+                The delimiter for keys and values in the attribute column
+        '''
+        gff_file = Path(gff_file)
+        # Do some checks
+        import minus80 as m80
+        if m80.Tools.available('Loci',name):
+            raise ValueError(
+                f'Loci.{name} exists. Cannot use factory '
+                f'methods on existing datasets.'
+            )
+        if not gff_file.exists():
+            raise FileNotFoundError(f"{gff_file} does not exist")
+        # Create and import the features
+        loci = cls(name, basedir=basedir)
+        loci.import_gff(
+            str(gff_file),
+            ID_attr=ID_attr,
+            parent_attr=parent_attr,
+            attr_split=attr_split
         )
 
 
