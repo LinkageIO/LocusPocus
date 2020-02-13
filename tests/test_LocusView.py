@@ -140,9 +140,6 @@ def test_gt(simpleLocusView):
 def test_repr(simpleLocusView):
     assert repr(simpleLocusView) 
 
-def test_hash(simpleLocusView):
-    assert hash(simpleLocusView) == 108424482858392584
-
 def test_subloci_getitem():
     x = Locus('1',1,2)
     y = Locus('1',3,4,name='sublocus')
@@ -231,7 +228,7 @@ def test_stranded_stop_invalid():
 def test_as_record():
     x = Locus('1',3,4,strand='+')
     # This doesn't compare the dictionaries of each ...
-    assert x.as_record()[0] == ('1', 3, 4, 'locuspocus', 'locus', '+', None, None, 1030788771219373542)
+    assert x.as_record()[0] == ('1', 3, 4, 'locuspocus', 'locus', '+', None, None)
 
 def test_center_distance():
     x = Locus('1',1,100,strand='+')
