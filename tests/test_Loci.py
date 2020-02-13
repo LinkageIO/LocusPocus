@@ -37,11 +37,6 @@ def test_get_locus_by_LID_missing(testRefGen):
     with pytest.raises(MissingLocusError):
         testRefGen._get_locus_by_LID(-1)
 
-#def test_get_LID(testRefGen):
-#    'Make sure that fetching a locus by LID returns the same locus'
-#    x = testRefGen.rand()
-#    assert testRefGen._get_LID(x) == x._LID
-
 def test_get_LID_missing(testRefGen):
     'Make sure that fetching a locus by LID returns the same locus'
     with pytest.raises(MissingLocusError):
