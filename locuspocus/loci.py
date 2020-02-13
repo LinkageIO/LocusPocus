@@ -148,29 +148,30 @@ class Loci(Freezable):
             else:
                 LID = result[0]
         else:
-            # Try to get the LID by using the hash
-            possible_lids = [x[0] for x in \
-                cur.execute(
-                    'SELECT LID FROM loci WHERE hash = ?',(hash(locus),)
-                ).fetchall()
-            ]
-            # If the hash is not in the db, there is no LID
-            if len(possible_lids) == 0:
-                raise MissingLocusError
-            # If there is one possible hash, return the LID
-            elif len(possible_lids) == 1:
-                LID = possible_lids[0]
-            # Iterate through the loci and find the right one
-            else: #pragma: no cover
-                # TODO: Write a test for this case
-                LID = None
-                for lid in possible_lids:
-                    loc = self._get_locus_by_LID(lid)
-                    if locus == loc:
-                        LID = lid
-                        break
-                if LID is None: 
-                    raise MissingLocusError
+            raise MissingLocusError
+           ## Try to get the LID by using the 
+           #possible_lids = [x[0] for x in \
+           #    cur.execute(
+           #        'SELECT LID FROM loci WHERE hash = ?',(hash(locus),)
+           #    ).fetchall()
+           #]
+           ## If the hash is not in the db, there is no LID
+           #if len(possible_lids) == 0:
+           #    raise MissingLocusError
+           ## If there is one possible hash, return the LID
+           #elif len(possible_lids) == 1:
+           #    LID = possible_lids[0]
+           ## Iterate through the loci and find the right one
+           #else: #pragma: no cover
+           #    # TODO: Write a test for this case
+           #    LID = None
+           #    for lid in possible_lids:
+           #        loc = self._get_locus_by_LID(lid)
+           #        if locus == loc:
+           #            LID = lid
+           #            break
+           #    if LID is None: 
+           #        raise MissingLocusError
         return LID
 
     @invalidates_primary_loci_cache
@@ -198,8 +199,8 @@ class Loci(Freezable):
         cur.execute(
             '''
             INSERT INTO loci 
-                (chromosome,start,end,source,feature_type,strand,frame,name,hash)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                (chromosome,start,end,source,feature_type,strand,frame,name)
+                VALUES (?,?,?,?,?,?,?,?)
             ''',
             core,
         )
@@ -901,8 +902,7 @@ class Loci(Freezable):
                 frame INT,
 
                 /* Store things to make my life easier */
-                name TEXT,
-                hash INT
+                name TEXT
                 
             );
             '''
@@ -914,7 +914,6 @@ class Loci(Freezable):
             CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
             CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
             CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
-            CREATE INDEX IF NOT EXISTS locus_hash ON LOCI (hash);
             '''
         )
         cur.execute(
