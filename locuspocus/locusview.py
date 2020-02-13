@@ -15,6 +15,18 @@ class AttrsView(LocusAttrs):
         # An attr view is never empty
         return False
 
+    def __len__(self):
+        if self.empty:
+            return 0
+        cur = self._ref.m80.db.cursor()
+        cur.execute('''
+            SELECT COUNT(*) FROM loci_attrs
+            WHERE LID = ?
+            ''',
+            (self._LID,)
+        )
+        return cur.fetchone()[0]
+
     def keys(self):
         cur = self._ref.m80.db.cursor()
         results = cur.execute('''
