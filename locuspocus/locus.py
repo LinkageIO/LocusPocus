@@ -11,7 +11,6 @@ from .exceptions import StrandError, ChromosomeError
 
 import re
 import math
-import hashlib
 import locuspocus
 import dataclasses
 
@@ -32,8 +31,17 @@ class SubLoci():
         else:
             return False
 
+    def __len__(self):
+        if self.empty:
+            return 0
+        else:
+            return len(self._loci)
+
     def __eq__(self, other):
-        return sorted(self) == sorted(other)
+        if len(self) != len(other):
+            return False
+        else:
+            return sorted(self) == sorted(other)
 
     def __iter__(self):
         if self.empty:
@@ -66,9 +74,18 @@ class LocusAttrs():
     def __init__(self,attrs=None):
         self._attrs = attrs
 
+    def __len__(self):
+        if self.empty:
+            return 0
+        else:
+            return len(self._attrs)
+
     def __eq__(self, other):
         if self.empty and other.empty:
             return True
+        elif len(self) != len(other):
+            # Short circuit on length
+            return False
         else:
             return sorted(self.items()) == sorted(other.items())
 
@@ -181,39 +198,6 @@ class Locus:
         else:
             return self.chromosome > locus.chromosome
 
-    def __hash__(self):
-        '''
-            Convert the locus to a hash, uses md5. The hash
-            is computed using the primary features of the 
-            locus (i.e. it does not include the attrs)
-
-            Parameters
-            ----------
-            None
-
-            Returns
-            -------
-            int : md5 hash of locus
-
-        '''
-        # NOTE: Do not rely on the build-in hash funtion! 
-        field_list = [str(x) for x in (
-            self.chromosome,
-            self.start,
-            self.end,
-            self.source,
-            self.feature_type,
-            self.strand,
-            self.frame,
-            self.name
-        )]
-        #subloci_list = [str(hash(x)) for x in self.subloci]
-        #attr_list = list(chain(*zip(map(str,self.attrs.keys()),map(str,self.attrs.values()))))
-        # Create a full string
-        loc_string  = "_".join(field_list)# + subloci_list) # attr_list + subloci_list)
-        digest = hashlib.md5(str.encode(loc_string)).hexdigest()
-        return int(digest, base=16)
-
     @property
     def stranded_start(self):
         if self.strand == '+':
@@ -251,7 +235,6 @@ class Locus:
             self.strand,
             self.frame,
             self.name,
-            hash(self)
         ),
             self.attrs
         )
