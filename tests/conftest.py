@@ -9,6 +9,66 @@ import minus80.Tools as m80tools
 
 from locuspocus import Chromosome
 
+
+
+@pytest.fixture(scope='module')
+def realLocus():
+    lines = [
+        '9	ensembl	gene	831398	834611	.	+	.	ID=GRMZM2G158729;Name=GRMZM2G158729;biotype=protein_coding',
+        '9	ensembl	mRNA	831398	834611	.	+	.	ID=GRMZM2G158729_T01;Parent=GRMZM2G158729;Name=GRMZM2G158729_T01;biotype=protein_coding',
+        '9	ensembl	intron	831529	832121	.	+	.	Parent=GRMZM2G158729_T01;Name=intron.132',
+        '9	ensembl	intron	832202	832292	.	+	.	Parent=GRMZM2G158729_T01;Name=intron.133',
+        '9	ensembl	intron	832369	832441	.	+	.	Parent=GRMZM2G158729_T01;Name=intron.134',
+        '9	ensembl	intron	832653	832884	.	+	.	Parent=GRMZM2G158729_T01;Name=intron.135',
+        '9	ensembl	intron	833079	833156	.	+	.	Parent=GRMZM2G158729_T01;Name=intron.136',
+        '9	ensembl	intron	833263	833347	.	+	.	Parent=GRMZM2G158729_T01;Name=intron.137',
+        '9	ensembl	intron	833438	833654	.	+	.	Parent=GRMZM2G158729_T01;Name=intron.138',
+        '9	ensembl	exon	831398	831528	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E02',
+        '9	ensembl	exon	832122	832201	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E04',
+        '9	ensembl	exon	832293	832368	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E08',
+        '9	ensembl	exon	832442	832652	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E05',
+        '9	ensembl	exon	832885	833078	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E11',
+        '9	ensembl	exon	833157	833262	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E09',
+        '9	ensembl	exon	833348	833437	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E03',
+        '9	ensembl	exon	833655	834611	.	+	.	Parent=GRMZM2G158729_T01;Name=GRMZM2G158729_E07',
+        '9	ensembl	CDS	831493	831528	.	+	.	Parent=GRMZM2G158729_T01;Name=CDS.147',
+        '9	ensembl	CDS	832122	832201	.	+	0	Parent=GRMZM2G158729_T01;Name=CDS.148',
+        '9	ensembl	CDS	832293	832368	.	+	2	Parent=GRMZM2G158729_T01;Name=CDS.149',
+        '9	ensembl	CDS	832442	832652	.	+	0	Parent=GRMZM2G158729_T01;Name=CDS.150',
+        '9	ensembl	CDS	832885	833078	.	+	1	Parent=GRMZM2G158729_T01;Name=CDS.151',
+        '9	ensembl	CDS	833157	833262	.	+	0	Parent=GRMZM2G158729_T01;Name=CDS.152',
+        '9	ensembl	CDS	833348	833437	.	+	1	Parent=GRMZM2G158729_T01;Name=CDS.153',
+        '9	ensembl	CDS	833655	834394	.	+	1	Parent=GRMZM2G158729_T01;Name=CDS.154',
+        '9	ensembl	mRNA	831418	834611	.	+	.	ID=GRMZM2G158729_T02;Parent=GRMZM2G158729;Name=GRMZM2G158729_T02;biotype=protein_coding',
+        '9	ensembl	intron	831529	832121	.	+	.	Parent=GRMZM2G158729_T02;Name=intron.155',
+        '9	ensembl	intron	832202	832292	.	+	.	Parent=GRMZM2G158729_T02;Name=intron.156',
+        '9	ensembl	intron	832369	832441	.	+	.	Parent=GRMZM2G158729_T02;Name=intron.157',
+        '9	ensembl	intron	832653	832884	.	+	.	Parent=GRMZM2G158729_T02;Name=intron.158',
+        '9	ensembl	intron	833079	833156	.	+	.	Parent=GRMZM2G158729_T02;Name=intron.159',
+        '9	ensembl	intron	833438	833654	.	+	.	Parent=GRMZM2G158729_T02;Name=intron.160',
+        '9	ensembl	exon	831418	831528	.	+	.	Parent=GRMZM2G158729_T02;Name=GRMZM2G158729_E06',
+        '9	ensembl	exon	832122	832201	.	+	.	Parent=GRMZM2G158729_T02;Name=GRMZM2G158729_E04',
+        '9	ensembl	exon	832293	832368	.	+	.	Parent=GRMZM2G158729_T02;Name=GRMZM2G158729_E08',
+        '9	ensembl	exon	832442	832652	.	+	.	Parent=GRMZM2G158729_T02;Name=GRMZM2G158729_E05',
+        '9	ensembl	exon	832885	833078	.	+	.	Parent=GRMZM2G158729_T02;Name=GRMZM2G158729_E11',
+        '9	ensembl	exon	833157	833437	.	+	.	Parent=GRMZM2G158729_T02;Name=GRMZM2G158729_E01',
+        '9	ensembl	exon	833655	834611	.	+	.	Parent=GRMZM2G158729_T02;Name=GRMZM2G158729_E10',
+        '9	ensembl	CDS	831493	831528	.	+	.	Parent=GRMZM2G158729_T02;Name=CDS.168',
+        '9	ensembl	CDS	832122	832201	.	+	0	Parent=GRMZM2G158729_T02;Name=CDS.169',
+        '9	ensembl	CDS	832293	832368	.	+	2	Parent=GRMZM2G158729_T02;Name=CDS.170',
+        '9	ensembl	CDS	832442	832652	.	+	0	Parent=GRMZM2G158729_T02;Name=CDS.171',
+        '9	ensembl	CDS	832885	833078	.	+	1	Parent=GRMZM2G158729_T02;Name=CDS.172',
+        '9	ensembl	CDS	833157	833312	.	+	0	Parent=GRMZM2G158729_T02;Name=CDS.173'
+    ]
+
+    # Create the top level locus
+    locus = Locus.from_gff_line(lines[0])
+    # add all subloci
+    for l in lines[1:]:
+        locus.add_sublocus(Locus.from_gff_line(l))
+    # Return it
+    return locus
+
 @pytest.fixture(scope='module')
 def simpleLoci():
     m80tools.delete('Loci','simpleLoci')
