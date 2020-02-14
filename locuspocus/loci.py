@@ -23,22 +23,11 @@ from .exceptions import ZeroWindowError,MissingLocusError,StrandError
 
 __all__ = ['Loci']
 
+log = logging.getLogger(__name__)
 
 # --------------------------------------------------
 #       Decorators
 # --------------------------------------------------
-
-def invalidates_primary_loci_cache(fn):
-    '''
-    Decorate any methods that invalidate the list
-    of primary loci. (e.g. the _primary_LIDS method)
-    '''
-    @wraps(fn)
-    def wrapped(self,*args,**kwargs):
-        retval = fn(self,*args,**kwargs) 
-        self._primary_LIDS.cache_clear()
-        return retval
-    return wrapped
 
 def accepts_loci(fn):
     '''
@@ -56,10 +45,13 @@ def accepts_loci(fn):
     return wrapped
 
 
-log = logging.getLogger(__name__)
+# --------------------------------------------------
+#       Class Definition
+# --------------------------------------------------
+
 class Loci(Freezable):
     '''
-        RefLoci are more than the sum of their parts. They have a name and
+        Loci are more than the sum of their parts. They have a name and
         represent something bigger than theirselves. They are important. They
         live on the disk in a database.
     '''
@@ -86,19 +78,6 @@ class Loci(Freezable):
         self.name = name
         self._initialize_tables()
 
-    @lru_cache(maxsize=1)
-    def _primary_LIDS(self) -> List[int]:
-        '''
-        A cached list of primary Locus IDs (LIDS) available in the RefLoci database.
-        This list can change if the primary locus changes, for example through
-        the `RefLoci.set_primary_feature_type()` method. 
-        
-        Note: this method takes no arguments.
-        '''
-        log.info("Caching LIDS from database")
-        LIDS = [x[0] for x in self.m80.db.cursor().execute('SELECT LID FROM primary_loci')]
-        return LIDS
-
 
     def __len__(self) -> int:
         '''
@@ -108,6 +87,7 @@ class Loci(Freezable):
         >>> len(ref)
         42
         '''
+        raise NotImplementedError
         return len(self._primary_LIDS())
 
     def _get_locus_by_LID(self,LID: int) -> LocusView:
@@ -118,7 +98,7 @@ class Loci(Freezable):
         ----------
         LID : int
             A Locus ID. These are assigned to Locus objects when
-            they are added to the RefLoci database.
+            they are added to the Loci database.
 
         Returns
         -------
@@ -128,14 +108,17 @@ class Loci(Freezable):
         ------
         `MissingLocusError` if there is no Locus in the database with that LID.
         '''
-        lid_exists, = self.m80.db.cursor().execute('SELECT COUNT(*) FROM loci WHERE LID = ? ',(LID,)).fetchone()
+        lid_exists, = self.m80.db.cursor().execute(
+            'SELECT COUNT(*) FROM loci WHERE LID = ? ',
+            (LID,)
+        ).fetchone()
         if lid_exists == 0:
             raise MissingLocusError
         return LocusView(LID,self)
 
     def _get_LID(self,locus: Locus) -> int: #pragma: no cover
         '''
-            Return the Locus Identifier used internally by RefLoci
+            Return the Locus Identifier used internally by Loci
 
             Parameters
             ----------
@@ -163,8 +146,11 @@ class Loci(Freezable):
             raise MissingLocusError
         return LID
 
-    @invalidates_primary_loci_cache
-    def add_locus(self, locus: Locus, cur=None, primary_type='gene') -> int:
+    def add_locus(
+        self, 
+        locus: Locus, 
+        cur=None, 
+    ) -> int:
         '''
             Add locus to the database. 
 
@@ -181,6 +167,8 @@ class Loci(Freezable):
             -------
             The locus ID (LID) of the freshly added locus
         '''
+        raise NotImplementedError
+
         if cur is None:
             cur = self.m80.db.cursor()
         # insert the core feature data
@@ -242,7 +230,7 @@ class Loci(Freezable):
         attr_split: str = "="
     ) -> None:
         '''
-            Imports RefLoci from a gff (General Feature Format) file.
+            Imports Loci from a gff (General Feature Format) file.
             See more about the format here:
             http://www.ensembl.org/info/website/upload/gff.html
 
@@ -284,7 +272,7 @@ class Loci(Freezable):
                 strand,
                 frame,
                 attributes,
-            ) = line.strip().split("\t")
+            ) = line.strip().split()
             # Cast data into appropriate types
             start = int(start)
             end = int(end)
@@ -379,7 +367,7 @@ class Loci(Freezable):
         Switch primary feature types within a context block.
         Useful for temporary switching in a with block.
         
-        >>> ref = locuspocus.RefLoci('test')
+        >>> ref = locuspocus.Loci('test')
         >>> with ref.filter_feature_type('exon'):
                 ...
                 ... 'Do something with exons here'
@@ -398,30 +386,6 @@ class Loci(Freezable):
             )
         # reset the LID cache here
         self._primary_LIDS.cache_clear()
-
-
-    @invalidates_primary_loci_cache
-    def set_primary_feature_type(self,feature_type,clear_previous=True):
-        '''
-        Set the primary feature type.
-        
-        Parameters
-        ----------
-        feature_type : str
-            The feature type of the primary locus type
-        clear_previous : bool (default: True)
-            If true, delete previous entries for primary loci.
-            If false, append types
-
-        '''
-        with self.m80.db.bulk_transaction() as cur: 
-            if clear_previous:
-                cur.execute('DELETE FROM primary_loci')
-            cur.execute('''
-                INSERT INTO primary_loci (LID) 
-                SELECT LID FROM loci WHERE feature_type = ?
-            ''',(feature_type,))
-
 
     def rand(self, n=1, distinct=True, autopop=True):
         '''
@@ -463,7 +427,7 @@ class Loci(Freezable):
     def feature_types(self, print_tree=True): #pragma: no cover
         '''
         Returns a summary of the feature types represented in 
-        the RefLoci database
+        the Loci database
         
         Parameters
         ----------
@@ -876,8 +840,7 @@ class Loci(Freezable):
             about the Loci.
         '''
         cur = self.m80.db.cursor()
-        cur.execute(
-            '''
+        cur.execute('''
             CREATE TABLE IF NOT EXISTS loci (
                 LID INTEGER PRIMARY KEY AUTOINCREMENT,
                 
@@ -891,12 +854,30 @@ class Loci(Freezable):
                 strand TEXT,
                 frame INT,
 
-                /* Store things to make my life easier */
                 name TEXT
                 
             );
-            '''
-        )
+        ''')
+
+        cur.execute('''
+             CREATE TABLE IF NOT EXISTS sub_loci (
+                LID INTEGER PRIMARY KEY AUTOINCREMENT,
+                
+                /* Store the locus values  */
+                parent_LID INTEGER PRIMARY KEY,
+                top_level_LID INTEGER,
+
+                chromosome TEXT NOT NULL,
+                start INTEGER NOT NULL,
+                end INTEGER,
+
+                source TEXT,
+                feature_type TEXT,
+                strand TEXT,
+                frame INT,
+
+                name TEXT
+        ''')
 
         cur.execute('''
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
@@ -1005,7 +986,7 @@ class Loci(Freezable):
         )
 
     @classmethod
-    filtered_loci(
+    def filtered_loci(
         cls,
         name: str,
         source_loci: "Loci",
@@ -1043,5 +1024,5 @@ class Loci(Freezable):
         for (LID,) in cur.executemany(
             'SELECT LID from loci WHERE name = ?',((name,) for name in names)        
         ): 
-
+            pass
     
