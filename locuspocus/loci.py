@@ -56,22 +56,31 @@ def accepts_loci(fn):
     return wrapped
 
 
+log = logging.getLogger(__name__)
 class Loci(Freezable):
     '''
         RefLoci are more than the sum of their parts. They have a name and
         represent something bigger than theirselves. They are important. They
         live on the disk in a database.
     '''
-    # Set up a class  logger
-    log = logging.getLogger(__name__)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("{asctime} {name:12s} {levelname:8s} {message}",style='{')
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
-    log.setLevel(logging.INFO)
 
+    def __init__(
+            self, 
+            name: str, 
+            basedir: Optional[str] = None
+        ):
+        '''
+            Initialize a new Locus object
 
-    def __init__(self, name, basedir=None):
+            Parameters
+            ----------
+
+            name : str 
+                The name of the now Loci object
+            basedir : str
+                The base directory to store the files related to the dataset
+                If not specified, the default will be taken from the config file
+        '''
         # set up the freezable API
         super().__init__(name, basedir=basedir)
         self.name = name
@@ -86,7 +95,7 @@ class Loci(Freezable):
         
         Note: this method takes no arguments.
         '''
-        self.log.info("Caching LIDS from database")
+        log.info("Caching LIDS from database")
         LIDS = [x[0] for x in self.m80.db.cursor().execute('SELECT LID FROM primary_loci')]
         return LIDS
 
@@ -152,29 +161,6 @@ class Loci(Freezable):
                 LID = result[0]
         else:
             raise MissingLocusError
-           ## Try to get the LID by using the 
-           #possible_lids = [x[0] for x in \
-           #    cur.execute(
-           #        'SELECT LID FROM loci WHERE hash = ?',(hash(locus),)
-           #    ).fetchall()
-           #]
-           ## If the hash is not in the db, there is no LID
-           #if len(possible_lids) == 0:
-           #    raise MissingLocusError
-           ## If there is one possible hash, return the LID
-           #elif len(possible_lids) == 1:
-           #    LID = possible_lids[0]
-           ## Iterate through the loci and find the right one
-           #else: #pragma: no cover
-           #    # TODO: Write a test for this case
-           #    LID = None
-           #    for lid in possible_lids:
-           #        loc = self._get_locus_by_LID(lid)
-           #        if locus == loc:
-           #            LID = lid
-           #            break
-           #    if LID is None: 
-           #        raise MissingLocusError
         return LID
 
     @invalidates_primary_loci_cache
@@ -274,7 +260,7 @@ class Loci(Freezable):
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
         '''
-        self.log.info(f"Importing Loci from {filename}")
+        log.info(f"Importing Loci from {filename}")
         if filename.endswith(".gz"):
             IN = gzip.open(filename, "rt")
         else:
@@ -343,7 +329,7 @@ class Loci(Freezable):
                 loci.append(l)
             else:
                 name_index[parent].add_sublocus(l)
-        self.log.info((
+        log.info((
             f'Found {len(loci)} top level loci and {total_loci} '
             f'total loci, adding them to database'
         ))
@@ -351,7 +337,7 @@ class Loci(Freezable):
         with self.m80.db.bulk_transaction() as cur:
             for l in loci:
                 self.add_locus(l,cur=cur)
-        self.log.info('Done!')
+        log.info('Done!')
         return None
 
     def __contains__(self, locus: Locus) -> bool:
@@ -378,7 +364,8 @@ class Loci(Freezable):
 
     def __getitem__(self, item):
         '''
-            A convenience method to extract loci from the reference genome.
+            A convenience method to extract a locus from 
+            the loci.
         '''
         LID = self._get_LID(item)
         return self._get_locus_by_LID(LID)
@@ -872,21 +859,21 @@ class Loci(Freezable):
         cur = self.m80.db.cursor()
         cur.execute(
             '''
-            DROP TABLE IF EXISTS loci;
-            DROP TABLE IF EXISTS loci_attrs;
-            DROP TABLE IF EXISTS aliases;
-            DROP VIEW IF EXISTS named_loci;
-            DROP TABLE IF EXISTS relationships;
-            DROP TABLE IF EXISTS positions;
-            DROP TABLE IF EXISTS primary_loci;
+                DROP TABLE IF EXISTS loci;
+                DROP TABLE IF EXISTS loci_attrs;
+                DROP TABLE IF EXISTS aliases;
+                DROP VIEW IF EXISTS named_loci;
+                DROP TABLE IF EXISTS relationships;
+                DROP TABLE IF EXISTS positions;
+                DROP TABLE IF EXISTS primary_loci;
             '''
         )
         self._initialize_tables()
 
     def _initialize_tables(self):
         '''
-        Initializes the Tables holding all the information
-        about the Loci.
+            Initializes the Tables holding all the information
+            about the Loci.
         '''
         cur = self.m80.db.cursor()
         cur.execute(
@@ -915,8 +902,8 @@ class Loci(Freezable):
             CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
             CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
             CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
-            CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
             CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
+            CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
             '''
         )
         cur.execute(
@@ -1017,5 +1004,44 @@ class Loci(Freezable):
             attr_split=attr_split
         )
 
+    @classmethod
+    filtered_loci(
+        cls,
+        name: str,
+        source_loci: "Loci",
+        names: List[str],
+        /,
+        basedir: Optional[str] = None,
 
+    ) -> "Loci":
+        '''
+            Efficiently create a new Loci object based on a 
+            list of filtered Locus names and a source Loci object. 
 
+            Parameters
+            ----------
+            name : str 
+                The name of the now Loci object
+            source_loci : locuspocus.Loci
+                The Loci object to filter from
+            names : List[str]
+                A list of names to filter from the source Loci
+            basedir : Optional[str]
+                
+        '''
+        # Do some checks
+        import minus80 as m80
+        if m80.Tools.available('Loci',name):
+            raise ValueError(
+                f'Loci.{name} exists. Cannot use factory '
+                f'methods on existing datasets.'
+            )
+        filtered_loci = cls(name, basedir=basedir)
+
+        cur = source_loci.m80.db.cursor()
+        # Top level loci
+        for (LID,) in cur.executemany(
+            'SELECT LID from loci WHERE name = ?',((name,) for name in names)        
+        ): 
+
+    
