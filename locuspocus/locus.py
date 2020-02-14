@@ -7,7 +7,13 @@ from typing import (
     cast, Callable, Iterable
 )
 
-from .exceptions import StrandError, ChromosomeError
+from .exceptions import (
+    StrandError, 
+    ChromosomeError,
+    MissingLocusError
+)
+from .subloci import SubLoci
+from .locusattrs import LocusAttrs
 
 import re
 import math
@@ -19,140 +25,36 @@ import numpy as np
 
 __all__ = ['Locus']
 
-class SubLoci():
-    # A restricted list interface to subloci
-    def __init__(self,loci=None):
-        self._loci = loci
-
-    @property
-    def empty(self):
-        if self._loci is None:
-            return True
-        else:
-            return False
-
-    def __len__(self):
-        if self.empty:
-            return 0
-        else:
-            return len(self._loci)
-
-    def __eq__(self, other):
-        if len(self) != len(other):
-            return False
-        else:
-            return sorted(self) == sorted(other)
-
-    def __iter__(self):
-        if self.empty:
-            return (x for x in [])
-        return (x for x in self._loci)
-
-    def add(self,locus):
-        if self.empty:
-            self._loci = []
-        self._loci.append(locus)
-
-    def __getitem__(self,index):
-        if self.empty:
-            raise IndexError
-        return self._loci[index]
-
-    def __len__(self):
-        if self.empty:
-            return 0
-        return len(self._loci)
-
-    def __repr__(self):
-        if len(self) == 0 or self.empty:
-            return "[]"
-        return f"[{len(self)} subloci]"
-    
-
-class LocusAttrs():
-    # a restricted dict interface to attributes
-    def __init__(self,attrs=None):
-        self._attrs = attrs
-
-    def __len__(self):
-        if self.empty:
-            return 0
-        else:
-            return len(self._attrs)
-
-    def __eq__(self, other):
-        if self.empty and other.empty:
-            return True
-        elif len(self) != len(other):
-            # Short circuit on length
-            return False
-        else:
-            return sorted(self.items()) == sorted(other.items())
-
-    @property
-    def empty(self):
-        if self._attrs is None:
-            return True
-        else:
-            return False
-
-    def keys(self):
-        if self.empty:
-            return []
-        else:
-            return self._attrs.keys()
-
-    def values(self):
-        if self.empty:
-            return []
-        else:
-            return self._attrs.values()
-
-    def items(self):
-        if self.empty:
-            return {}
-        else:
-            return self._attrs.items()
-
-    def __contains__(self,key):
-        if self.empty:
-            return False
-        return key in self._attrs
-
-    def __getitem__(self,key):
-        if self.empty:
-            raise KeyError()
-        return self._attrs[key]
-
-    def __setitem__(self,key,val):
-        if self.empty:
-            self._attrs = {}
-        self._attrs[key] = val
-
-    def __repr__(self):
-        if self.empty:
-            return repr({})
-        return repr(self._attrs)
 
 @dataclass()
 class Locus:
-    chromosome: str
-    start: int 
-    end: int
 
-    source: str = 'locuspocus'
-    feature_type: str = 'locus'
-    strand: str = '+'
-    frame: int = None
-    name: str = None
+    def __init__(
+        self,
+        chromosome: str,
+        start: int,
+        end: int,
+        source: str = 'locuspocus',
+        feature_type: str = 'locus',
+        strand: str = '+',
+        frame: int = None,
+        name: str = None,
+        # Extra locus stuff
+        attrs: LocusAttrs = None,
+        subloci: SubLoci  = None
 
-    # Extra locus stuff
-    attrs: LocusAttrs = None 
-    subloci: SubLoci  = None 
+    ):
+        self.chromosome = str(chromosome)
+        self.start = int(start)
+        self.end   = int(end)
+        self.source = str(source)
+        self.feature_type = str(feature_type)
+        self.strand = str(strand)
+        self.frame = frame
+        self.name = str(name)
 
-    def __post_init__(self):
-        self.attrs = LocusAttrs(self.attrs)
-        self.subloci = SubLoci(self.subloci)
+        self.attrs = LocusAttrs(attrs)
+        self.subloci = SubLoci(subloci)
 
     def __eq__(self,other):
         if (self.chromosome == other.chromosome
@@ -222,8 +124,31 @@ class Locus:
     def __setitem__(self,key,val):
         self.attrs[key] = val
 
-    def add_sublocus(self,locus):
-        self.subloci.add(locus)
+    def add_sublocus(
+        self,
+        locus: 'Locus',
+        find_parent=False, 
+        parent_attr: Optional[str] = 'Parent'
+    ):
+        '''
+            Adds a sublocus to the current Locus. The added locus will be added 
+            according to its `parent_attr` keyword.
+        '''
+        if not find_parent:
+            self.subloci.add(locus)
+        else:
+            try:
+                if locus[parent_attr] == self.name:
+                    self.subloci.add(locus)
+                else:
+                    # Find the parent of the sublocus
+                    parent = self.subloci.find(locus[parent_attr])
+                    if parent is None:
+                        raise MissingLocusError 
+                    parent.subloci.add(locus)
+            except KeyError:
+                raise KeyError(f'Unable to resolve the key:{parent_attr} to find parent Locus')
+
 
     def as_record(self):
         return ((
@@ -408,3 +333,67 @@ class Locus:
 
     def __str__(self):
         return repr(self)
+
+
+    #--------------------------------
+    #   Factory Methods
+    #--------------------------------
+    @classmethod
+    def from_gff_line(
+        cls,
+        line,
+        /,
+        ID_attr: str = "ID", 
+        parent_attr: str = 'Parent',
+        attr_split: str = "="
+    ) -> 'Locus':
+        (
+            chromosome,
+            source,
+            feature,
+            start,
+            end,
+            score,
+            strand,
+            frame,
+            attributes,
+        ) = line.strip().split()
+        # Cast data into appropriate types
+        strand = None if strand == '.' else strand
+        frame = None if frame == '.' else int(frame)
+        # Get the attributes
+        attributes = dict(
+            [
+                (field.strip().split(attr_split))
+                for field in attributes.strip(";").split(";")
+            ]
+        )
+        # Store the score in the attrs if it exists
+        if score != '.':
+            attributes['score'] = float(score)
+        # Parse out the Identifier
+        if ID_attr in attributes:
+            name = attributes[ID_attr]
+        else:
+            name = None
+        # Parse out the parent info
+        if parent_attr in attributes:
+            parent = attributes[parent_attr]
+        else:
+            parent = None
+        l = cls(
+            chromosome, 
+            start, 
+            end, 
+            source=source, 
+            feature_type=feature, 
+            strand=strand, 
+            frame=frame, 
+            name=name, 
+            attrs=attributes, 
+        )
+        return l
+
+
+
+    
