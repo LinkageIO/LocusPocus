@@ -1,14 +1,8 @@
 import pytest
 import os
 
-from locuspocus import Locus
-from locuspocus import Loci
-from locuspocus import Fasta
-
+import locuspocus as lp
 import minus80.Tools as m80tools
-
-from locuspocus import Chromosome
-
 
 
 @pytest.fixture(scope='module')
@@ -62,10 +56,10 @@ def realLocus():
     ]
 
     # Create the top level locus
-    locus = Locus.from_gff_line(lines[0])
+    locus = lp.Locus.from_gff_line(lines[0],ID_attr='Name')
     # add all subloci
     for l in lines[1:]:
-        locus.add_sublocus(Locus.from_gff_line(l))
+        locus.add_sublocus(lp.Locus.from_gff_line(l),find_parent=True)
     # Return it
     return locus
 
