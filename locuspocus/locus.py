@@ -100,6 +100,19 @@ class Locus:
         else:
             return self.chromosome > locus.chromosome
 
+    def __repr__(self):
+        return (
+            f"Locus("
+            f"{self.chromosome},{self.start},{self.end},source={self.source},"
+            f"feature_type='{self.feature_type}',"
+            f"strand='{self.strand}',"
+            f"frame='{self.frame}',"
+            f"name='{self.name}',"
+            f"attrs={self.attrs},"
+            f"subloci={self.subloci}"
+            f")"
+        )
+
     @property
     def stranded_start(self):
         if self.strand == '+':
