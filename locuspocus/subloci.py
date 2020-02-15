@@ -1,4 +1,6 @@
-
+from typing import (
+    Generator
+)
 
 class SubLoci():
     # A restricted list interface to subloci
@@ -18,17 +20,17 @@ class SubLoci():
         else:
             return sorted(self) == sorted(other)
 
-    def __iter__(self):
+    def __iter__(self) -> Generator['Locus']:
         if self.empty:
             return (x for x in [])
         return (x for x in self._loci)
 
-    def add(self,locus) -> None:
+    def add(self, locus: 'Locus') -> None:
         if self.empty:
             self._loci = []
         self._loci.append(locus)
 
-    def __getitem__(self,index) -> "Locus":
+    def __getitem__(self,index: int) -> "Locus":
         if self.empty:
             raise IndexError
         return self._loci[index]
@@ -38,7 +40,7 @@ class SubLoci():
             return 0
         return len(self._loci)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if len(self) == 0 or self.empty:
             return "None"
         return f"[{len(self)} subloci]"
@@ -52,13 +54,19 @@ class SubLoci():
         '''
         if self.empty:
             return None
-        for l in self:
+        for l in self.traverse():
             if l.name == name:
                 return l
-            else:
-                # Recurse
-                if l.subloci.find(name) is None:
-                    continue
         return None
+
+    def traverse(self) -> Generator['Locus']:
+        '''
+            Perform a depth first traversal of subloci
+        '''
+        if self.empty:
+            return None
+        for l in self:
+            yield l
+            yield from l.subloci.traverse()
 
 
