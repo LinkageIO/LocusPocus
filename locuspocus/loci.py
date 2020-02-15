@@ -167,7 +167,6 @@ class Loci(Freezable):
             -------
             The locus ID (LID) of the freshly added locus
         '''
-        raise NotImplementedError
 
         if cur is None:
             cur = self.m80.db.cursor()
@@ -181,37 +180,28 @@ class Loci(Freezable):
             ''',
             core,
         )
-        # get the fresh LID
+        # get the locus LID
         (LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
-        if LID is None: #pragma: no cover
-            # I dont know hwen this would happen without another exception being thrown
+
+        if LID is None: # pragma: no cover
+            # I dont know when this would happen without another exception being thrown
             raise ValueError(f"{locus} was not assigned a valid LID!")
-        # Add the key val pairs
+        # Add the attrs
         for key,val in attrs.items():
-            cur.execute(
-                '''
+            cur.execute('''
                 INSERT INTO loci_attrs 
-                (LID,key,val) 
-                VALUES (?,?,?)
+                    (LID,key,val) 
+                    VALUES (?,?,?)
                 ''', 
                 (LID,key,val)
             )
-        # Check to see if the locus is a primary feature
-        if locus.feature_type == primary_type:
-            cur.execute('''
-                INSERT INTO primary_loci (LID) VALUES (?)
-            ''',(LID,))
-        # get childrem LIDS using recursion
-        children_LIDs = [self.add_locus(c,cur=cur) for c in locus.subloci]
-        # Add relationships  
-        for CID in children_LIDs:
-            cur.execute(
-                '''
-                INSERT INTO relationships (parent,child)
-                VALUES (?,?)
-                ''',
-                (LID,CID)
-            )
+        # Add subloci information
+        self._add_subloci(
+            root_LID=LID,
+            parent_LID=LID,
+            subloci=locus.subloci,
+            cur=cur
+        )
         # Add the position to the R*Tree
         cur.execute(
             '''
@@ -220,6 +210,43 @@ class Loci(Freezable):
             (LID,locus.start,locus.end,locus.chromosome)
         )
         return LID
+
+    def _add_subloci(
+        self,
+        root_LID: int,
+        parent_LID: int,
+        subloci: "SubLoci",
+        cur: Optional["Cursor"] = None
+    ):
+        if subloci.empty:
+            return None
+        for l in subloci:
+            # Extract info
+            core,attrs = l.as_record()
+            # add the sublocus
+            cur.execute('''
+                INSERT INTO subloci
+                    (root_LID,parent_LID,chromosome,start,end,source,feature_type,strand,frame,name)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)''',
+                (root_LID,parent_LID)+core 
+            )
+            (new_parent_LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
+            # add the attrs
+            for key,val in l.attrs.items():
+                cur.execute('''
+                    INSERT INTO subloci_attrs 
+                    (LID,key,val) 
+                    VALUES (?,?,?)
+                    ''', 
+                    (new_parent_LID,key,val)
+                )
+            # recurse with updated parentLID
+            self._add_subloci(
+                root_LID=root_LID,
+                parent_LID=new_parent_LID,
+                subloci=l.subloci,
+                cur=cur
+            )
 
     def import_gff(
         self, 
@@ -248,6 +275,7 @@ class Loci(Freezable):
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
         '''
+        raise NotImplementedError
         log.info(f"Importing Loci from {filename}")
         if filename.endswith(".gz"):
             IN = gzip.open(filename, "rt")
@@ -343,6 +371,7 @@ class Loci(Freezable):
             -------
             True or False
         '''
+        raise NotImplementedError
         try:
             # If we can get an LID, it exists
             LID = self._get_LID(locus)
@@ -355,37 +384,12 @@ class Loci(Freezable):
             A convenience method to extract a locus from 
             the loci.
         '''
+        raise NotImplementedError
         LID = self._get_LID(item)
         return self._get_locus_by_LID(LID)
 
     def __iter__(self):
         return (self._get_locus_by_LID(l) for l in self._primary_LIDS())
-
-    @contextmanager
-    def filter_feature_type(self,feature_type):
-        '''
-        Switch primary feature types within a context block.
-        Useful for temporary switching in a with block.
-        
-        >>> ref = locuspocus.Loci('test')
-        >>> with ref.filter_feature_type('exon'):
-                ...
-                ... 'Do something with exons here'
-                ...
-        >>> 'primary type is now back to whatever it was before' 
-        '''
-        cur_lids = self._primary_LIDS()
-        self.set_primary_feature_type(feature_type,clear_previous=True)
-        yield
-        with self.m80.db.bulk_transaction() as cur:
-            cur.execute('DELETE FROM primary_loci')
-            cur.executemany('''
-                INSERT INTO primary_loci (LID) 
-                VALUES (?)
-                ''', ((x,) for x in cur_lids)
-            )
-        # reset the LID cache here
-        self._primary_LIDS.cache_clear()
 
     def rand(self, n=1, distinct=True, autopop=True):
         '''
@@ -410,6 +414,7 @@ class Loci(Freezable):
             A list of n Locus objects
 
         '''
+        raise NotImplementedError
         import random
         loci = set()
         LIDS = self._primary_LIDS()
@@ -423,51 +428,6 @@ class Loci(Freezable):
         if autopop and len(loci) == 1:
             loci = loci[0]
         return loci
-
-    def feature_types(self, print_tree=True): #pragma: no cover
-        '''
-        Returns a summary of the feature types represented in 
-        the Loci database
-        
-        Parameters
-        ----------
-        print_tree : bool (default: True)
-            If True, prints the result before returning. 
-
-        Returns
-        -------
-        An anytree Node object containing the root node.
-
-        '''
-        raise NotImplementedError('This method is BUGGY')
-        from anytree import Node, RenderTree
-        cur = self.m80.db.cursor()
-        primary_ftypes = [x[0] for x in cur.execute('''
-            SELECT DISTINCT feature_type 
-            FROM primary_loci p 
-                JOIN loci l ON p.LID = l.LID;
-        ''').fetchall()]
-        ndict = dict()
-        root = Node(self.name)
-        for n in primary_ftypes:
-            ndict[n] = Node(n,parent=root)
-        ftypes = cur.execute('''
-            SELECT DISTINCT p.feature_type,c.feature_type 
-            FROM relationships r 
-                JOIN loci p ON r.parent = p.LID 
-                JOIN loci c ON r.child = c.LID;
-        ''').fetchall()
-        # Create Nodes
-        for p,c in ftypes:
-            ndict[c] = Node(c)
-        for p,c in ftypes:
-            if p in ndict:
-                ndict[c].parent = ndict[p]
-            else:
-                ndict[c].parent = root
-        if print_tree is True:
-            print(RenderTree(root))
-        return root
 
     @accepts_loci 
     def within(
@@ -540,6 +500,7 @@ class Loci(Freezable):
             set if `ignore_strand` is also true. An
             exception will be raised.
         '''
+        raise NotImplementedError
         if ignore_strand and same_strand:
             raise ValueError('`ignore_strand` and `same_strand` cannot both be True')
         # set up variables to use based on 'partial' flag
@@ -642,6 +603,7 @@ class Loci(Freezable):
                     otherwise, the method will return loci
                     on either strand.
         '''
+        raise NotImplementedError
         # calculate the start and stop anchors 
         start,end = sorted([locus.stranded_start, locus.upstream(max_distance)])
         # The dummy locus needs to have the opposite "strand" so the loci
@@ -730,6 +692,7 @@ class Loci(Freezable):
                     otherwise, the method will return loci
                     on either strand.
         '''
+        raise NotImplementedError
         # calculate the start and stop anchors 
         start,end = sorted([locus.stranded_end, locus.downstream(max_distance)])
         # The dummy locus needs to have the same strand so that
@@ -774,6 +737,7 @@ class Loci(Freezable):
             n : int (default=infinite)
                 
         '''
+        raise NotImplementedError
         kwargs = {
             'n':n,
             'max_distance':max_distance,
@@ -807,6 +771,7 @@ class Loci(Freezable):
             -------
             Loci that encompass the input loci
         '''
+        raise NotImplementedError
         cur = self.m80.db.cursor()
         LIDS = cur.execute('''
             SELECT l.LId FROM positions p, primary_loci l
@@ -818,18 +783,15 @@ class Loci(Freezable):
         for x, in LIDS:
             yield self._get_locus_by_LID(x) 
 
-    @invalidates_primary_loci_cache
     def _nuke_tables(self):
         cur = self.m80.db.cursor()
         cur.execute(
             '''
                 DROP TABLE IF EXISTS loci;
+                DROP TABLE IF EXISTS subloci;
                 DROP TABLE IF EXISTS loci_attrs;
-                DROP TABLE IF EXISTS aliases;
-                DROP VIEW IF EXISTS named_loci;
-                DROP TABLE IF EXISTS relationships;
+                DROP TABLE ID EXISTS subloci_attrs;
                 DROP TABLE IF EXISTS positions;
-                DROP TABLE IF EXISTS primary_loci;
             '''
         )
         self._initialize_tables()
@@ -855,17 +817,16 @@ class Loci(Freezable):
                 frame INT,
 
                 name TEXT
-                
             );
         ''')
 
         cur.execute('''
-             CREATE TABLE IF NOT EXISTS sub_loci (
+             CREATE TABLE IF NOT EXISTS subloci (
                 LID INTEGER PRIMARY KEY AUTOINCREMENT,
                 
                 /* Store the locus values  */
-                parent_LID INTEGER PRIMARY KEY,
-                top_level_LID INTEGER,
+                root_LID INTEGER,
+                parent_LID INTEGER,
 
                 chromosome TEXT NOT NULL,
                 start INTEGER NOT NULL,
@@ -877,16 +838,9 @@ class Loci(Freezable):
                 frame INT,
 
                 name TEXT
+            )
         ''')
 
-        cur.execute('''
-            CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
-            CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
-            CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
-            CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
-            CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
-            '''
-        )
         cur.execute(
         # Create a table that contains loci attribute mapping
         '''
@@ -899,19 +853,21 @@ class Loci(Freezable):
             );
             '''
         )
+
         cur.execute(
-        # Create a table with parent-child relationships        
+        # Create a table that contains loci attribute mapping
         '''
-            CREATE TABLE IF NOT EXISTS relationships (
-                parent INT,
-                child INT,
-                FOREIGN KEY(parent) REFERENCES loci(LID),
-                FOREIGN KEY(child) REFERENCES loic(LID)
+            CREATE TABLE IF NOT EXISTS subloci_attrs (
+                LID INT NOT NULL,
+                key TEXT,
+                val TEXT,
+                FOREIGN KEY(LID) REFERENCES subloci(LID),
+                UNIQUE(LID,key)
             );
-            CREATE INDEX IF NOT EXISTS relationships_parent ON relationships (parent);
-            CREATE INDEX IF NOT EXISTS relationships_child ON relationships (child);
-        '''
+            '''
         )
+
+
         # Create a R*Tree table so we can efficiently query by ranges
         cur.execute(
         '''
@@ -923,15 +879,15 @@ class Loci(Freezable):
             );
         '''
         )
-        cur.execute(
-        '''
-            CREATE TABLE IF NOT EXISTS primary_loci (
-                LID INT PRIMARY KEY,
-                FOREIGN KEY (LID) REFERENCES loci(LID)
-            );
-        '''
-        )
 
+        cur.execute('''
+            CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
+            CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
+            CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
+            CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
+            CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
+            '''
+        )
 
     # --------------------------------------------------
     #       factory methods
@@ -1010,6 +966,7 @@ class Loci(Freezable):
             basedir : Optional[str]
                 
         '''
+        raise NotImplementedError
         # Do some checks
         import minus80 as m80
         if m80.Tools.available('Loci',name):
