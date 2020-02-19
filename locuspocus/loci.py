@@ -6,6 +6,7 @@ import itertools
 
 import scipy as sp
 import numpy as np
+import minus80 as m80
 
 from typing import (
     List, Optional
@@ -77,18 +78,28 @@ class Loci(Freezable):
         super().__init__(name, basedir=basedir)
         self.name = name
         self._initialize_tables()
+        self._cached_LIDs = None
 
+    @property
+    def _LIDs(self) -> List[int]:
+        if self._cached_LIDs is None:
+            self._cached_LIDs = [LID for (LID,) in self.m80.db.cursor().execute(
+                'SELECT LID FROM loci'    
+            )]
+        return self._cached_LIDs
 
     def __len__(self) -> int:
         '''
-        Returns the number of primary loci in the dataset. Gets called by the len()
-        built-in function
+        Returns the number of loci in the dataset. 
+        Gets called by the len().
 
         >>> len(ref)
         42
         '''
-        raise NotImplementedError
-        return len(self._primary_LIDS())
+        (num_rows,) = self.m80.db.cursor().execute(
+            'SELECT COUNT(*) FROM LOCI;'        
+        ).fetchone()
+        return num_rows
 
     def _get_locus_by_LID(self,LID: int) -> LocusView:
         '''
@@ -198,7 +209,7 @@ class Loci(Freezable):
         # Add subloci information
         self._add_subloci(
             root_LID=LID,
-            parent_LID=LID,
+            parent_LID=None,
             subloci=locus.subloci,
             cur=cur
         )
@@ -230,7 +241,7 @@ class Loci(Freezable):
                     VALUES (?,?,?,?,?,?,?,?,?,?)''',
                 (root_LID,parent_LID)+core 
             )
-            (new_parent_LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
+            (LID,) = cur.execute('SELECT last_insert_rowid()').fetchone()
             # add the attrs
             for key,val in l.attrs.items():
                 cur.execute('''
@@ -238,12 +249,12 @@ class Loci(Freezable):
                     (LID,key,val) 
                     VALUES (?,?,?)
                     ''', 
-                    (new_parent_LID,key,val)
+                    (LID,key,val)
                 )
             # recurse with updated parentLID
             self._add_subloci(
                 root_LID=root_LID,
-                parent_LID=new_parent_LID,
+                parent_LID=LID,
                 subloci=l.subloci,
                 cur=cur
             )
@@ -254,16 +265,18 @@ class Loci(Freezable):
         /,
         ID_attr: str = "ID", 
         parent_attr: str = 'Parent',
-        attr_split: str = "="
+        attr_split: str = "=",
+        skip_feature_types: Optional[List[str]] = None
     ) -> None:
         '''
-            Imports Loci from a gff (General Feature Format) file.
+            Imports Loci from a gff (General Feature Format) file
+            to the current Loci object.
+
             See more about the format here:
             http://www.ensembl.org/info/website/upload/gff.html
 
             Parameters
             ----------
-
             filename : str
                 The path to the GFF file.
             ID_attr : str (default: ID)
@@ -274,14 +287,18 @@ class Loci(Freezable):
                 the Locus
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
+            skip_feature_types : Optional[List[str]]
+                Optionally, provide a list of feature_types to skip during the
+                import. For instance, some GFFs will provide features for 
+                Chromosomes, which can lead to strange behaviors.
         '''
-        raise NotImplementedError
         log.info(f"Importing Loci from {filename}")
         if filename.endswith(".gz"):
             IN = gzip.open(filename, "rt")
         else:
             IN = open(filename, "r")
         loci = []
+        current_locus = None
         name_index = {}
         total_loci = 0
         for i,line in enumerate(IN):
@@ -289,65 +306,18 @@ class Loci(Freezable):
             # skip comment lines
             if line.startswith("#"):
                 continue
-            # Get the main information
-            (
-                chromosome,
-                source,
-                feature,
-                start,
-                end,
-                score,
-                strand,
-                frame,
-                attributes,
-            ) = line.strip().split()
-            # Cast data into appropriate types
-            start = int(start)
-            end = int(end)
-            strand = None if strand == '.' else strand
-            frame = None if frame == '.' else int(frame)
-            # Get the attributes
-            attributes = dict(
-                [
-                    (field.strip().split(attr_split))
-                    for field in attributes.strip(";").split(";")
-                ]
-            )
-            # Store the score in the attrs if it exists
-            if score != '.':
-                attributes['score'] = float(score)
-            # Parse out the Identifier
-            if ID_attr in attributes:
-                name = attributes[ID_attr]
-                #del attributes[ID_attr]
+            locus = Locus.from_gff_line(line) 
+            # Check to see if we are in a top level locus
+            if skip_feature_types and locus.feature_type in skip_feature_types:
+                continue
+            if parent_attr not in locus.attrs:
+                current_locus = locus
+                loci.append(locus)
             else:
-                name = None
-            # Parse out the parent info
-            if parent_attr in attributes:
-                parent = attributes[parent_attr]
-                #del attributes[parent_attr]
-            else:
-                parent = None
-            l =  Locus(
-                    chromosome=chromosome, 
-                    start=start, 
-                    source=source, 
-                    feature_type=feature, 
-                    end=end, 
-                    strand=strand, 
-                    frame=frame, 
-                    name=name, 
-                    attrs=attributes, 
-                )
-            if name is not None:    
-                name_index[name] = l
-            if parent is None:
-                loci.append(l)
-            else:
-                name_index[parent].add_sublocus(l)
+                # add the sublocus to the current locus
+                current_locus.add_sublocus(locus,find_parent=True)
         log.info((
-            f'Found {len(loci)} top level loci and {total_loci} '
-            f'total loci, adding them to database'
+            f'Found {len(loci)} loci, adding to database'
         ))
         IN.close()
         with self.m80.db.bulk_transaction() as cur:
@@ -371,7 +341,6 @@ class Loci(Freezable):
             -------
             True or False
         '''
-        raise NotImplementedError
         try:
             # If we can get an LID, it exists
             LID = self._get_LID(locus)
@@ -384,14 +353,21 @@ class Loci(Freezable):
             A convenience method to extract a locus from 
             the loci.
         '''
-        raise NotImplementedError
         LID = self._get_LID(item)
         return self._get_locus_by_LID(LID)
 
     def __iter__(self):
-        return (self._get_locus_by_LID(l) for l in self._primary_LIDS())
+        LIDs = self.m80.db.cursor().execute('''
+            SELECT LID from loci
+        ''')
+        return (self._get_locus_by_LID(l) for (l,) in LIDs)
 
-    def rand(self, n=1, distinct=True, autopop=True):
+    def rand(
+        self, 
+        n: int = 1, 
+        distinct: bool = True, 
+        autopop: bool = True
+    ):
         '''
             Fetch random Loci
 
@@ -414,21 +390,19 @@ class Loci(Freezable):
             A list of n Locus objects
 
         '''
-        raise NotImplementedError
         import random
         loci = set()
-        LIDS = self._primary_LIDS()
-        if n > len(LIDS):
+        if n > len(self._LIDs):
             raise ValueError('More than the maximum loci in the database was requested')
         if distinct == True:
-            LIDs = random.sample(self._primary_LIDS(),n)
+            LIDs = random.sample(self._LIDs,n)
         else:
-            LIDS = random.choices(self._primary_LIDS(),n)
+            LIDS = random.choices(self._LIDs,n)
         loci = [self._get_locus_by_LID(x) for x in LIDs]
         if autopop and len(loci) == 1:
             loci = loci[0]
         return loci
-
+    
     @accepts_loci 
     def within(
         self, 
@@ -500,7 +474,6 @@ class Loci(Freezable):
             set if `ignore_strand` is also true. An
             exception will be raised.
         '''
-        raise NotImplementedError
         if ignore_strand and same_strand:
             raise ValueError('`ignore_strand` and `same_strand` cannot both be True')
         # set up variables to use based on 'partial' flag
@@ -527,11 +500,10 @@ class Loci(Freezable):
         else:
             raise StrandError
         query = f'''
-            SELECT l.LID FROM primary_loci p, loci l 
+            SELECT l.LID FROM loci l 
             INDEXED BY {index} 
             WHERE l.chromosome = '{locus.chromosome}' 
             AND {anchor} 
-            AND l.LID = p.LID 
             ORDER BY {order}; 
         '''
         LIDS = cur.execute(query)
@@ -603,7 +575,6 @@ class Loci(Freezable):
                     otherwise, the method will return loci
                     on either strand.
         '''
-        raise NotImplementedError
         # calculate the start and stop anchors 
         start,end = sorted([locus.stranded_start, locus.upstream(max_distance)])
         # The dummy locus needs to have the opposite "strand" so the loci
@@ -692,7 +663,6 @@ class Loci(Freezable):
                     otherwise, the method will return loci
                     on either strand.
         '''
-        raise NotImplementedError
         # calculate the start and stop anchors 
         start,end = sorted([locus.stranded_end, locus.downstream(max_distance)])
         # The dummy locus needs to have the same strand so that
@@ -737,7 +707,6 @@ class Loci(Freezable):
             n : int (default=infinite)
                 
         '''
-        raise NotImplementedError
         kwargs = {
             'n':n,
             'max_distance':max_distance,
@@ -771,14 +740,12 @@ class Loci(Freezable):
             -------
             Loci that encompass the input loci
         '''
-        raise NotImplementedError
         cur = self.m80.db.cursor()
         LIDS = cur.execute('''
-            SELECT l.LId FROM positions p, primary_loci l
-            WHERE p.chromosome = ?
-            AND p.start < ?
-            AND p.end > ?
-            AND p.LID = l.LID
+            SELECT LID FROM positions
+            WHERE chromosome = ?
+            AND start < ?
+            AND end > ?
         ''',(locus.chromosome,locus.start,locus.end))
         for x, in LIDS:
             yield self._get_locus_by_LID(x) 
@@ -790,7 +757,7 @@ class Loci(Freezable):
                 DROP TABLE IF EXISTS loci;
                 DROP TABLE IF EXISTS subloci;
                 DROP TABLE IF EXISTS loci_attrs;
-                DROP TABLE ID EXISTS subloci_attrs;
+                DROP TABLE IF EXISTS subloci_attrs;
                 DROP TABLE IF EXISTS positions;
             '''
         )
@@ -818,6 +785,12 @@ class Loci(Freezable):
 
                 name TEXT
             );
+            CREATE INDEX IF NOT EXISTS locus_LID on loci (LID);
+            CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
+            CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
+            CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
+            CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
+            CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
         ''')
 
         cur.execute('''
@@ -838,7 +811,10 @@ class Loci(Freezable):
                 frame INT,
 
                 name TEXT
-            )
+            );
+            CREATE INDEX IF NOT EXISTS subloci_LID ON subloci (LID);
+            CREATE INDEX IF NOT EXISTS subloci_root_LID ON subloci (root_LID);
+            CREATE INDEX IF NOT EXISTS subloci_parent_LID ON subloci (parent_LID);
         ''')
 
         cur.execute(
@@ -851,6 +827,8 @@ class Loci(Freezable):
                 FOREIGN KEY(LID) REFERENCES loci(LID),
                 UNIQUE(LID,key)
             );
+            CREATE INDEX IF NOT EXISTS loci_attrs_LID ON loci_attrs (LID);
+            CREATE INDEX IF NOT EXISTS loci_attrs_LID_key ON loci_attrs (LID,key);
             '''
         )
 
@@ -864,6 +842,8 @@ class Loci(Freezable):
                 FOREIGN KEY(LID) REFERENCES subloci(LID),
                 UNIQUE(LID,key)
             );
+            CREATE INDEX IF NOT EXISTS subloci_attrs_LID ON subloci_attrs (LID);
+            CREATE INDEX IF NOT EXISTS subloci_attrs_LID_key ON subloci_attrs (LID,key);
             '''
         )
 
@@ -880,19 +860,9 @@ class Loci(Freezable):
         '''
         )
 
-        cur.execute('''
-            CREATE INDEX IF NOT EXISTS locus_id ON loci (name);
-            CREATE INDEX IF NOT EXISTS locus_chromosome ON loci (chromosome);
-            CREATE INDEX IF NOT EXISTS locus_start ON loci (start);
-            CREATE INDEX IF NOT EXISTS locus_end ON loci (end);
-            CREATE INDEX IF NOT EXISTS locus_feature_type ON loci (feature_type);
-            '''
-        )
-
     # --------------------------------------------------
     #       factory methods
     # --------------------------------------------------
-
     @classmethod
     def from_gff(
         cls,
@@ -902,7 +872,9 @@ class Loci(Freezable):
         basedir: Optional[str] = None,
         ID_attr: str = "ID", 
         parent_attr: str = 'Parent',
-        attr_split: str = "="
+        attr_split: str = "=",
+        overwrite: bool = False,
+        skip_feature_types: Optional[List[str]] = None
     ) -> "Loci":
         '''
             Create a new Loci object from a GFF file.
@@ -921,10 +893,18 @@ class Loci(Freezable):
                 the Locus
             attr_split : str (default: '=')
                 The delimiter for keys and values in the attribute column
+            overwrite : bool (default: False)
+                If True, any existing dataset with this name will be
+                deleted prior to building.
+            skip_features_types : Optional[List[str]]
+                Optionally, provide a list of feature_types to skip during the
+                import. For instance, some GFFs will provide features for 
+                Chromosomes, which can lead to strange behaviors.
         '''
         gff_file = Path(gff_file)
+        if overwrite:
+            m80.Tools.delete('Loci',name)
         # Do some checks
-        import minus80 as m80
         if m80.Tools.available('Loci',name):
             raise ValueError(
                 f'Loci.{name} exists. Cannot use factory '
@@ -938,8 +918,10 @@ class Loci(Freezable):
             str(gff_file),
             ID_attr=ID_attr,
             parent_attr=parent_attr,
-            attr_split=attr_split
+            attr_split=attr_split,
+            skip_feature_types=skip_feature_types
         )
+        return loci
 
     @classmethod
     def filtered_loci(
@@ -966,7 +948,6 @@ class Loci(Freezable):
             basedir : Optional[str]
                 
         '''
-        raise NotImplementedError
         # Do some checks
         import minus80 as m80
         if m80.Tools.available('Loci',name):
