@@ -67,23 +67,23 @@ def realLocus():
 def simpleLoci():
     m80tools.delete('Loci','simpleLoci')
     # Create a Locus
-    a = Locus(1,100,150, id='gene_a')
+    a = lp.Locus(1,100,150, id='gene_a')
     # Create a couple more!
-    b = Locus(1,160,175, id='gene_b')
-    c = Locus(1,180,200, id='gene_c')
-    d = Locus(1,210,300, id='gene_d')
-    e = Locus(2,100,150, id='gene_e')
+    b = lp.Locus(1,160,175, id='gene_b')
+    c = lp.Locus(1,180,200, id='gene_c')
+    d = lp.Locus(1,210,300, id='gene_d')
+    e = lp.Locus(2,100,150, id='gene_e')
 
-    x = Loci('simpleLoci')
+    x = lp.Loci('simpleLoci')
     x.add_loci([a,b,c,d,e])
     return x
 
 @pytest.fixture(scope="module")
 def testRefGen():
-    # We have to build it
     if m80tools.available('Loci','Zm5bFGS'):
-        x =  Loci('Zm5bFGS')
+        x =  lp.Loci('Zm5bFGS')
     else:
+        # We have to build it
         m80tools.delete('Loci','Zm5bFGS')
         gff = os.path.expanduser(
             os.path.join(
@@ -91,12 +91,11 @@ def testRefGen():
                 'ZmB73_5b_FGS.gff.gz'
             )
         )
-        x = Loci('Zm5bFGS')
-        if len(x) == 0:
-            x.import_gff(  
-                gff
-            )
-    x.set_primary_feature_type('gene')
+        x = lp.Loci.from_gff(
+            'Zm5bFGS',
+            gff,
+            skip_feature_types=['chromosome']
+        )
     return x
 
 
@@ -109,7 +108,7 @@ def m80_Fasta():
     '''
     # delete the onl
     m80tools.delete('Fasta','ACGT')
-    f = Fasta.from_file('ACGT','raw/ACGT.fasta')
+    f = lp.Fasta.from_file('ACGT','raw/ACGT.fasta')
     return True
 
 
@@ -117,11 +116,11 @@ def m80_Fasta():
 def smpl_fasta():                                                                  
     ''' A simple fasta that agrees with smpl_annot'''                           
     m80tools.delete('Fasta','smpl_fasta')
-    fasta = Fasta('smpl_fasta')                                                             
-    chr1 = Chromosome('chr1','A'*500000)                                                  
-    chr2 = Chromosome('chr2','C'*500000)                                               
-    chr3 = Chromosome('chr3','G'*500000)                                               
-    chr4 = Chromosome('chr4','T'*500000)                                                  
+    fasta = lp.Fasta('smpl_fasta')                                                             
+    chr1 = lp.Chromosome('chr1','A'*500000)                                                  
+    chr2 = lp.Chromosome('chr2','C'*500000)                                               
+    chr3 = lp.Chromosome('chr3','G'*500000)                                               
+    chr4 = lp.Chromosome('chr4','T'*500000)                                                  
     fasta.add_chrom(chr1)                                                
     fasta.add_chrom(chr2)                                                
     fasta.add_chrom(chr3)                                                
