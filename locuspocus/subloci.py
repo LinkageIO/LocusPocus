@@ -20,7 +20,7 @@ class SubLoci():
         else:
             return sorted(self) == sorted(other)
 
-    def __iter__(self) -> Generator['Locus']:
+    def __iter__(self) -> Generator['Locus',None,None]:
         if self.empty:
             return (x for x in [])
         return (x for x in self._loci)
@@ -42,8 +42,8 @@ class SubLoci():
 
     def __repr__(self) -> str:
         if len(self) == 0 or self.empty:
-            return "None"
-        return f"[{len(self)} subloci]"
+            return "[]"
+        return '[\n'+'\t\n'.join([repr(x) for x in self])+'\n]'
 
     def find(
         self,
@@ -59,7 +59,10 @@ class SubLoci():
                 return l
         return None
 
-    def traverse(self) -> Generator['Locus']:
+    def traverse(
+        self,
+        mode='depth'
+    ) -> Generator['Locus',None,None]:
         '''
             Perform a depth first traversal of subloci
         '''
