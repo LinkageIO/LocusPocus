@@ -8,11 +8,11 @@ from locuspocus.exceptions import StrandError,ChromosomeError
 
 @pytest.fixture
 def simple_Locus():
-    return Locus(1,100,200,attrs={'foo':'bar'}) 
+    return Locus('1',100,200,attrs={'foo':'bar'}) 
 
 def test_initialization(simple_Locus):
     # numeric chromosomes
-    assert simple_Locus.chromosome == 1
+    assert simple_Locus.chromosome == '1'
     assert simple_Locus.start == 100
     assert simple_Locus.end == 200
     assert len(simple_Locus) == 101
