@@ -12,20 +12,17 @@ import minus80 as m80
 '''
 
 NUM_GENES = 39656
-NUM_CDS = 292257
 
 def test_init(testRefGen):
-    assert testRefGen
-
-def test_primary_LIDS(testRefGen):
-    'make sure the internal _primary_LIDS method works'
-    with testRefGen.filter_feature_type('gene'):
-        assert len(testRefGen._primary_LIDS()) == NUM_GENES
+    try :
+        testRefGen
+        return True
+    except NameError:
+        return False
 
 def test_len(testRefGen):
     'quick check to make sure that the refgen reports the correct number of features'
-    with testRefGen.filter_feature_type('gene'):
-        assert len(testRefGen) == NUM_GENES
+    assert len(testRefGen) == NUM_GENES
 
 def test_get_locus_by_LID(testRefGen):
     'make sure that fetching a locus by its LID yields the same locus'
@@ -130,24 +127,6 @@ def test_iter(testRefGen):
     for locus in testRefGen:
         i += 1
     assert i == NUM_GENES
-
-def test_filter_feature_type_context_manager(testRefGen):
-    # Check to see we are in gene space
-    prev_len = len(testRefGen)
-    # temporarily conver to CDS
-    with testRefGen.filter_feature_type('CDS'):
-        assert len(testRefGen) == NUM_CDS
-    # assert we didn't need to do anything to switch back
-    assert len(testRefGen) == prev_len
-
-def test_set_primary_feature_type(testRefGen):
-    testRefGen.set_primary_feature_type('gene')
-    assert len(testRefGen) == NUM_GENES
-    testRefGen.set_primary_feature_type('CDS')
-    assert len(testRefGen) == NUM_CDS
-    # switch back to gene
-    testRefGen.set_primary_feature_type('gene')
-    assert len(testRefGen) == NUM_GENES
 
 def test_rand(testRefGen):
     'test instance type'
