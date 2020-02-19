@@ -1,7 +1,12 @@
 #!/usr/bin/python3
-from collections import defaultdict
-from dataclasses import dataclass,field,InitVar,FrozenInstanceError
-from itertools import chain
+
+import re
+import math
+import hashlib
+import locuspocus
+
+import numpy as np
+
 from typing import (
     Union, Any, List, Optional, 
     cast, Callable, Iterable
@@ -15,18 +20,9 @@ from .exceptions import (
 from .subloci import SubLoci
 from .locusattrs import LocusAttrs
 
-import re
-import math
-import locuspocus
-import dataclasses
-
-import pandas as pd
-import numpy as np
 
 __all__ = ['Locus']
 
-
-@dataclass()
 class Locus:
 
     def __init__(
@@ -51,7 +47,7 @@ class Locus:
         self.feature_type = str(feature_type)
         self.strand = str(strand)
         self.frame = frame
-        self.name = str(name)
+        self.name = name
 
         self.attrs = LocusAttrs(attrs)
         self.subloci = SubLoci(subloci)
@@ -71,6 +67,36 @@ class Locus:
             return True
         else:
             return False
+
+    def __hash__(self):
+        '''
+            Convert the locus to a hash, uses md5. The hash
+            is computed using the *core* properties of the 
+            Locus, i.e. changing any attrs will not change 
+            the hash value.
+
+            Parameters
+            ----------
+            None
+            Returns
+            -------
+            int : md5 hash of locus
+        '''
+        field_list = [str(x) for x in (
+            self.chromosome,
+            self.start,
+            self.end,
+            self.source,
+            self.feature_type,
+            self.strand,
+            self.frame,
+            self.name
+        )]
+        subloci_list = [str(hash(x)) for x in self.subloci]
+        # Create a full string
+        loc_string  = "_".join(field_list + subloci_list) # attr_list + subloci_list)
+        digest = hashlib.md5(str.encode(loc_string)).hexdigest()
+        return int(digest, base=16)
 
 
     def __len__(self):
@@ -109,7 +135,7 @@ class Locus:
             f"frame='{self.frame}',"
             f"name='{self.name}',"
             f"attrs={self.attrs},"
-            f"subloci={self.subloci}"
+            f"subloci=[{len(self.subloci)} subloci]"
             f")"
         )
 
