@@ -396,7 +396,7 @@ class Locus:
             strand,
             frame,
             attributes,
-        ) = line.strip().split()
+        ) = line.strip().split("\t",maxsplit=8)
         # Cast data into appropriate types
         strand = None if strand == '.' else strand
         frame = None if frame == '.' else int(frame)
