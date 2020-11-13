@@ -306,7 +306,7 @@ class Loci(Freezable):
             # skip comment lines
             if line.startswith("#"):
                 continue
-            locus = Locus.from_gff_line(line) 
+            locus = Locus.from_gff_line(line, ID_attr=ID_attr, parent_attr=parent_attr, attr_split=attr_split)
             # Check to see if we are in a top level locus
             if skip_feature_types and locus.feature_type in skip_feature_types:
                 continue
