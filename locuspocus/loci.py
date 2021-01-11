@@ -1,10 +1,9 @@
 #!/usr/bin/python3
+import apsw
 import gzip
 import random
 import logging
-import itertools
 
-import scipy as sp
 import numpy as np
 import minus80 as m80
 
@@ -14,13 +13,11 @@ from typing import (
 
 from pathlib import Path
 from minus80 import Freezable
-from collections.abc import Iterable
-from functools import lru_cache,wraps
-from contextlib import contextmanager
+from functools import wraps
 
 from .locus import Locus
 from .locusview import LocusView
-from .exceptions import ZeroWindowError,MissingLocusError,StrandError
+from .exceptions import MissingLocusError,StrandError
 
 __all__ = ['Loci']
 
@@ -226,8 +223,8 @@ class Loci(Freezable):
         self,
         root_LID: int,
         parent_LID: int,
-        subloci: "SubLoci",
-        cur: Optional["Cursor"] = None
+        subloci: "Loci",
+        cur: Optional[apsw.Connection.cursor] = None
     ):
         if subloci.empty:
             return None
@@ -299,7 +296,6 @@ class Loci(Freezable):
             IN = open(filename, "r")
         loci = []
         current_locus = None
-        name_index = {}
         total_loci = 0
         for i,line in enumerate(IN):
             total_loci += 1
@@ -343,9 +339,9 @@ class Loci(Freezable):
         '''
         try:
             # If we can get an LID, it exists
-            LID = self._get_LID(locus)
+            self._get_LID(locus)
             return True
-        except MissingLocusError as e:
+        except MissingLocusError:
             return False
 
     def __getitem__(self, item):
@@ -390,14 +386,13 @@ class Loci(Freezable):
             A list of n Locus objects
 
         '''
-        import random
         loci = set()
         if n > len(self._LIDs):
             raise ValueError('More than the maximum loci in the database was requested')
         if distinct == True:
             LIDs = random.sample(self._LIDs,n)
         else:
-            LIDS = random.choices(self._LIDs,n)
+            LIDs = random.choices(self._LIDs,n)
         loci = [self._get_locus_by_LID(x) for x in LIDs]
         if autopop and len(loci) == 1:
             loci = loci[0]
@@ -949,12 +944,12 @@ class Loci(Freezable):
                 
         '''
         # Do some checks
-        import minus80 as m80
         if m80.Tools.available('Loci',name):
             raise ValueError(
                 f'Loci.{name} exists. Cannot use factory '
                 f'methods on existing datasets.'
             )
+        # Create a new, empty loci object
         filtered_loci = cls(name, basedir=basedir)
 
         cur = source_loci.m80.db.cursor()
