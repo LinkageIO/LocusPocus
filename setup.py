@@ -4,7 +4,7 @@ import io
 import os
 import re
 
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, find_packages
 
 def read(*names, **kwargs):
     with io.open(
@@ -72,7 +72,7 @@ setup(
         'setuptools>=18.0',
     ],
     install_requires = [
-        'minus80>=1.0.0',
+        'minus80>=2.0.0',
         'numpy>=1.14.3',
         'anytree==2.6.0',
         'scipy>=0.19.0'
