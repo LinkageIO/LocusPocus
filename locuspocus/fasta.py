@@ -30,7 +30,7 @@ class Fasta(Freezable):
         log.addHandler(handler)                                                         
         log.setLevel(logging.INFO)          
 
-    def __init__(self,name,basedir=None):
+    def __init__(self,name,rootdir=None):
         '''
             Load a Fasta object from the Minus80.
             Parameters
@@ -41,7 +41,7 @@ class Fasta(Freezable):
             -------
             A Fasta object
         '''
-        super().__init__(name,basedir=basedir)
+        super().__init__(name,rootdir=rootdir)
         # Load up from the database
         self._initialize_tables()
 
@@ -149,11 +149,11 @@ class Fasta(Freezable):
         self.__getitem__.cache_clear()
 
     @classmethod
-    def from_file(cls,name,fasta_file,replace=False,basedir=None):
+    def from_file(cls,name,fasta_file,replace=False,rootdir=None):
         '''
             Create a Fasta object from a file.
         '''    
-        self = cls(name,basedir=basedir)
+        self = cls(name,rootdir=rootdir)
         with RawFile(fasta_file) as IN, self.m80.db.bulk_transaction() as cur: 
             cur_chrom = None
             seqs = []
