@@ -57,7 +57,7 @@ class Loci(Freezable):
     def __init__(
             self, 
             name: str, 
-            basedir: Optional[str] = None
+            rootdir: Optional[str] = None
         ):
         '''
             Initialize a new Locus object
@@ -67,12 +67,12 @@ class Loci(Freezable):
 
             name : str 
                 The name of the now Loci object
-            basedir : str
+            rootdir : str
                 The base directory to store the files related to the dataset
                 If not specified, the default will be taken from the config file
         '''
         # set up the freezable API
-        super().__init__(name, basedir=basedir)
+        super().__init__(name, rootdir=rootdir)
         self.name = name
         self._initialize_tables()
         self._cached_LIDs = None
@@ -805,7 +805,7 @@ class Loci(Freezable):
                 strand TEXT,
                 frame INT,
 
-                name TEXT
+                name TEXT 
             );
             CREATE INDEX IF NOT EXISTS subloci_LID ON subloci (LID);
             CREATE INDEX IF NOT EXISTS subloci_root_LID ON subloci (root_LID);
@@ -864,7 +864,7 @@ class Loci(Freezable):
         name: str,
         gff_file: str, 
         /,
-        basedir: Optional[str] = None,
+        rootdir: Optional[str] = None,
         ID_attr: str = "ID", 
         parent_attr: str = 'Parent',
         attr_split: str = "=",
@@ -900,7 +900,7 @@ class Loci(Freezable):
         if overwrite:
             m80.Tools.delete('Loci',name)
         # Do some checks
-        if m80.Tools.available('Loci',name):
+        if m80.exists('Loci',name):
             raise ValueError(
                 f'Loci.{name} exists. Cannot use factory '
                 f'methods on existing datasets.'
@@ -908,7 +908,7 @@ class Loci(Freezable):
         if not gff_file.exists():
             raise FileNotFoundError(f"{gff_file} does not exist")
         # Create and import the features
-        loci = cls(name, basedir=basedir)
+        loci = cls(name, rootdir=rootdir)
         loci.import_gff(
             str(gff_file),
             ID_attr=ID_attr,
@@ -919,13 +919,12 @@ class Loci(Freezable):
         return loci
 
     @classmethod
-    def filtered_loci(
+    def from_loci(
         cls,
         name: str,
         source_loci: "Loci",
-        names: List[str],
         /,
-        basedir: Optional[str] = None,
+        rootdir: Optional[str] = None,
 
     ) -> "Loci":
         '''
@@ -940,22 +939,20 @@ class Loci(Freezable):
                 The Loci object to filter from
             names : List[str]
                 A list of names to filter from the source Loci
-            basedir : Optional[str]
+            rootdir : Optional[str]
                 
         '''
         # Do some checks
-        if m80.Tools.available('Loci',name):
+        if m80.exists('Loci',name):
             raise ValueError(
                 f'Loci.{name} exists. Cannot use factory '
                 f'methods on existing datasets.'
             )
-        # Create a new, empty loci object
-        filtered_loci = cls(name, basedir=basedir)
 
-        cur = source_loci.m80.db.cursor()
-        # Top level loci
-        for (LID,) in cur.executemany(
-            'SELECT LID from loci WHERE name = ?',((name,) for name in names)        
-        ): 
-            pass
-    
+        loci = cls(name, rootdir=rootdir)
+   
+        with loci.m80.db.bulk_transaction() as cur:
+            for l in source_loci:
+                loci.add_locus(l,cur=cur)
+        return loci
+
