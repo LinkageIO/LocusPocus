@@ -15,7 +15,7 @@ class MissingLocusError(Exception): # pragma: no cover
     def __init__(self,expr=None,message=None):
         self.expr = expr
         self.message = (
-            f'Locus not present in RefLoci:{message}'
+            f'Locus not present in Loci:{message}'
         )
 
 class StrandError(Exception): #pragma: no cover

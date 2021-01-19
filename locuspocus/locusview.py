@@ -1,7 +1,5 @@
 
-from functools import wraps
 from .locus import Locus,LocusAttrs,SubLoci
-from .exceptions import *
 
 __all__ = ['LocusView']
 
@@ -67,8 +65,8 @@ class AttrsView(LocusAttrs):
         return val 
 
     def __setitem__(self,key,val):
-        cur = self._ref.m80.db.cursor()
-        cur.execute('''
+        cur = self.parent._ref.m80.db.cursor()
+        cur.execute(f'''
             INSERT OR REPLACE INTO {self.table}
             (LID,key,val)
             VALUES (?,?,?)
@@ -213,4 +211,3 @@ class LocusView(Locus):
 
     def add_sublocus(self,locus):
         raise NotImplementedError
-

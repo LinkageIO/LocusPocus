@@ -121,7 +121,7 @@ class Loci(Freezable):
             (LID,)
         ).fetchone()
         if lid_exists == 0:
-            raise MissingLocusError
+            raise MissingLocusError(f"Cannot find Locus for LID: {LID}")
         return LocusView(LID,self)
 
     def _get_LID(self,locus: Locus) -> int: #pragma: no cover
@@ -147,11 +147,11 @@ class Loci(Freezable):
                 (locus,)
             ).fetchone()
             if result is None:
-                raise MissingLocusError
+                raise MissingLocusError(f"Cannot find LID for Locus: {locus}")
             else:
                 LID = result[0]
         else:
-            raise MissingLocusError
+            raise MissingLocusError(f"Cannot find LID for Locus: {locus}")
         return LID
 
     def add_locus(
