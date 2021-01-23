@@ -1,7 +1,6 @@
-
-class LocusAttrs():
+class LocusAttrs:
     # a restricted dict interface to attributes
-    def __init__(self,attrs=None):
+    def __init__(self, attrs=None):
         self._attrs = attrs
 
     def __len__(self):
@@ -44,17 +43,17 @@ class LocusAttrs():
         else:
             return self._attrs.items()
 
-    def __contains__(self,key):
+    def __contains__(self, key):
         if self.empty:
             return False
         return key in self._attrs
 
-    def __getitem__(self,key):
+    def __getitem__(self, key):
         if self.empty:
             raise KeyError()
         return self._attrs[key]
 
-    def __setitem__(self,key,val):
+    def __setitem__(self, key, val):
         if self.empty:
             self._attrs = {}
         self._attrs[key] = val
@@ -63,5 +62,3 @@ class LocusAttrs():
         if self.empty:
             return repr({})
         return repr(self._attrs)
-
-

@@ -1,10 +1,9 @@
-from typing import (
-    Generator
-)
+from typing import Generator
 
-class SubLoci():
+
+class SubLoci:
     # A restricted list interface to subloci
-    def __init__(self,loci=None):
+    def __init__(self, loci=None):
         self._loci = loci
 
     @property
@@ -20,17 +19,17 @@ class SubLoci():
         else:
             return sorted(self) == sorted(other)
 
-    def __iter__(self) -> Generator['Locus',None,None]:
+    def __iter__(self) -> Generator["Locus", None, None]:
         if self.empty:
             return (x for x in [])
         return (x for x in self._loci)
 
-    def add(self, locus: 'Locus') -> None:
+    def add(self, locus: "Locus") -> None:
         if self.empty:
             self._loci = []
         self._loci.append(locus)
 
-    def __getitem__(self,index: int) -> "Locus":
+    def __getitem__(self, index: int) -> "Locus":
         if self.empty:
             raise IndexError
         return self._loci[index]
@@ -43,15 +42,12 @@ class SubLoci():
     def __repr__(self) -> str:
         if len(self) == 0 or self.empty:
             return "[]"
-        return '[\n'+'\t\n'.join([repr(x) for x in self])+'\n]'
+        return "[\n" + "\t\n".join([repr(x) for x in self]) + "\n]"
 
-    def find(
-        self,
-        name
-    ) -> "Locus":
-        '''
-            Find a sublocus by its name.
-        '''
+    def find(self, name) -> "Locus":
+        """
+        Find a sublocus by its name.
+        """
         if self.empty:
             return None
         for l in self.traverse():
@@ -59,17 +55,12 @@ class SubLoci():
                 return l
         return None
 
-    def traverse(
-        self,
-        mode='depth'
-    ) -> Generator['Locus',None,None]:
-        '''
-            Perform a depth first traversal of subloci
-        '''
+    def traverse(self, mode="depth") -> Generator["Locus", None, None]:
+        """
+        Perform a depth first traversal of subloci
+        """
         if self.empty:
             return None
         for l in self:
             yield l
             yield from l.subloci.traverse()
-
-
