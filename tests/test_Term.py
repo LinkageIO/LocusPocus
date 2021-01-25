@@ -1,7 +1,5 @@
 import pytest
-from locuspocus import Locus, Loci, Term
-from locuspocus.exceptions import *
-import minus80 as m80
+from locuspocus import Locus, Term
 from dataclasses import FrozenInstanceError
 
 
@@ -36,10 +34,6 @@ def test_term_loci(t):
 def test_term_attrs(t):
     assert t.attrs["foo"] == "bar"
     assert t.attrs["baz"] == "bat"
-
-
-def test_no_parent(t):
-    assert t.parent is None
 
 
 def test_frozen(t):
