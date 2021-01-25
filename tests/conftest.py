@@ -121,3 +121,18 @@ def smpl_fasta():
     fasta._add_nickname("chr1", "CHR1")
     fasta._add_attribute("chr1", "foobar")
     return fasta
+
+@pytest.fixture(scope="module")
+def testOnt():
+    if not m80.exists('Ontology','testOnt'):
+        loci = [
+            lp.Locus(1,1,1), lp.Locus(2,2,2), lp.Locus(3,3,3), lp.Locus(4,4,4), lp.Locus(5,5,5),
+            lp.Locus(6,6,6), lp.Locus(7,7,7), lp.Locus(8,8,8), lp.Locus(9,9,9), lp.Locus(10,10,10)
+        ]
+        terms = []
+        for i in range(1,11):
+            terms.append(lp.Term(f"term_{i}",loci=loci[0:i]))
+        testOnt = lp.Ontology.from_terms("testOnt", terms) 
+    else:
+        testOnt = lp.Ontology("testOnt") 
+    return testOnt
