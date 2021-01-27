@@ -36,12 +36,7 @@ class Term:
         self.attrs = dict() 
         if attrs is not None:
             for k,v in attrs.items():
-                if isinstance(v,(int,float,str)):
-                    self.attrs[k] = [v]
-                elif isinstance(v,list) and all([isinstance(_,(int,float,str)) for _ in v]):
-                    self.attrs[k] = v
-                else:
-                    raise TypeError("Attrs vals must be one of OR a list of: int,float,str")
+                self[k] = v
 
     def __len__(self):
         """
@@ -57,8 +52,16 @@ class Term:
 
     def __setitem__(self, key, val):
         self.attrs[key] = [val]
+        if isinstance(val,(int,float,str)):
+            self.attrs[key] = [val]
+        elif isinstance(val,list) and all([isinstance(_,(int,float,str)) for _ in val]):
+            self.attrs[key] = val
+        else:
+            raise TypeError("Attrs vals must be one of OR a list of: int,float,str")
 
     def attr_append(self, key, val):
+        if not isinstance(val,(int,float,str)):
+            raise TypeError("Attrs vals must be one of: int,float,str")
         if key not in self.attrs:
             self.attrs[key] = []
         self.attrs[key].append(val)
@@ -68,6 +71,8 @@ class Term:
         Adds a locus to the Term.
         """
         self.loci.add(locus)
+
+
 
     def nearby_loci(self, locus, max_distance):
         """
@@ -170,3 +175,6 @@ class Term:
             )[0]
             for locus in self.effective_loci(window_size=window_size)
         ]
+
+    def __repr__(self):
+        return f"Term('{self.name}', desc='{self.desc}')"
