@@ -13,6 +13,7 @@ from pandas import DataFrame
 from scipy.stats import hypergeom
 from functools import lru_cache
 from collections import OrderedDict, defaultdict
+from itertools import chain
 
 from typing import Optional, Iterable, List
 
@@ -330,6 +331,25 @@ class Ontology(Freezable):
         else:
             return terms
 
+    def parents(self, term, parent_attr='is_a'):
+        """
+            Return an iterable containing the parents of a term.
+            Parents are determined via the is_a property of the term.
+
+            Parameters
+            ----------
+            term : GOTerm
+
+            Returns
+            -------
+            An iterable containing the parents
+            NOTE: note guaranteed to be in order NOR guaranteed 
+            to not contain duplicates
+        """
+        for parent in term.attrs[parent_attr]:
+            yield self[parent]
+            yield from self.parents(parent, parent_attr=parent_attr)
+
     def enrichment(
         self,
         loci,
@@ -534,6 +554,8 @@ class Ontology(Freezable):
         )
         cur.execute("CREATE INDEX IF NOT EXISTS term_index ON terms (name)")
         cur.execute("CREATE INDEX IF NOT EXISTS loci_index ON term_loci (TID,LID)")
+        cur.execute("CREATE INDEX IF NOT EXISTS loci_attrs ON term_attrs (TID)")
+        cur.execute("CREATE INDEX IF NOT EXISTS loci_attr_key ON term_attrs (key)")
 
     def _nuke_tables(self):
         cur = self.m80.db.cursor()
@@ -561,63 +583,78 @@ class Ontology(Freezable):
         """
         # Importing the obo information
         log.info(f"Importing OBO: {obo_file}")
-        term = None
         terms = []
-        isa_re = re.compile("is_a: (.*) !.*")
+
+        section = None
+        name = None
+        desc = None
+        attrs = defaultdict(list)
+
         with rawFile(obo_file) as INOBO:
             for line in INOBO:
                 line = line.strip()
-                if line.startswith("id: "):
-                    if term is not None:
-                        terms.append(term)
+                # Check to see if we have everything to add a term
+                if line == "":
+                    # NOTE: this needs to be separate if statements to avoid elif'ing on empty lines
+                    if section == "[Term]":
+                        terms.append(Term(name,desc=desc,attrs=attrs))
+                        section,name,desc = None,None,None
+                        attrs = defaultdict(list)
+                # e.g. section line: [Term]
+                elif line.startswith('[') and line.endswith(']'):
+                    section = line
+                else:
+                    key,val = line.split(": ", maxsplit=1)
+                    if " ! " in val:
+                        val = val.split(" ! ", maxsplit=1)[0]
                     # A GO Term id is a name
-                    name = line.replace("id: ", "")
-                    term = Term(name)
-                elif line.startswith("name: "):
+                    if key == "id":
+                        name = val
                     # A GO Term name is a desc
-                    desc = line.replace("name: ", "")
-                    term.desc = desc
-                elif line.startswith("namespace: "):
-                    term.attr_append("namespace", line.replace("namespace: ", ""))
-                elif line.startswith("alt_id: "):
-                    alt_id = line.replace("alt_id: ", "")
-                    term.attr_append('alt_id', alt_id)
-                elif line.startswith("def: "):
-                    term.desc += line.replace("def: ", "")
-                elif line.startswith("comment: "):
-                    term.desc += line.replace("comment: ", "")
-                elif line.startswith("is_a: "):
-                    term.attr_append('is_a', isa_re.match(line).group(1))
-        terms.append(term)
+                    elif key == "name":
+                        desc = val
+                    else:
+                        attrs[key].append(val)
+        # Extract the children information
+        log.info("Adding children attrs")
+        rels = defaultdict(set)
+        for t in terms:
+            for is_a in t.attrs.get('is_a',[]):
+                rels[t.name].add(is_a) 
+        # Add children attrs to terms:
+        for t in terms:
+            if t.name in rels:
+                t['children'] = list(rels[t.name])
         return terms
 
     @staticmethod
-    def _parse_gene_term_map(
-        gene_map_file,
+    def _parse_locus_term_map(
+        locus_map_file,
         headers=True,
         go_col=1,
-        id_col=0
+        id_col=0,
+        sep="\t",
     ):
-        # Importing gene map information, and cross referencing with obo information
-        log.info("Importing Gene Map: {gene_map_file}")
-        genes = dict()
-        gene = ""
-        cur_term = ""
-        with rawFile(gene_map_file) as INMAP:
+        # Importing locus map information, and cross referencing with obo information
+        log.info(f"Importing Gene Map: {locus_map_file}")
+        mapping = dict()
+        locus = None
+        term = None
+        with rawFile(locus_map_file) as INMAP:
             if headers:
                 INMAP.readline()
             for line in INMAP.readlines():
                 if line.startswith("#") or line.startswith("!"):
                     continue
-                row = line.strip("\n").split("\t")
-                gene = row[id_col].split("_")[0].strip()
-                cur_term = row[go_col]
-                # Make a map between genes and associated GO terms
-                if gene not in genes:
-                    genes[gene] = set([cur_term])
+                row = line.strip("\n").split(sep)
+                locus = row[id_col].split("_")[0].strip()
+                term = row[go_col]
+                # Make a map between loci and associated GO terms
+                if term not in mapping:
+                    mapping[term] = set([locus])
                 else:
-                    genes[gene].add(cur_term)
-        return genes
+                    mapping[term].add(locus)
+        return mapping
 
     # --------------------------------------------------
     #       factory methods
@@ -673,7 +710,7 @@ class Ontology(Freezable):
         cls,
         name,
         obo_file,
-        gene_map_file,
+        locus_map_file,
         loci,
         /,
         go_col=1,
@@ -689,18 +726,18 @@ class Ontology(Freezable):
             The name of the camoco object to be stored in the database.
         obo_file : str
             Path to the obo file
-        gene_map_file : str
+        locus_map_file : str
             Path to the file which specifies what GO term each 
-            gene is a part of.
+            locus is a part of.
         loci : lp.Loci
             A Loci instance to act as a reference for the Loci in the dataset
         go_col : int (default: 1)
-            The index column for GO term in the gene_map_file
+            The index column for GO term in the locus_map_file
         id_col : int (default: 0)
-            The index column for gene id in the gene_map_file
+            The index column for locus id in the locus_map_file
         headers : bool (default: True)
             A flag indicating whether or not there is a header line
-            in the gene_map_file
+            in the locus_map_file
         rootdir : str
             The base directory to store the files related to the dataset
             If not specified, 
@@ -711,15 +748,35 @@ class Ontology(Freezable):
                 f"methods on existing datasets."
             )
         ont = cls(name, rootdir=rootdir)
+        # Define a helper function for extracting parents below
+        def parents(terms, term):
+            if "is_a" not in term.attrs:
+                return None
+            for t in term.attrs["is_a"]:
+                yield terms[t]
+                yield from parents(terms, terms[t]) 
+        # Assemble ontology in try block, if fail, delete broken dataset
         try:
+            terms = {term.name:term for term in ont._parse_obo(obo_file)}
+            idmap = ont._parse_locus_term_map(locus_map_file)
+            locimap = {l:loci[l] for l in set(chain(*idmap.values())) if l in loci} 
+            missing_terms = set()
+            # Start putting terms and loci together
+            log.info("Populating Terms with Loci")
+            for term_name,loci_names in idmap.items():
+                if term_name not in terms:
+                    missing_terms.add(term_name)
+                    continue
+                # Add the loci to the term
+                term_loci = [locimap[l] for l in loci_names if l in loci]
+                terms[term_name].loci.update(term_loci)
+                # For each GO idmap, propagate loci to parent terms
+                for parent in set(parents(terms,terms[term_name])):
+                    parent.loci.update(term_loci)
             # Store the loci information
             with ont.m80.db.bulk_transaction() as cur, ont.loci.m80.db.bulk_transaction() as lcur:
-                pass
-
-
-
-
-
+                for t in terms.values():
+                    ont.add_term(t, cursor=cur, loci_cursor=lcur)
         except Exception as e:
             m80.delete("Ontology", name, rootdir=rootdir)
             raise e
