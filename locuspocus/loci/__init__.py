@@ -11,7 +11,8 @@ from typing import List, Optional, Union
 
 from pathlib import Path
 from minus80 import Freezable
-from functools import wraps
+from functools import wraps, lru_cache
+
 
 from ..locus import Locus
 from .view import LocusView
@@ -118,6 +119,7 @@ class Loci(Freezable):
         except MissingLocusError:
             return False
 
+    @lru_cache(maxsize=2**16)
     def __getitem__(self, item):
         """
         A convenience method to extract a locus from
@@ -153,7 +155,7 @@ class Loci(Freezable):
         cur : a db cursor
             An optional cursor object to use. If none, a
             cursor will be created. If importing many
-            loci in a loop, use a bulk transaction.
+            loci in a loop, use a m80 bulk transaction.
 
         Returns
         -------
@@ -220,17 +222,18 @@ class Loci(Freezable):
         filename : str
             The path to the GFF file.
         ID_attr : str (default: ID)
-            The key in the attribute column which designates the ID or
-            name of the feature.
+            The key in the attribute column which designates the ID or name of
+            the feature.
         parent_attr : str (default: Parent)
-            The key in the attribute column which designates the Parent of
-            the Locus
+            The key in the attribute column which designates the Parent of the
+            Locus
         attr_split : str (default: '=')
             The delimiter for keys and values in the attribute column
         skip_feature_types : Optional[List[str]]
             Optionally, provide a list of feature_types to skip during the
             import. For instance, some GFFs will provide features for
             Chromosomes, which can lead to strange behaviors.
+
         """
         log.info(f"Importing Loci from {filename}")
         if filename.endswith(".gz"):
@@ -238,7 +241,7 @@ class Loci(Freezable):
         else:
             IN = open(filename, "r")
         loci = []
-        current_locus = None
+        idmap = {}
         total_loci = 0
         for i, line in enumerate(IN):
             total_loci += 1
@@ -248,15 +251,17 @@ class Loci(Freezable):
             locus = Locus.from_gff_line(
                 line, ID_attr=ID_attr, parent_attr=parent_attr, attr_split=attr_split
             )
+            # add the locus to the idmap so we can easily add subloci to it later
+            if locus.name is not None:
+                idmap[locus.name] = locus
             # Check to see if we are in a top level locus
             if skip_feature_types and locus.feature_type in skip_feature_types:
                 continue
             if parent_attr not in locus.attrs:
-                current_locus = locus
                 loci.append(locus)
             else:
                 # add the sublocus to the current locus
-                current_locus.add_sublocus(locus, find_parent=True)
+                idmap[locus[parent_attr]].add_sublocus(locus, find_parent=True)
         log.info((f"Found {len(loci)} loci, adding to database"))
         IN.close()
         with self.m80.db.bulk_transaction() as cur:
@@ -274,14 +279,13 @@ class Loci(Freezable):
         n : int (default=1)
             The number of random locus objects to fetch
         distinct : bool (default=True)
-            If True, the loci are all guaranteed to be distinct,
-            AKA, sampling without replacement. If False, the
-            sampling is with replacement so there may be
-            duplucates in the out output, especially if the number
+            If True, the loci are all guaranteed to be distinct, AKA, sampling
+            without replacement. If False, the sampling is with replacement so
+            there may be duplucates in the out output, especially if the number
             of n is high.
         autopop : bool (default: True)
-            If true and only 1 locus is requested, a Locus object
-            will be returned instead of a list (with a single element)
+            If true and only 1 locus is requested, a Locus object will be
+            returned instead of a list (with a single element)
 
         Returns
         -------
@@ -303,17 +307,15 @@ class Loci(Freezable):
     @accepts_loci
     def within(self, locus, partial=False, ignore_strand=False, same_strand=False):
         """
-        Returns the Loci that are within the start/stop boundaries
-        of an input locus.
+        Returns the Loci that are within the start/stop boundaries of an input
+        locus.
 
-        By default, the entire locus needs to be within the
-        coordinates of the input locus, however, this can be
-        toggled with the `partial` argument.
+        By default, the entire locus needs to be within the coordinates of the
+        input locus, however, this can be toggled with the `partial` argument.
 
-        NOTE: this loci are returned in order of 3' to 5'
-              based on the strand of the input locus. This
-              bahavior can be changed by using the `ignore_strand`
-              option.
+        NOTE: this loci are returned in order of 3' to 5' based on the strand
+        of the input locus. This bahavior can be changed by using the
+        `ignore_strand` option.
 
         __________________Ascii Example___________________________
         These features get returned (y: yes, n:no)
@@ -343,26 +345,20 @@ class Loci(Freezable):
         Parameters
         ----------
         locus : Locus
-            A locus defining the genomic interval to
-            extract loci within.
+            A locus defining the genomic interval to extract loci within.
         partial : bool (default=False)
-            When True, include loci that partially overlap.
-            See example ASCII above.
+            When True, include loci that partially overlap.  See example ASCII
+            above.
         ignore_strand : bool (default=False)
-            If ignore_strand is True, the method will
-            assume a (+) strand, otherwise it will
-            respect the strand of the input locus
-            in relation to the order the resulting
-            Loci are returned. See Ascii example.
-            Note: this cannot be True if same_strand
-            is also set to True, an exception will be
-            raised.
+            If ignore_strand is True, the method will assume a (+) strand,
+            otherwise it will respect the strand of the input locus in relation
+            to the order the resulting Loci are returned. See Ascii example.
+            Note: this cannot be True if same_strand is also set to True, an
+            exception will be raised.
         same_strand : bool (default: False)
-            If True, only Loci on the same strand
-            as the input locus will be returned,
-            otherwise, the method will return loci
-            on either strand. Note: this cannot be
-            set if `ignore_strand` is also true. An
+            If True, only Loci on the same strand as the input locus will be
+            returned, otherwise, the method will return loci on either strand.
+            Note: this cannot be set if `ignore_strand` is also true. An
             exception will be raised.
         """
         if ignore_strand and same_strand:
@@ -695,6 +691,7 @@ class Loci(Freezable):
             raise MissingLocusError(f"Cannot find Locus for LID: {LID}")
         return LocusView(LID, self)
 
+    @lru_cache(maxsize=2**16)
     def _get_LID(
         self, locus: Union[str, Locus], cursor=None
     ) -> int:  # pragma: no cover
@@ -872,7 +869,7 @@ class Loci(Freezable):
         ID_attr: str = "ID",
         parent_attr: str = "Parent",
         attr_split: str = "=",
-        overwrite: bool = False,
+        force: bool = False,
         skip_feature_types: Optional[List[str]] = None,
     ) -> "Loci":
         """
@@ -892,7 +889,7 @@ class Loci(Freezable):
             the Locus
         attr_split : str (default: '=')
             The delimiter for keys and values in the attribute column
-        overwrite : bool (default: False)
+        force : bool (default: False)
             If True, any existing dataset with this name will be
             deleted prior to building.
         skip_features_types : Optional[List[str]]
@@ -901,8 +898,9 @@ class Loci(Freezable):
             Chromosomes, which can lead to strange behaviors.
         """
         gff_file = Path(gff_file)
-        if overwrite:
-            m80.Tools.delete("Loci", name)
+        if force:
+            m80.delete("Loci", name)
+
         # Do some checks
         if m80.exists("Loci", name):
             raise ValueError(
@@ -912,15 +910,19 @@ class Loci(Freezable):
         if not gff_file.exists():
             raise FileNotFoundError(f"{gff_file} does not exist")
         # Create and import the features
-        loci = cls(name, rootdir=rootdir)
-        loci.import_gff(
-            str(gff_file),
-            ID_attr=ID_attr,
-            parent_attr=parent_attr,
-            attr_split=attr_split,
-            skip_feature_types=skip_feature_types,
-        )
-        return loci
+        try:
+            loci = cls(name, rootdir=rootdir)
+            loci.import_gff(
+                str(gff_file),
+                ID_attr=ID_attr,
+                parent_attr=parent_attr,
+                attr_split=attr_split,
+                skip_feature_types=skip_feature_types,
+            )
+            return loci
+        except Exception as e:
+            m80.delete("Loci", name)
+            raise e
 
     @classmethod
     def from_loci(
