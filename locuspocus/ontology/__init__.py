@@ -666,6 +666,7 @@ class Ontology(Freezable):
         name,
         terms,
         /,
+        force=False,
         rootdir: Optional[str] = None,
     ):
         """
@@ -687,6 +688,8 @@ class Ontology(Freezable):
             The base directory to store the files related to the dataset
             If not specified, 
         """
+        if force:
+            m80.delete("Ontology", name, rootdir=rootdir)
         # Do some checks
         if m80.exists("Ontology", name, rootdir=rootdir):
             raise ValueError(
@@ -716,6 +719,7 @@ class Ontology(Freezable):
         go_col=1,
         id_col=0,
         headers=True,
+        force=False,
         rootdir: Optional[str] = None,
     ):
         """ 
@@ -742,6 +746,8 @@ class Ontology(Freezable):
             The base directory to store the files related to the dataset
             If not specified, 
         """
+        if force:
+            m80.delete("Ontology", name)
         if m80.exists("Ontology", name, rootdir=rootdir):
             raise ValueError(
                 f"Ontology.{name} exists. Cannot use factory "
