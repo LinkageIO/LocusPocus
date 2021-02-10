@@ -1,21 +1,18 @@
 #!/usr/bin/python3
 
-import copy
 import logging
-import re
+import time
 
-import pandas as pd
 import minus80 as m80
 
 from minus80 import Freezable
 from minus80.Tools import rawFile
-from pandas import DataFrame
 from scipy.stats import hypergeom
 from functools import lru_cache
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from itertools import chain
 
-from typing import Optional, Iterable, List
+from typing import Optional, Iterable, List, Union
 
 from .term import Term
 from locuspocus import Loci
@@ -211,7 +208,7 @@ class Ontology(Freezable):
             ]
             attrs = defaultdict(list)
             for k, v in self.m80.db.cursor().execute(
-                """ SELECT key,val FROM term_attrs WHERE TId = ?""", (TID,)
+                """ SELECT key,val FROM term_attrs WHERE TID = ?""", (TID,)
             ):
                 attrs[k].append(v)
             return Term(name=name, desc=desc, loci=term_loci, attrs=attrs)
@@ -229,16 +226,14 @@ class Ontology(Freezable):
         Parameters
         ----------
         loci : Loci
-            The list of loci for which to retrieve
-            corresponding terms.
+            The list of loci for which to retrieve corresponding terms.
         min_term_size : int (default: 0)
-            The minimum term size for which to test enrichment. Useful
-            for filtering out very small terms that would be uninformative
-            (e.g. single gene terms)
+            The minimum term size to extract. Useful for filtering out very
+            small terms that would be uninformative (e.g. single gene terms)
         max_term_size : int (default: 10e10)
-            The maximum term size for which to test enrichment. Useful
-            for filtering out large terms that would otherwise be
-            uninformative (e.g. top level GO terms)
+            The maximum term size to extract. Useful for filtering out large
+            terms that would otherwise be uninformative (e.g. top level GO
+            terms)
 
         Returns
         -------
@@ -248,7 +243,7 @@ class Ontology(Freezable):
         LIDs = []
         for l in loci:
             try:
-                LIDs.append(self.loci._get_LID(l))
+                LIDs.append(self.loci._get_LID(l.name))
             except MissingLocusError:
                 continue
         # query the database
@@ -312,7 +307,7 @@ class Ontology(Freezable):
         TIDs = cur.execute(
             """ 
             SELECT DISTINCT(TID) FROM term_loci 
-            GROUP BY LID
+            GROUP BY TID
             HAVING COUNT(LID) >= ?
                 AND COUNT(LID) <= ?
             ORDER BY RANDOM() 
@@ -352,17 +347,17 @@ class Ontology(Freezable):
 
     def enrichment(
         self,
-        loci,
-        min_term_size=2,
-        max_term_size=300,
-        pval_cutoff=0.05,
-        num_universe=None,
-        return_table=False,
-        label=None,
-        include_genes=False,
-        bonferroni_correction=True,
-        min_overlap=1,
-    ):
+        target: Union[Term,"Ontology"],
+        /,
+        min_term_size: int = 2,
+        max_term_size: int = 10e10,
+        min_overlap: int = 1,
+        pval_cutoff: float = 0.05,
+        num_universe: Optional[int] = None,
+        bonferroni_correction: bool = True,
+        source_prefix: Optional[str] = None,
+        target_prefix: Optional[str] = None,
+    ) -> List[Term]:
         """
         Evaluates enrichment of loci within the locus list for terms within
         the ontology. NOTE: this only tests terms that have at least one
@@ -370,7 +365,7 @@ class Ontology(Freezable):
 
         Parameters
         ----------
-        locus_list : list of Locus *of* instance of Ontology
+        target : a single Term or an Ontology
             A list of loci for which to test enrichment. i.e. is there
             an over-representation of these loci within and the terms in
             the Ontology. If an ontology is passed, each term in the ontology
@@ -387,140 +382,104 @@ class Ontology(Freezable):
             The minimum term size for which to test enrichment. Useful
             for filtering out very small terms that would be uninformative
             (e.g. single gene terms)
+        min_overlap : int (default: 1)
+            The minimum overlap between genes in the term and genes in
+            the locus list. Increasing this value can minimize spurious
+            or uninformative terms
         num_universe : int (default: None)
             Use a custom universe size for the hypergeometric calculation,
             for instance if you have a reduced number of genes in a reference
             co-expression network. If None, the value will be calculated as
             the total number of distinct genes that are observed in the
-            ontology.
-        include_genes : bool (default: False)
-            Include comma delimited genes as a field
-        return_table : bool (default: False)
-            If True, return results as a data frame
-        label: str (default: None)
-            If a label is specified, it will be inlcuded in the results
-        min_overlap : int (default: 1)
-            The minimum overlap between genes in the term and genes in
-            the locus list. Increasing this value can minimize spurious
-            or uninformative terms
+        source_prefix: str (default: None)
+            A string prefixing the resulting Term name that allows for better labeling.
+            Useful for including source Coex or similar.
+        target_prefix: str (default: None)
+            A string prefixing the resulting Term name that allows for better labeling.
+            Useful for including source Coex or similar.
         """
-        if isinstance(loci, Ontology):
-            ontology = loci
-            log.info("Calculating enrichment for an  Ontology: {}", ontology.m80.name)
-            enrich = []
-            for term in ontology:
+        if isinstance(target, Ontology):
+            log.info(f"Calculating enrichment for an  Ontology: {target.m80.name}")
+            if num_universe is None:
+                num_universe = len({x.name for x in self.loci}.union({x.name for x in target.loci}))
+            enriched_terms = []
+            for term in target.terms(min_term_size=min_term_size,max_term_size=max_term_size):
                 e = self.enrichment(
-                    term.loci,
+                    term,
                     pval_cutoff=pval_cutoff,
                     max_term_size=max_term_size,
                     min_term_size=min_term_size,
                     num_universe=num_universe,
-                    return_table=return_table,
-                    label=term.id,
-                    include_genes=include_genes,
                     bonferroni_correction=bonferroni_correction,
                     min_overlap=min_overlap,
+                    source_prefix=source_prefix,
+                    target_prefix=target_prefix,
                 )
-                enrich.append(e)
-            if return_table:
-                return pd.concat(enrich)
-            else:
-                return enrich
-        # return a new copy of each
-        terms = [
-            copy.copy(term)
-            for term in self.terms_containing(
-                loci, min_term_size=min_term_size, max_term_size=max_term_size
-            )
-        ]
+                enriched_terms.extend(e)
+            return enriched_terms
+        if not isinstance(target, Term):
+            raise ValueError("Expected target to be either Ontology or Term")
+
         # Calculate the size of the Universe
         if num_universe is None:
-            num_universe = self.num_distinct_loci()
-        log.info(
-            "{}: Loci occur in {} terms, containing {} genes".format(
-                label, len(terms), num_universe
-            )
-        )
-        significant_terms = []
-        for term in terms:
-            term_genes = set(term.loci)
-            if len(term_genes) > max_term_size:
+            num_universe = len({x.name for x in self.loci}.union({x.name for x in target.loci}))
+
+        source_terms = self.terms_containing(
+            target.loci,
+            min_term_size=min_term_size,
+            max_term_size=max_term_size
+        ) 
+
+        enriched_terms = []
+        for source in source_terms:
+            # Calculate loci overlap
+            common_loci = source.loci.intersection(target.loci)
+            num_common = len(common_loci)
+            if num_common < min_overlap:
                 continue
-            num_common = len(term_genes.intersection(loci))
-            num_in_term = len(term_genes)
-            num_sampled = len(loci)
-            # the reason this is num_common - 1 is because we are looking for 1 - cdf
-            # and we need to greater than OR EQUAL TO num_common
-            # Look. Do this in ipython:
-            """
-                In [99]: probs = [hypergeom.pmf(x,100,5,10) for x in range(0,6)]
-                In [100]: probs
-                Out[100]: 
-                [0.58375236692612187,
-                 0.33939091100357333,
-                 0.070218809173150043,
-                 0.006383528106649855,
-                 0.00025103762217164457,
-                 3.3471682956218215e-06]
-                In [103]: 1-sum(probs[0:3]) 
-                # Get the probs of drawing 3 or more
-                Out[103]: 0.006637912897154763
-                # Remember slicing is exclusive for the end value
-                In [105]: hypergeom.sf(3,100,5,10)
-                # That aint right
-                Out[105]: 0.00025438479046726637
-                In [106]: hypergeom.sf(3-1,100,5,10)
-                # See Dog? You wnat num_common - 1
-                Out[106]: 0.0066379128971171221
-                # can we go back to drinking coffee now?
-            """
+            num_in_term = len(source)
+            num_sampled = len(target)
+            # the reason this is num_common - 1 is because we are looking for 1 - cdf and we need to greater than OR EQUAL TO num_common
             pval = hypergeom.sf(num_common - 1, num_universe, num_in_term, num_sampled)
-            if pval <= pval_cutoff and num_common >= min_overlap:
-                if label != None:
-                    term.attrs["label"] = label
-                term.attrs["hyper"] = OrderedDict(
-                    [
-                        ("pval", pval),
-                        ("term_tested", len(terms)),
-                        ("num_common", num_common),
-                        ("num_universe", num_universe),
-                        ("term_size", num_in_term),
-                        ("num_terms", len(self)),
-                        ("num_sampled", num_sampled),
-                    ]
-                )
-                if bonferroni_correction == True:
-                    # Right now this isn't true bonferroni, its only correcting for
-                    # the number of terms that had term genes in it
-                    if pval > pval_cutoff / len(terms):
-                        term.attrs["hyper"]["bonferroni"] = False
-                    else:
-                        term.attrs["hyper"]["bonferroni"] = True
-                term.attrs["pval"] = pval
-                if include_genes == True:
-                    term.attrs["hyper"]["genes"] = ",".join(
-                        [x.id for x in term_genes.intersection(loci)]
-                    )
-                significant_terms.append(term)
-        log.info(
-            "\t\tFound {} was significant for {} terms", label, len(significant_terms)
-        )
-        if return_table == True:
-            tbl = []
-            for x in significant_terms:
-                val = OrderedDict([("name", x.name), ("id", x.id)])
-                val.update(x.attrs["hyper"])
-                val.update(x.attrs)
-                del val["hyper"]
-                tbl.append(val)
-            tbl = DataFrame.from_records(tbl)
-            if label != None:
-                tbl["label"] = label
-            if len(tbl) > 0:
-                tbl = tbl.sort_values(by="pval")
-            return tbl
-        else:
-            return sorted(significant_terms, key=lambda x: x.attrs["pval"])
+            if pval > pval_cutoff:
+                continue
+            # Handle any prefix labels
+            source_name = source.name
+            target_name = target.name
+            if source_prefix:
+                source_name = f"{source_prefix}.{source_name}"
+            if target_prefix:
+                target_name = f"{target_prefix}.{target_name}"
+            enriched = Term(
+                f"{source_name}^{target_name}",
+                loci = common_loci,
+                attrs = {
+                    "pval": pval,
+                    # Store some information on source and target info
+                    "source_name": source.name,
+                    "source_size": len(source),
+                    "target_name": target.name,
+                    "target_size": len(target),
+                    # Store some info on the enrichment calculation
+                    "num_common": num_common,
+                    "num_universe": num_universe,
+                    "num_ontology_containing": len(source_terms), 
+                }
+            )
+            if source_prefix:
+                enriched["source_prefix"] = source_prefix
+            if target_prefix:
+                enriched["target_prefix"] = target_prefix
+
+            if bonferroni_correction == True:
+                # Right now this isn't true bonferroni, its only correcting for
+                # the number of terms that had term genes in it
+                if pval > pval_cutoff / len(source_terms):
+                    enriched["bonferroni"] = False
+                else:
+                    enriched["bonferroni"] = True
+            enriched_terms.append(enriched)
+        return enriched_terms
 
     # -----------------------------------------
     #       Internal Methods
@@ -553,13 +512,10 @@ class Ontology(Freezable):
         """
         )
         cur.execute("CREATE INDEX IF NOT EXISTS term_index ON terms (name)")
-        cur.execute("CREATE INDEX IF NOT EXISTS loci_index ON term_loci (TID,LID)")
+        cur.execute("CREATE INDEX IF NOT EXISTS term_loci_TID ON term_loci (TID)")
+        cur.execute("CREATE INDEX IF NOT EXISTS term_loci_LID ON term_loci (LID)")
         cur.execute("CREATE INDEX IF NOT EXISTS loci_attrs ON term_attrs (TID)")
         cur.execute("CREATE INDEX IF NOT EXISTS loci_attr_key ON term_attrs (key)")
-
-    def _nuke_tables(self):
-        cur = self.m80.db.cursor()
-        cur.execute("DELETE FROM terms; DELETE FROM term_loci;")
 
     # -----------------------------------------
     #       Static Methods
