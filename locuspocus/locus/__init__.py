@@ -45,6 +45,7 @@ class Locus:
         self.subloci = SubLoci(subloci)
 
     def __eq__(self, other):
+        return hash(self) == hash(other)
         if (
             self.chromosome == other.chromosome
             and self.start == other.start
@@ -55,7 +56,7 @@ class Locus:
             and self.frame == other.frame
             and self.name == other.name
             and self.attrs == other.attrs
-            and self.subloci == other.subloci
+            #and self.subloci == other.subloci
         ):
             return True
         else:
