@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import logging
-import time
 
 import minus80 as m80
 
@@ -354,7 +353,7 @@ class Ontology(Freezable):
         min_overlap: int = 1,
         pval_cutoff: float = 0.05,
         num_universe: Optional[int] = None,
-        bonferroni_correction: bool = True,
+        bonferroni_correction: Optional[bool] = True,
         source_prefix: Optional[str] = None,
         target_prefix: Optional[str] = None,
     ) -> List[Term]:
@@ -373,7 +372,8 @@ class Ontology(Freezable):
         pval_cutoff : float (default: 0.05)
             Report terms with a pval lower than this value
         bonferroni_correction : bool (default: True)
-            correct for testing multiple terms using Bonferroni correction
+            correct for testing multiple terms using Bonferroni correction. This is 
+            only valid when testing enrichment of Ontology.
         max_term_size : int (default: 300)
             The maximum term size for which to test enrichment. Useful
             for filtering out large terms that would otherwise be
@@ -416,6 +416,18 @@ class Ontology(Freezable):
                     target_prefix=target_prefix,
                 )
                 enriched_terms.extend(e)
+
+            if bonferroni_correction == True:
+                num_source_terms = self.num_terms(min_term_size=min_term_size, max_term_size=max_term_size)
+                num_target_terms = target.num_terms(min_term_size=min_term_size, max_term_size=max_term_size)
+                num_comparisons = num_source_terms * num_target_terms
+                bonferroni_pval = pval_cutoff / num_comparisons
+                log.info("Adjusting p-value cuttof for bonferroni:")
+                log.info(f"\tNum Source Terms: {num_source_terms}")
+                log.info(f"\tNum Target Terms: {num_target_terms}")
+                log.info(f"\tNum source x target tests: {num_comparisons}")
+                log.info(f"\t{pval_cutoff} / {num_comparisons} -> {bonferroni_pval}")
+                enriched_terms = [e for e in enriched_terms if e['pval'] <= bonferroni_pval]
             return enriched_terms
         if not isinstance(target, Term):
             raise ValueError("Expected target to be either Ontology or Term")
@@ -470,14 +482,6 @@ class Ontology(Freezable):
                 enriched["source_prefix"] = source_prefix
             if target_prefix:
                 enriched["target_prefix"] = target_prefix
-
-            if bonferroni_correction == True:
-                # Right now this isn't true bonferroni, its only correcting for
-                # the number of terms that had term genes in it
-                if pval > pval_cutoff / len(source_terms):
-                    enriched["bonferroni"] = False
-                else:
-                    enriched["bonferroni"] = True
             enriched_terms.append(enriched)
         return enriched_terms
 
