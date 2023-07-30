@@ -242,7 +242,7 @@ class Ontology(Freezable):
         LIDs = []
         for l in loci:
             try:
-                LIDs.append(self.loci._get_LID(l.name))
+                LIDs.append(self.loci._get_LID(l))
             except MissingLocusError:
                 continue
         # query the database

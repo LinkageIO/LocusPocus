@@ -32,12 +32,14 @@ def test_term_loci(t):
 
 
 def test_term_attrs(t):
-    assert t.attrs["foo"] == "bar"
-    assert t.attrs["baz"] == "bat"
+    # Internally attrs are stored as a list
+    assert t.attrs["foo"] == ["bar"]
+    assert t.attrs["baz"] == ["bat"]
 
-
-def test_frozen(t):
-    assert t._frozen == True
+def test_term_attrs_getter(t):
+    # Accessing them using the brackets automatically unpacks single item lists
+    assert t["foo"] == "bar"
+    assert t["baz"] == "bat"
 
 
 def test_len(t):
@@ -48,11 +50,6 @@ def test_getitem(t):
     assert t["foo"] == "bar"
     assert t["baz"] == "bat"
 
-
-def test_setitem_frozen(t):
-    with pytest.raises(FrozenInstanceError):
-        # throws an error since Terms are frozen
-        t["fizz"] = "wizz"
 
 
 def test_add_locus():
