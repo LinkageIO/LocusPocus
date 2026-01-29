@@ -1,6 +1,0 @@
-git+https://github.com/LinkageIO/Minus80.git
-scipy>=0.19
-coveralls>=1.2.0
-#pandas>=0.20
-cython>=0.16
-#numpy>=1.9
