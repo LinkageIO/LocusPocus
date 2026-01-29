@@ -1,0 +1,113 @@
+
+[project]
+name = "locuspocus"
+dynamic = ["version"]
+description = 'genetic coordinates so easy, it feels like magic!'
+readme = "README.md"
+requires-python = ">=3.12"
+license = "LicenseRef-Proprietary"
+keywords = []
+authors = [
+    { name = "Rob Schaefer", email = "rob@linkage.io" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+        "minus80 @ git+https://github.com/LinkageIO/Minus80",
+        "numpy>=1.14.3",
+        "anytree==2.6.0",
+        "scipy>=0.19.0",
+]
+
+[project.optional-dependencies]
+# Trying to use "compatible release" version specifiers
+# https://packaging.python.org/en/latest/specifications/version-specifiers/#id5
+
+spyder = [
+	"spyder-kernels==3.0.*",
+]
+
+dev = [
+    "assertpy ~= 1.1",
+    "autoflake ~= 2.3",
+    "black ~= 23.1",
+    "ipdb>=0.13.13",
+    "isort>=5.10",
+    "mamba ~= 0.11.3",
+    "pydocstyle>=6.0",
+    # test deps
+    "coverage[toml]>=6.5",
+    "pytest >= 8.3.5",
+    "pytest-cov",
+    "pytest-xprocess>=1.0.2",
+	"setuptools==80.9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true  # allows us using packages with git+ssh URLs
+
+[tool.hatch.envs.default]
+path = ".hatch"
+features = ["dev"]
+# python = "3.12" # Uncomment the following if you want to force python 3.12 for dev (and not automatically go to 3.13)
+
+[project.urls]
+Documentation = "https://github.com/linkageio/locuspocus.git"
+Issues = "https://github.com/linkageio/locuspocus.git"
+Source = "https://github.com/linkageio/locuspocus.git"
+
+[tool.hatch.version]
+path = "locuspocus/__about__.py"
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.13"]
+
+[tool.hatch.envs.types]
+dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:locuspocus tests}"
+
+[tool.coverage.run]
+source_pkgs = ["locuspocus", "tests"]
+branch = true
+parallel = true
+omit = [
+  "locuspocus/__about__.py",
+  "tests/*",
+]
+
+[tool.coverage.paths]
+locuspocus = ["locuspocus"]
+tests = ["tests" ]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
