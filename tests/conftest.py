@@ -87,7 +87,7 @@ def testRefGen():
     else:
         # We have to build it
         m80.delete("Loci", "Zm5bFGS")
-        gff = os.path.expanduser(os.path.join("raw", "ZmB73_5b_FGS.gff.gz"))
+        gff = os.path.expanduser(os.path.join("tests/raw", "ZmB73_5b_FGS.gff.gz"))
         x = lp.Loci.from_gff("Zm5bFGS", gff, skip_feature_types=["chromosome"])
     return x
 
@@ -101,7 +101,7 @@ def m80_Fasta():
     """
     # delete the onl
     m80.delete("Fasta", "ACGT")
-    lp.Fasta.from_file("ACGT", "raw/ACGT.fasta")
+    lp.Fasta.from_file("ACGT", "tests/raw/ACGT.fasta")
     return True
 
 

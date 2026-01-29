@@ -5,7 +5,7 @@ dynamic = ["version"]
 description = 'genetic coordinates so easy, it feels like magic!'
 readme = "README.md"
 requires-python = ">=3.12"
-license = "LicenseRef-Proprietary"
+license = "MIT"
 keywords = []
 authors = [
     { name = "Rob Schaefer", email = "rob@linkage.io" },
@@ -30,17 +30,12 @@ dependencies = [
 # Trying to use "compatible release" version specifiers
 # https://packaging.python.org/en/latest/specifications/version-specifiers/#id5
 
-spyder = [
-	"spyder-kernels==3.0.*",
-]
-
 dev = [
     "assertpy ~= 1.1",
     "autoflake ~= 2.3",
     "black ~= 23.1",
     "ipdb>=0.13.13",
     "isort>=5.10",
-    "mamba ~= 0.11.3",
     "pydocstyle>=6.0",
     # test deps
     "coverage[toml]>=6.5",

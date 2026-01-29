@@ -353,7 +353,7 @@ def test_encompassing_loci(testRefGen):
 def test_full_import_gff():
     if m80.exists("Loci", "ZmSmall"):
         m80.delete("Loci", "ZmSmall")
-    gff = os.path.expanduser(os.path.join("raw", "maize_small.gff"))
+    gff = os.path.expanduser(os.path.join("tests/raw", "maize_small.gff"))
     x = Loci("ZmSmall")
     x.import_gff(gff)
     m80.delete("Loci", "ZmSmall")
@@ -362,7 +362,7 @@ def test_full_import_gff():
 def test_import_gff_gzipped():
     if m80.exists("Loci", "ZmSmall"):
         m80.delete("Loci", "ZmSmall")
-    gff = os.path.expanduser(os.path.join("raw", "maize_small.gff.gz"))
+    gff = os.path.expanduser(os.path.join("tests/raw", "maize_small.gff.gz"))
     x = Loci("ZmSmall")
     x.import_gff(gff)
     m80.delete("Loci", "ZmSmall")
